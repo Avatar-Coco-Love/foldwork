@@ -1,0 +1,14 @@
+{
+  "name": "foldwork",
+  "version": "0.0.0",
+  "private": true,
+  "description": "A paper-folding roguelike puzzle game for the browser.",
+  "type": "module",
+  "scripts": {
+    "start": "node dev-server.js",
+    "test": "node tests/run.js"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
