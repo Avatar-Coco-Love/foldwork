@@ -4,6 +4,9 @@
 // frame is drawn on the next animation frame. Draw passes run in order;
 // later phases add passes (creatures, fold preview, fx) to PASSES instead of
 // growing one big draw function.
+//
+// Effects (fold animation, shake) are timed by render/fx.js; the renderer
+// only paints the player's current state (see setFx).
 
 import { computeLayout, cellOrigin } from './layout.js';
 import { getPalette, DEFAULT_PALETTE_ID } from './palette.js';
@@ -24,6 +27,7 @@ export function createRenderer(canvas, { paletteId = DEFAULT_PALETTE_ID } = {}) 
     leftHanded: false,
     palette: getPalette(paletteId),
     scene: null, // { board, preview? } — extended by later phases
+    fx: null, // fx player (render/fx.js): foldAnim, shake
     layout: null,
     frameRequested: false,
   };
@@ -80,6 +84,11 @@ export function createRenderer(canvas, { paletteId = DEFAULT_PALETTE_ID } = {}) 
       relayout();
       api.invalidate();
     },
+    /** Attach an fx player; its foldAnim/shake are painted each frame. */
+    setFx(fx) {
+      r.fx = fx;
+      api.invalidate();
+    },
     setPalette(id) {
       r.palette = getPalette(id);
       api.invalidate();
@@ -96,12 +105,15 @@ export function createRenderer(canvas, { paletteId = DEFAULT_PALETTE_ID } = {}) 
 // ---------------------------------------------------------------------------
 // Draw passes
 
-const PASSES = [drawBackground, drawBoardBase, drawTiles, drawFoldPreview];
+const PASSES = [drawBackground, drawBoardBase, drawTiles, drawFoldPreview, drawFoldAnim, drawFlash];
 
 function draw(r) {
   const { ctx } = r;
   ctx.setTransform(r.dpr, 0, 0, r.dpr, 0, 0);
-  for (const pass of PASSES) pass(r, ctx);
+  drawBackground(r, ctx); // the shake moves the board, not the backdrop
+  const shake = r.fx && r.fx.shake;
+  if (shake && shake.x) ctx.translate(shake.x, 0);
+  for (let i = 1; i < PASSES.length; i++) PASSES[i](r, ctx);
 }
 
 function drawBackground(r, ctx) {
@@ -126,7 +138,9 @@ function drawBoardBase(r, ctx) {
 function drawTiles(r, ctx) {
   const L = r.layout;
   if (!L) return;
-  const board = r.scene.board;
+  // Mid-fold, the moving stacks are drawn by drawFoldAnim, not here.
+  const anim = r.fx && r.fx.foldAnim;
+  const board = anim ? anim.base : r.scene.board;
   const lift = Math.max(2, Math.round(L.cellSize * 0.06)); // per-layer offset
   for (let row = 0; row < board.h; row++) {
     for (let col = 0; col < board.w; col++) {
@@ -198,6 +212,86 @@ function drawFoldPreview(r, ctx) {
     }
   }
   drawCrease(ctx, p, L, pv, lineW);
+}
+
+// Fold animation (render/fx.js). Each moving stack scales by cos(angle)
+// around the crease, so at angle π it is exactly mirrored onto its landing
+// cell. It rises on an arc, floats, then settles onto the stack below; its
+// shadow stays on the board. Shading by the angle sells the edge-on moment.
+function drawFoldAnim(r, ctx) {
+  const L = r.layout;
+  const anim = r.fx && r.fx.foldAnim;
+  if (!L || !anim) return;
+  const p = r.palette;
+  const f = anim.frame;
+  const size = L.cellSize;
+  const lift = Math.max(2, Math.round(size * 0.06));
+  const c = f.cos;
+  const vertical = anim.fold.axis === 'v';
+  const crease = anim.fold.index * size + (vertical ? L.boardX : L.boardY);
+  const rise = f.arc * size * 0.6 + f.hover * lift * 2;
+  const sheets = anim.sheets;
+
+  // Shadows first, flat on the board under the flying sheet.
+  ctx.fillStyle = p.shadow;
+  ctx.globalAlpha = Math.min(1, f.arc + f.hover * 0.5);
+  for (let k = 0; k < sheets.length; k++) {
+    const o = cellOrigin(L, sheets[k].col, sheets[k].row);
+    const a = vertical ? crease + (o.x - crease) * c : crease + (o.y - crease) * c;
+    const b = vertical ? crease + (o.x + size - crease) * c : crease + (o.y + size - crease) * c;
+    const lo = Math.min(a, b);
+    const len = Math.abs(b - a);
+    const off = rise * 0.25;
+    if (vertical) ctx.fillRect(lo + off, o.y + off, len, size);
+    else ctx.fillRect(o.x + off, lo + off, size, len);
+  }
+  ctx.globalAlpha = 1;
+  if (Math.abs(c) < 0.03) return; // edge-on: nothing visible
+
+  // Paint order follows the visible rows: source order before the sheet
+  // passes upright, landing order after (h folds reverse the rows).
+  const forward = c >= 0;
+  const shade = (1 - Math.abs(c)) * 0.45;
+  const gap = Math.max(1, Math.round(size * 0.04)); // as drawLayer
+  for (let n = 0; n < sheets.length; n++) {
+    const s = sheets[forward ? n : sheets.length - 1 - n];
+    const o = cellOrigin(L, s.col, s.row);
+    const baseLift = f.stack * s.baseHeight * lift + rise;
+    for (let i = 0; i < s.layers.length; i++) {
+      const up = baseLift + i * lift;
+      ctx.save();
+      if (vertical) {
+        ctx.translate(crease, -up);
+        ctx.scale(c, 1);
+        ctx.translate(-crease, 0);
+      } else {
+        ctx.translate(0, crease - up);
+        ctx.scale(1, c);
+        ctx.translate(0, -crease);
+      }
+      drawLayer(ctx, p, s.layers[i], o.x, o.y, size, i === s.layers.length - 1);
+      if (shade > 0.01) {
+        ctx.globalAlpha = shade;
+        ctx.fillStyle = p.shadow;
+        ctx.fillRect(o.x + gap, o.y + gap, size - gap * 2, size - gap * 2);
+      }
+      ctx.restore();
+    }
+  }
+}
+
+// Reduced-motion stand-in for the invalid shake: a brief outline around the
+// board (the HUD status text carries the reason).
+function drawFlash(r, ctx) {
+  const L = r.layout;
+  const shake = r.fx && r.fx.shake;
+  if (!L || !shake || !shake.flash) return;
+  const w = Math.max(3, Math.round(L.cellSize * 0.08));
+  ctx.strokeStyle = r.palette.danger;
+  ctx.lineWidth = w;
+  ctx.setLineDash([w * 2, w]);
+  ctx.strokeRect(L.boardX - w, L.boardY - w, L.boardW + w * 2, L.boardH + w * 2);
+  ctx.setLineDash([]);
 }
 
 function drawCrease(ctx, p, L, pv, lineW) {

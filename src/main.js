@@ -6,12 +6,15 @@
 //   ?seed=abc       run seed (default: random)
 //   ?palette=night-ink
 //   ?demo=1         seeded demo board with walls, voids and stacks
+//   ?speed=slow     animation speed for this session (slow|normal|fast)
+//   ?motion=on      reduced motion for this session (system|on|off)
 
 import { createRenderer } from './render/renderer.js';
 import { HUD_METRICS } from './render/layout.js';
 import { getPalette, cssVarName } from './render/palette.js';
 import { createRouter } from './ui/router.js';
 import { titleScreen, floorScreen } from './ui/screens.js';
+import { loadSettings, saveSettings, normalizeSettings, resolveMotion } from './ui/settings.js';
 
 const params = Object.fromEntries(new URLSearchParams(location.search));
 const canvas = document.getElementById('board');
@@ -25,11 +28,29 @@ rootStyle.setProperty('--hud-bottom', HUD_METRICS.bottom + 'px');
 rootStyle.setProperty('--hud-side', HUD_METRICS.side + 'px');
 
 const renderer = createRenderer(canvas);
+const reducedMotionQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
+
+// Saved settings, with dev URL overrides applied for this session only.
+const saved = loadSettings();
+const settingsOverride = normalizeSettings({
+  animSpeed: params.speed || saved.animSpeed,
+  reducedMotion: params.motion || saved.reducedMotion,
+});
 
 const ctx = {
   seed: params.seed || String(Math.floor(Math.random() * 2 ** 32)),
   renderer,
   router: null,
+  settings: settingsOverride,
+  updateSettings(patch) {
+    ctx.settings = normalizeSettings({ ...ctx.settings, ...patch });
+    saveSettings(ctx.settings);
+    applyMotionClass();
+  },
+  /** Effective { speed, reducedMotion } for render/fx.js. */
+  motion() {
+    return resolveMotion(ctx.settings, reducedMotionQuery.matches);
+  },
   setPalette(id) {
     const palette = getPalette(id);
     renderer.setPalette(palette.id);
@@ -41,6 +62,14 @@ const ctx = {
   },
 };
 ctx.router = createRouter(uiRoot, ctx);
+
+// CSS honors the in-game reduced-motion setting too, not just the OS query.
+function applyMotionClass() {
+  document.documentElement.classList.toggle('reduce-motion', ctx.motion().reducedMotion);
+}
+reducedMotionQuery.addEventListener?.('change', applyMotionClass);
+applyMotionClass();
+
 ctx.router.register('title', titleScreen).register('floor', floorScreen);
 
 // --- Viewport tracking -----------------------------------------------------
