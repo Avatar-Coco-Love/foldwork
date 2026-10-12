@@ -5,7 +5,7 @@ import { topLayer, stackHeight } from '../src/core/board.js';
 import { TILE } from '../src/core/tiles.js';
 import { createFloorState, act, playerOf } from '../src/core/turn.js';
 import { validateFold } from '../src/core/fold.js';
-import { solve } from '../src/core/solver.js';
+import { solve, isPinEvent } from '../src/core/solver.js';
 import { replay } from '../src/core/replay.js';
 import { HINTS } from '../src/core/hints.js';
 import {
@@ -35,8 +35,8 @@ test('map transforms mirror and rotate rows', () => {
   assert.throws(() => transformRows(rows, 'spin'));
 });
 
-test('templates: well-formed data covering floors 1–4, 6 and 7', () => {
-  assert.deepEqual(templateFloors(), [1, 2, 3, 4, 6, 7]);
+test('templates: well-formed data covering floors 1–8', () => {
+  assert.deepEqual(templateFloors(), [1, 2, 3, 4, 5, 6, 7, 8]);
   const ids = new Set();
   for (const t of FLOOR_TEMPLATES) {
     assert.ok(!ids.has(t.id), `duplicate id ${t.id}`);
@@ -49,16 +49,16 @@ test('templates: well-formed data covering floors 1–4, 6 and 7', () => {
   }
   // docs/03: F1–2 are 5x5, F3–5 are 6x6.
   for (const t of templatesFor(1).concat(templatesFor(2))) assert.equal(buildFloor(t).board.w, 5);
-  for (const t of templatesFor(3).concat(templatesFor(4))) assert.equal(buildFloor(t).board.w, 6);
+  for (const n of [3, 4, 5]) for (const t of templatesFor(n)) assert.equal(buildFloor(t).board.w, 6);
   // F6–8 are 7x7.
-  for (const t of templatesFor(6).concat(templatesFor(7))) assert.equal(buildFloor(t).board.w, 7);
+  for (const n of [6, 7, 8]) for (const t of templatesFor(n)) assert.equal(buildFloor(t).board.w, 7);
 });
 
 // docs/05: every floor shown must be solvable. Variants are finite, so this
 // proves every one, and that each floor really needs what it teaches.
 // Phase 5 floors also prove the new enemy can always be handled without
 // taking a hit (solvable at 1 HP), though the shortest line may take one.
-const NO_DAMAGE = new Set(['f2-wasp', 'f3-brute', 'f4-relay', 'f4-gatehouse', 'f6-drop', 'f6-twin', 'f7-pocket']);
+const NO_DAMAGE = new Set(['f2-wasp', 'f3-brute', 'f4-relay', 'f4-gatehouse', 'f5-sweep', 'f5-press', 'f6-drop', 'f6-twin', 'f7-pocket', 'f8-crossing', 'f8-jaws']);
 
 for (const template of FLOOR_TEMPLATES) {
   const extra = NO_DAMAGE.has(template.id) ? ', with a no-damage line' : '';
@@ -161,4 +161,27 @@ test('template f3-brute: the one-fold bridge would land on the Brute, so it is r
   const fold = { axis: 'h', index: 4, side: 'after' };
   assert.equal(act(s, { type: 'fold', fold }).ok, false);
   assert.deepEqual(validateFold(s.board, fold).reasons.map((x) => x.code), ['heavy']);
+});
+
+test('solver noPins: lines skip folds that pin, strand or drop an enemy; `pin` need is checked', () => {
+  const built = buildFloor(templateById('f5-sweep'));
+  const pinEvents = (actions) => {
+    let s = createFloorState({ ...built, hp: 3 });
+    const found = [];
+    for (const a of actions) {
+      const r = act(s, a);
+      s = r.state;
+      if (a.type === 'fold') found.push(...r.events.filter(isPinEvent));
+    }
+    return found;
+  };
+  const clean = solve(createFloorState({ ...built, hp: 1 }), PROOF);
+  assert.ok(clean.solvable);
+  assert.deepEqual(pinEvents(clean.actions).map((e) => e.type).sort(), ['pin', 'strand']);
+  const rough = solve(createFloorState(built), { ...PROOF, noPins: true });
+  assert.ok(rough.solvable, 'still winnable by taking hits');
+  assert.deepEqual(pinEvents(rough.actions), []);
+  // A floor with nothing to pin doesn't teach it.
+  const t = { id: 't', floor: 1, charges: 1, rows: ['E . .', 'o o o', '. @ .'], needs: ['pin'] };
+  assert.equal(checkFloor(buildFloor(t), PROOF).reason, 'needless:pin');
 });

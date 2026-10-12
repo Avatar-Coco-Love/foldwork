@@ -87,7 +87,12 @@ test('solver: diagonal candidates only with rules.diagonal; Frog floors stay win
   for (const floor of templateFloors()) {
     const run = createRun({ seed: 'frog-proof', spirit: 'frog', floor });
     const { setup } = generateFloor(floor, run.seed);
-    const result = solve(createFloorState(floorSetupFor(run, setup)), { maxStates: 40000 });
+    const state = createFloorState(floorSetupFor(run, setup));
+    // Straight folds are a subset of the Frog's moves, so a straight line
+    // at its lower HP proves the floor; diagonals widen the search a lot
+    // on 7x7 floors, so they only get searched on floor 1.
+    const searched = floor === 1 ? state : { ...state, rules: { ...state.rules, diagonal: false } };
+    const result = solve(searched, { maxStates: 40000 });
     assert.equal(result.solvable, true, `floor ${floor}`);
   }
 });

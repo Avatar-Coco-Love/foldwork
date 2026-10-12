@@ -24,7 +24,20 @@ These belong to later phases and get decided when that phase is built.
   with no endpoint, so nothing is sent until this is decided and an
   endpoint is configured in `src/config.js`.
 
+- Diagonal creases shortcut many floors (Phase 9 balance). With the
+  Frog (or Diagonal Crease), `f5-press` takes 3 turns instead of 10,
+  `f3-ferry` 7 instead of 17, `f4-gatehouse` 11 instead of 20. Templates
+  prove their `needs` with straight folds only. Options: accept it as the
+  Frog's strength, prove templates with diagonals too, or block the
+  shortcuts with thick card.
+
 ## Resolved
+- F5 "pinning and stranding as the intended solution" (5d, decided while
+  building): proven by a `pin` need. At 1 HP, with every fold that pins,
+  strands or void-drops an enemy forbidden, the floor must be unwinnable.
+  A line that takes hits without pinning is allowed (the lesson is the
+  clean line). F5 and F8 use only enemies introduced earlier (no Lockjaw
+  or Bloom on F5; F8 uses all but the Bloom, to keep proofs cheap).
 - Run length while floors are missing (5c, user's choice): `runLength()`
   stops at the **first gap** in templated floors, so F6/F7 built before F5
   don't make a run reach an untemplated floor. Later floors stay reachable

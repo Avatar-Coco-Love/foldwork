@@ -15,7 +15,8 @@
 //     enemies,        [{ kind, count }]: placed on `?` anchors (seeded);
 //                     unused anchors stay plain floor
 //     needs,          what the floor teaches, as NEEDS ids: without it the
-//                     floor must be unsolvable ('fold', 'key', 'plate')
+//                     floor must be unsolvable ('fold', 'key', 'plate',
+//                     'pin')
 //     checkAtRuntime, solve each rolled variant before showing it (see below)
 //     hints,          tutorial hint ids (core/hints.js) shown on this floor
 //   }
@@ -261,6 +262,64 @@ export const FLOOR_TEMPLATES = Object.freeze([
     needs: ['fold', 'key', 'plate'],
     hints: ['creaseling-slide', 'key-lock', 'plate-gate', 'thick-stack'],
   },
+  // Floor 5: pinning and stranding as the solution. The Wasp watches the
+  // bottom row you have to cross, and the Creaseling waits by the bridge.
+  // Step down, then fold row 4 onto row 5: you ride it, the paper pins the
+  // Wasp, and the emptied row cuts the Creaseling off. Walk the row and
+  // bridge the void with what's left.
+  {
+    id: 'f5-sweep',
+    floor: 5,
+    charges: 2,
+    rows: [
+      'E # # # # #',
+      '. . . . . .',
+      'o o o o o o',
+      '. C . # . @',
+      '. . . . . .',
+      'W . . . . .',
+    ],
+    under: thick([
+      'X X X X X X',
+      '_ _ _ _ _ _',
+      '_ _ _ _ _ _',
+      '_ _ _ X _ _',
+      '_ _ _ _ _ _',
+      '_ _ _ _ _ _',
+    ]),
+    transforms: ['id', 'flipH'],
+    needs: ['fold', 'pin'],
+    hints: ['fold-enemies', 'pin', 'strand', 'wasp-sting', 'creaseling-slide', 'thick-stack'],
+  },
+  // Floor 5 (alternate): a crowd. A Mite and a Creaseling share your row,
+  // a Wasp watches your side of the void and a Brute the far side. One
+  // fold of row 4 down onto row 5 pins both row-mates, and the doubled
+  // paper you ride stands taller than the Wasp, so it can't see you on
+  // the walk to the bridge.
+  {
+    id: 'f5-press',
+    floor: 5,
+    charges: 3,
+    rows: [
+      'E # # # # #',
+      '. . . . B .',
+      'o o o o o o',
+      '. . . W . .',
+      '. . . . . .',
+      '. m . . C @',
+    ],
+    under: thick([
+      'X X X X X X',
+      '_ _ _ _ _ _',
+      '_ _ _ _ _ _',
+      '_ _ _ _ _ _',
+      '_ _ _ _ _ _',
+      '_ _ _ _ _ _',
+    ]),
+    transforms: ['id', 'flipH'],
+    needs: ['fold', 'pin'],
+    hints: ['fold-enemies', 'pin', 'brute-heavy', 'thick-stack'],
+  },
   // Floor 6: guarded keys. The only key is the one the Lockjaw holds, and
   // it guards the far edge of the void. Walk over and it bites twice
   // before it dies; fold the void row up onto it instead and it drops
@@ -358,6 +417,70 @@ export const FLOOR_TEMPLATES = Object.freeze([
     needs: ['fold'],
     hints: ['bloom-spawn', 'plate-gate', 'thick-stack'],
   },
+  // Floor 8: everything at once, two charges. The F4 exit row (exit, lock,
+  // gate, plate) is thick card across the void; the key sits behind a
+  // pillar with a Mite on guard, a Wasp watches the far landing and a
+  // Creaseling slides with every fold. The quick line takes two hits. The
+  // clean one folds row 5 down onto row 6 (the key rides along), takes
+  // the key, then bridges on the doubled paper, which stands taller than
+  // the Wasp, so it can't see you climb up beside it.
+  {
+    id: 'f8-crossing',
+    floor: 8,
+    charges: 2,
+    rows: [
+      'E L a 1 # # #',
+      '# # # . . . .',
+      '. . . C . . W',
+      'o o o o o o o',
+      '. . . @ . # m',
+      '. . . . . k .',
+      '. . . . . . .',
+    ],
+    under: thick([
+      'X X X _ X X X',
+      'X X X _ _ _ _',
+      '_ _ _ _ _ _ _',
+      '_ _ _ _ _ _ _',
+      '_ _ _ _ _ X _',
+      '_ _ _ _ _ _ _',
+      '_ _ _ _ _ _ _',
+    ]),
+    transforms: ['id', 'flipH'],
+    needs: ['fold', 'key', 'plate'],
+    hints: ['fold-enemies', 'key-lock', 'plate-gate', 'thick-stack'],
+  },
+  // Floor 8 (alternate): two Lockjaws and a loose key, same exit row.
+  // Weave round the near Lockjaw's bite to the key, then fold row 5 down
+  // onto it: pinned, it can't bite while you cross it, and the doubled
+  // row bridges the void on the second fold. The far Lockjaw's key is the
+  // spare. Walking past either one costs a bite each.
+  {
+    id: 'f8-jaws',
+    floor: 8,
+    charges: 2,
+    rows: [
+      'E L a 1 # # #',
+      '# # # . . . .',
+      '. J # . . C .',
+      'o o o o o o o',
+      '. . . . . . .',
+      '. . . . . @ .',
+      '. . k . J . .',
+    ],
+    under: thick([
+      'X X X _ X X X',
+      'X X X _ _ _ _',
+      '_ _ _ _ _ _ _',
+      '_ _ _ _ _ _ _',
+      '_ _ _ _ _ _ _',
+      '_ _ _ _ _ _ _',
+      '_ _ _ _ _ _ _',
+    ]),
+    transforms: ['id', 'flipH'],
+    needs: ['fold', 'key', 'plate'],
+    hints: ['fold-enemies', 'lockjaw-guard', 'key-lock', 'plate-gate'],
+  },
 ]);
 
 /**
@@ -384,6 +507,10 @@ export const NEEDS = Object.freeze({
     },
   }),
   plate: (built) => ({ built: withLayers(built, (l) => (l.tile === TILE.PLATE ? { ...l, tile: TILE.FLOOR } : l)) }),
+  // Pinning and stranding as the intended solution (docs/03 F5): with no
+  // hit to spare, the floor can't be won without a fold that pins, strands
+  // or void-drops an enemy.
+  pin: (built) => ({ built: { ...built, hp: 1 }, solveOpts: { noPins: true } }),
 });
 
 function withLayers(built, fn) {

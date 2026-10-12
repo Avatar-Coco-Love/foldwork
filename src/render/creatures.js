@@ -199,6 +199,19 @@ export function drawCreature(ctx, p, creature, x, y, s, opts) {
   if (creature.sprout > 0) drawSprout(ctx, p, creature.sprout, x, y, s, alpha);
 }
 
+// A slow creature sitting out its next turn (core/creatures.js `rest`):
+// a small "z" in the tile's top-left corner, so its rhythm can be read.
+function drawRest(ctx, p, x, y, s, alpha) {
+  ctx.save();
+  ctx.globalAlpha *= alpha;
+  ctx.fillStyle = p.ink;
+  ctx.font = `700 ${Math.round(s * 0.22)}px system-ui, sans-serif`;
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'top';
+  ctx.fillText('z', x + s * 0.06, y + s * 0.02);
+  ctx.restore();
+}
+
 // A spawner's countdown (core/creatures.js `sprout`): turns until its next
 // spawn, as a number in a ring in the tile's top-left corner. At 1 the
 // ring is solid: it spawns at the end of this turn.

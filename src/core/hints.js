@@ -49,6 +49,17 @@ export const HINTS = Object.freeze({
     on: 'event:pin',
     who: 'other',
   },
+  'fold-enemies': {
+    title: 'Fold, don\'t fight',
+    text: 'Paper folded onto an enemy pins it. A fold that cuts off its path strands it, and it can\'t reach you. Look for a fold that does both.',
+    on: 'start',
+  },
+  'strand': {
+    title: 'Stranded',
+    text: 'That enemy has no path to you now, so it waits where it is. Folding paper back across the gap frees it.',
+    on: 'event:strand',
+    who: 'other',
+  },
   'pinned-self': {
     title: 'You\'re pinned',
     text: 'A fold covered you. You can\'t walk out from under it, but you can wait, fold again, or undo.',
