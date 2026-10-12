@@ -123,7 +123,8 @@ New version (keeps the same URL).
 ## Events (data dictionary)
 All `dv: 1`. Floor events share a tag: `floor`, `seed`, `source`
 (`template` | `dev`), `templateId`, `variant`, `loadout` (what the floor
-started with: `relics`, `hp`, `maxHp`, `landings`; replays need it), and `overrides`
+started with: `spirit`, `relics`, `hp`, `maxHp`, `landings`; replays need
+it; logs without `spirit` predate spirits and had none), and `overrides`
 when dev URL params changed the floor (such floors aren't replayable).
 Run events share a run tag: `seed`, `floor`, `hp`, `maxHp`, `relics`,
 `spirit`.
@@ -135,6 +136,7 @@ Run events share a run tag: `seed`, `floor`, `hp`, `maxHp`, `relics`,
 | `screen.view` | Every screen change | `name`, `floor` |
 | `run.start` | New Run | run tag, `daily`, `lastFloor` |
 | `run.end` | Run won, lost, or left (`abandoned`: Menu mid-floor or on a relic offer, or a new run started) | run tag, `outcome`, `cause`, `cleared`, `lastFloor` |
+| `spirit.pick` | Spirit chosen on the select screen (the run starts right after) | run tag, `index` (card position), `offered` [spirit ids, in card order] |
 | `relic.offer` | Relic choice shown after a floor | run tag, `cleared` (the floor just cleared), `offered` [relic ids, in card order], `rest` |
 | `relic.pick` | A choice taken | run tag (after taking it), `cleared`, `pick` (relic id, `rest`, or null when nothing was offered), `index` (card position), `offered` |
 | `floor.start` | Floor shown | floor tag, `map` (dev), `attempt`, `checked`, `size`, `charges`, `enemies` [{kind, col, row}] |
@@ -146,7 +148,7 @@ Run events share a run tag: `seed`, `floor`, `hp`, `maxHp`, `relics`,
 
 `log` entries are `[ms since floor start, action code, input source,
 refusal reason?]`. Action codes are in `core/replay.js` (`u d l r w z`,
-folds like `fh3a`). Input sources: `key`, `mouse`, `touch`, `pen`.
+folds like `fh3a`; diagonal axes `d` and `a`, e.g. `fd4b`). Input sources: `key`, `mouse`, `touch`, `pen`.
 
 ## Privacy
 - No accounts, names, emails, IP-derived data or free text. Ids are random

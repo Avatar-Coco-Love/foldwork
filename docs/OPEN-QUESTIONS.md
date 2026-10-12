@@ -48,9 +48,8 @@ These belong to later phases and get decided when that phase is built.
   the player's bumps.
 - Heavy Stamp (4b): the plate stays pressed the turn you step off and the
   next 2 (3 turns in all). A creature standing on it keeps it topped up.
-- Not built yet (need later systems): Diagonal Crease, Echo Fold, Crease
-  Trap, Pocket Fold, Sticky Tape, Sharp Edge (fold relics; diagonal axis
-  and timed effects), Wax Coat (needs the Wasp, Phase 5), Scout's Eye and
+- Not built yet (need later systems): Echo Fold, Crease Trap, Pocket
+  Fold, Sticky Tape, Sharp Edge (fold relics; timed effects), Wax Coat (needs the Wasp, Phase 5), Scout's Eye and
   Compass (render-side), Lucky Scrap (scraps, Phase 7), Rewind Charm.
 - Telemetry hosting (4a): Google Sheets via an Apps Script web app for
   playtests (`tools/telemetry-sheets/`); a real database before launch.
@@ -58,6 +57,18 @@ These belong to later phases and get decided when that phase is built.
   healing comes from Paper Heart, Mender and rest (4b). Defeat ends the run
   (no more same-floor retry). Leaving mid-floor ends the run as
   `abandoned` until Phase 7 can save and resume runs.
+- Spirits (4c, provisional): HP and perk per docs/03; all three can be
+  picked until Phase 7 adds scrap unlock costs. Turtle's perk is Spring
+  Crease's rule (undo 2 folds); Frog's is Diagonal Crease's. A relic the
+  spirit already has is left out of its offers, so it never wastes a card.
+  Fox's +1 charge stacks with Extra Crease. Dev runs (`?screen=floor`)
+  start with no spirit (3 HP, no perk) unless `?spirit=` names one.
+- Diagonal input (4c): a drag within 22.5° of a diagonal gives a diagonal
+  crease (only when unlocked); the crease is still the drag's perpendicular
+  bisector, snapped to the nearest line through cell centres. Keyboard: R
+  turns the crease v → h → d → a; arrows push it. Hinge cells (on the
+  line) can't start a drag-fold. Diagonal Crease relic: uncommon
+  (provisional).
 - Spring Crease (4a): undo unwinds up to 2 consecutive folds, one per
   press; any other action ends the chain (docs/02's undo window).
 - Recycled Crease (4a): refunds 1 charge per fold (not per enemy) when it

@@ -4,19 +4,14 @@
 small. At the end of each conversation, update this file in the same PR.
 
 ## Next up
-**Phase 4c: spirits (Fox, Frog, Turtle) + spirit select.** Read docs/03
-(spirits table) and docs/04 (spirit select screen, screen 2). Spirits are
-data like relics: a `SPIRIT_DEFS` table whose hooks reuse the relic hook
-points (`setup`, `rules`, `gain`) plus starting HP; `createRun({ spirit })`
-already has the field. Fox +1 charge per floor, Turtle 4 HP and
-`undoDepth: 2`, Frog 2 HP and diagonal creases: add a diagonal entry to
-`AXES` in `core/fold.js` (rule settled in OPEN-QUESTIONS: crease through
-cell centres, cells on the line are the hinge), gated by a new
-`DEFAULT_RULES` field, plus keyboard/drag input and preview for it. New Run
-→ spirit select → floor 1. Frog/Turtle unlock costs wait for Phase 7 (all
-three selectable until then). Telemetry: spirit in the run tag (already
-there) and a `spirit.pick` event. Collection stays off
-(`TELEMETRY.collect`) until the user says playtest data is wanted.
+**Phase 5a: Paper Wasp + Card Brute, F2/F3 templates that use them.** Read
+docs/03 (enemies table, floor table) and docs/02 (enemies and folds). Each
+enemy is a `CREATURE_DEFS` entry + an `ENEMY_AI` plan + a shape in
+`CREATURE_SHAPES`. Wasp: stationary, ranged line-of-sight hit (a stacked
+layer blocks the shot; Wax Coat relic can come with it). Brute: 3 HP,
+moves every other turn, can't be pinned (decide what a fold that lands on
+it does: log in OPEN-QUESTIONS first). Keep the template proofs fast.
+Later 5 chunks: Creaseling, Lockjaw, Spore Bloom; floors 4–8.
 
 ## Phase checklist
 Larger phases are split into PR-sized chunks so each conversation stays small.
@@ -32,10 +27,10 @@ Larger phases are split into PR-sized chunks so each conversation stays small.
 - [x] **Phase 3** — Puzzle tiles, floors 1–3, tutorial hints, solver v1
   - [x] 3a Keys, locks, plates, exit tiles (PR 7)
   - [x] 3b Solver v1 + floor templates F1–3 + hints + telemetry (PR 8)
-- [ ] **Phase 4** — Run structure, relics (12+), spirits
+- [x] **Phase 4** — Run structure, relics (12+), spirits
   - [x] 4a Run state, floor progression, relic hooks + fold relics (PR 9)
   - [x] 4b Relic offers screen, defense + utility relics (PR 10)
-  - [ ] 4c Spirits (Fox, Frog, Turtle) + spirit select
+  - [x] 4c Spirits (Fox, Frog, Turtle) + spirit select, diagonal creases (PR 11)
 - [ ] **Phase 5** — Full enemy roster, floors 4–8
 - [ ] **Phase 6** — Great Crane boss, run summary
 - [ ] **Phase 7** — Meta-progression, daily seed, persistence
@@ -358,8 +353,41 @@ Larger phases are split into PR-sized chunks so each conversation stays small.
   with Rest (tap → next floor), phone landscape High Contrast with Origami
   Luck (5 cards). No console errors.
 
+### PR 11: Phase 4c spirits, spirit select, diagonal creases
+- `core/spirits.js`: `SPIRIT_DEFS` (Fox 3 HP +1 charge per floor, Frog 2 HP
+  diagonal creases, Turtle 4 HP undo 2 folds). Same hook points as relics
+  (`gain`, `setup`, `rules`) plus `hp` and `covers` (relics the perk
+  already gives; `rollOffer` leaves them out). `createRun({ spirit })`
+  takes its HP; `floorSetupFor` runs the spirit's hooks before the
+  relics'. `spirit: null` (dev runs, tests) keeps 3 HP and no perk.
+- Diagonal creases (`core/fold.js`): `AXES.d` (col - row = k, "\\") and
+  `AXES.a` (col + row = k, `/`), through cell centres; cells on the line
+  are the hinge. AXES entries gained `normal`, `offset` and `diagonal`, so
+  input and rendering work for any axis; `isDiagonal`, `axesFor`. Gated by
+  `DEFAULT_RULES.diagonal`: `foldCheck` refuses with `no-diagonal`, the
+  solver only tries diagonals when the floor allows them. Replay codes
+  `fd4b`, `fa3a`. New relic Diagonal Crease (uncommon; 14 relics).
+- Input: a drag within 22.5° of 45° gives a diagonal crease when unlocked
+  (`creaseFromDrag(…, { diagonal })`, same bisector + snap model).
+  Keyboard: R turns the crease v → h → d → a, arrows push it along its
+  normal. `createFoldInput({ foldOptions })`.
+- Rendering: `creaseSegment` (preview.js, pure) clips any crease to the
+  board; preview and fold anim carry it as `line`. `drawCrease` and
+  `drawFoldAnim` now squash along the crease normal with one affine
+  transform, so diagonal folds animate like the others.
+- Spirit select screen (`spiritScreen`, route `spirit`): New Run → pick
+  (cards with HP written out + hearts, perk, number keys 1–3, Esc/Back)
+  → floor 1. The HUD tray shows the spirit chip first. Dev `?spirit=`.
+- Telemetry: `spirit.pick`; floor `loadout` gains `spirit` (replays rebuild
+  the perk). Collection still off.
+- 14 new tests (219 total). Verified in headless Chromium: desktop New Run
+  → Frog by key, keyboard R through both diagonals, mouse diagonal drag
+  preview, mid-fold frame and landing bridging the void, undo; phone
+  portrait spirit select tap → Turtle (4 hearts, tray chip). No console
+  errors.
+
 ## Conventions worth remembering
-- Dev URL params: `?screen=offer&cleared=4`, `?screen=floor&floor=2&map=courier&size=7&seed=abc&palette=night-ink&demo=1&speed=slow&motion=on&charges=3&mites=2&relics=all&telemetry=console`.
+- Dev URL params: `?screen=offer&cleared=4`, `?spirit=frog`, `?screen=floor&floor=2&map=courier&size=7&seed=abc&palette=night-ink&demo=1&speed=slow&motion=on&charges=3&mites=2&relics=all&telemetry=console`.
 - New draw layers → add a pass to `PASSES` in `renderer.js`.
 - New tile types → `TILE`/`TILE_DEFS` in `tiles.js` + a painter in
   `TILE_PAINTERS` (`renderer.js`; painters get the layer). Items →
@@ -376,6 +404,8 @@ Larger phases are split into PR-sized chunks so each conversation stays small.
 - Tutorial hints → `HINTS` (`core/hints.js`) + the template's `hints`.
 - Telemetry → `ctx.telemetry.track(type, data)`; never change the backend.
   Collection is gated by `TELEMETRY.collect` in `src/config.js`.
+- Spirits → `SPIRIT_DEFS` in `core/spirits.js` (hooks `gain`, `setup`,
+  `rules`; `covers` hides redundant relics from offers).
 - Relics → `RELIC_DEFS` in `core/relics.js` (hooks `gain`, `setup`,
   `rules`, `cleared`, `offer`) with a `rarity` from `RARITY_WEIGHTS`. A
   new in-play effect adds a `DEFAULT_RULES` field read by `turn.js`;

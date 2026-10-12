@@ -69,7 +69,7 @@
 
 import { DIRS, inBounds, getCell, topLayer, findCreature, cloneBoard, isFooting } from './board.js';
 import { tileDef, itemDef, ITEM } from './tiles.js';
-import { validateFold, applyFold } from './fold.js';
+import { validateFold, applyFold, isDiagonal } from './fold.js';
 import { createCreature, creatureDef } from './creatures.js';
 import { actingEnemies, reachField, planEnemy, enemiesInReach } from './enemies.js';
 import { syncGates, tickPlates, isLocked, unlockLayer, keyMeetsLock } from './environment.js';
@@ -97,9 +97,12 @@ export const BUMP_DAMAGE = 1;
  *               stacked cell, 2+ layers (Paper Cut)
  *   plateHold   turns a plate stays pressed after its creature leaves
  *               (Heavy Stamp; core/environment.js)
+ *   diagonal    diagonal creases can be played (Frog, Diagonal Crease;
+ *               core/fold.js AXES)
  */
 export const DEFAULT_RULES = Object.freeze({
   undoDepth: 1, foldRefund: 0, wards: 0, foldGuard: false, freeLocks: 0, stackBump: 0, plateHold: 0,
+  diagonal: false,
 });
 
 /**
@@ -165,14 +168,18 @@ export function canUndo(state) {
 }
 
 /**
- * Whether `fold` can be played now: the fold must be valid on the board and
- * a charge must be left. Returns validateFold()'s result with any extra
- * reasons ({ code: 'no-charges' }) folded in.
+ * Whether `fold` can be played now: the fold must be valid on the board, a
+ * diagonal crease needs rules.diagonal, and a charge must be left. Returns
+ * validateFold()'s result with any extra reasons ({ code: 'no-diagonal' },
+ * { code: 'no-charges' }) folded in first.
  */
 export function foldCheck(state, fold) {
   const check = validateFold(state.board, fold);
-  if (state.charges > 0) return check;
-  return { ...check, ok: false, reasons: [{ code: 'no-charges' }, ...check.reasons] };
+  const extra = [];
+  if (isDiagonal(fold) && !(state.rules && state.rules.diagonal)) extra.push({ code: 'no-diagonal' });
+  if (state.charges <= 0) extra.push({ code: 'no-charges' });
+  if (!extra.length) return check;
+  return { ...check, ok: false, reasons: [...extra, ...check.reasons] };
 }
 
 /**
@@ -309,7 +316,10 @@ function runWait(s, action, emit) {
 
 function runFold(s, action, outerEmit, before) {
   const check = foldCheck(s, action.fold);
-  if (!check.ok) return check.reasons[0]?.code === 'no-charges' ? 'no-charges' : 'invalid-fold';
+  if (!check.ok) {
+    const code = check.reasons[0]?.code;
+    return code === 'no-charges' || code === 'no-diagonal' ? code : 'invalid-fold';
+  }
   let landings = [];
   s.board = applyFold(s.board, action.fold, {
     resolve: (b, l) => {

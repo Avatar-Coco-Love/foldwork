@@ -12,6 +12,7 @@
 //   onMove(dir)               arrows / WASD (outside fold mode)
 //   onTap(cell)               a tap on a board cell
 //   onWait()                  Space
+//   foldOptions() → { diagonal }  whether diagonal creases are unlocked
 //
 // setBusy(true) (during animations) blocks starting a fold, since its
 // preview would be of a board that is still moving, but still reports taps
@@ -21,7 +22,9 @@
 //   drag on board → preview; release confirms; drag off board, right click,
 //   Esc or the HUD Cancel button aborts.
 //   F enters keyboard fold mode; arrows/WASD move the crease; F flips the
-//   folding side; Enter confirms; Esc cancels.
+//   folding side; R turns it to the next axis when diagonals are unlocked;
+//   Enter confirms; Esc cancels. With diagonals, a drag near 45° folds
+//   along a diagonal.
 
 import { creaseFromDrag, isOffBoard, defaultCrease, stepCrease, sameCrease } from './foldGesture.js';
 import { dirForKey, isTap } from './moveInput.js';
@@ -29,6 +32,7 @@ import { cellAtPoint } from '../render/layout.js';
 
 export function createFoldInput({
   canvas, getLayout, getBoard, onPreview, onConfirm, onInvalid, onUndo, onMove, onTap, onWait,
+  foldOptions = () => ({}),
 }) {
   let enabled = true;
   let busy = false;
@@ -85,7 +89,7 @@ export function createFoldInput({
     if (drag.tap && !isTap(layout, drag.start, p)) drag.tap = false; // once a drag, never a tap
     if (!drag.foldable) return;
     drag.off = isOffBoard(layout, p.x, p.y);
-    drag.crease = drag.off ? null : creaseFromDrag(layout, drag.start, p);
+    drag.crease = drag.off ? null : creaseFromDrag(layout, drag.start, p, foldOptions());
     show(drag.crease);
   }
 
@@ -129,7 +133,7 @@ export function createFoldInput({
         show(null);
         confirm(crease);
       } else {
-        const next = stepCrease(board, keyCrease, key);
+        const next = stepCrease(board, keyCrease, key, foldOptions());
         if (next === keyCrease && !/^Arrow/.test(key)) return; // not ours
         keyCrease = next;
         show(keyCrease);

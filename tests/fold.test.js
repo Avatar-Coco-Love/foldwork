@@ -4,7 +4,7 @@ import { createBoard, createLayer, getCell, topLayer, stackHeight, cellIndex } f
 import { TILE } from '../src/core/tiles.js';
 import {
   mirrorCell, foldMapping, validateFold, applyFold, createUndoSnapshot, unfold, foldWithUndo,
-  creaseErrors,
+  creaseErrors, AXES, isDiagonal, axesFor,
 } from '../src/core/fold.js';
 
 // Board whose every base layer carries an item tagged with its origin cell.
@@ -67,7 +67,7 @@ test('malformed creases are reported, not thrown', () => {
     { axis: 'v', index: 0, side: 'before' },
     { axis: 'h', index: 5, side: 'before' },
     { axis: 'v', index: 1.5, side: 'before' },
-    { axis: 'd', index: 1, side: 'before' },
+    { axis: 'x', index: 1, side: 'before' },
     { axis: 'v', index: 1, side: 'left' },
     null,
   ]) {
@@ -177,4 +177,53 @@ test('resolve hook receives the new board and landings', () => {
   assert.equal(b.resolved, undefined);
   assert.equal(seen.length, 5);
   assert.deepEqual(seen[0], { from: { col: 0, row: 0 }, to: { col: 0, row: 1 }, baseHeight: 1, count: 1 });
+});
+
+test('diagonal "d" crease (col - row = k) mirrors across the line; the line is the hinge', () => {
+  const b = createBoard(5, 5);
+  assert.equal(AXES.d.lineCount(b), 7);
+  const main = { axis: 'd', index: 4, side: 'before' }; // k = 0
+  assert.deepEqual(mirrorCell(b, main, 0, 1), { col: 1, row: 0, clipped: false });
+  assert.deepEqual(mirrorCell(b, main, 1, 4), { col: 4, row: 1, clipped: false });
+  assert.equal(mirrorCell(b, main, 2, 2), null); // hinge
+  assert.equal(mirrorCell(b, main, 3, 1), null); // stationary side
+  assert.equal(foldMapping(b, main).length, 10);
+  const off = { axis: 'd', index: 5, side: 'after' }; // k = 1
+  assert.deepEqual(mirrorCell(b, off, 4, 0), { col: 1, row: 3, clipped: false });
+  assert.deepEqual(mirrorCell(b, off, 2, 0), { col: 1, row: 1, clipped: false });
+  assert.equal(mirrorCell(b, off, 3, 2), null); // hinge
+  const clip = { axis: 'd', index: 6, side: 'before' }; // k = 2
+  assert.deepEqual(mirrorCell(b, clip, 0, 4), { col: 6, row: -2, clipped: true });
+});
+
+test('diagonal "a" crease (col + row = k) mirrors across the line', () => {
+  const b = createBoard(5, 5);
+  const anti = { axis: 'a', index: 4, side: 'before' };
+  assert.deepEqual(mirrorCell(b, anti, 0, 0), { col: 4, row: 4, clipped: false });
+  assert.deepEqual(mirrorCell(b, anti, 1, 2), { col: 2, row: 3, clipped: false });
+  assert.equal(mirrorCell(b, anti, 0, 4), null); // hinge
+  assert.equal(mirrorCell(b, anti, 4, 4), null); // stationary side
+  const corner = { axis: 'a', index: 1, side: 'after' };
+  assert.deepEqual(mirrorCell(b, corner, 4, 4), { col: -3, row: -3, clipped: true });
+  assert.deepEqual(mirrorCell(b, corner, 1, 1), { col: 0, row: 0, clipped: false });
+  assert.equal(creaseErrors(b, { axis: 'a', index: 8, side: 'after' })[0].code, 'bad-index');
+  assert.equal(creaseErrors(b, { axis: 'd', index: 0, side: 'after' })[0].code, 'bad-index');
+});
+
+test('applyFold on a diagonal leaves hinge stacks in place', () => {
+  const b = tagged(4, 4);
+  const n = applyFold(b, { axis: 'd', index: 3, side: 'before' }); // main diagonal
+  for (let i = 0; i < 4; i++) assert.deepEqual(ids(n, i, i), [`${i},${i}`]);
+  assert.deepEqual(ids(n, 1, 0), ['1,0', '0,1']);
+  assert.deepEqual(ids(n, 0, 3), []);
+  const heights = validateFold(b, { axis: 'a', index: 3, side: 'after' }).perCellHeights;
+  assert.equal(heights.reduce((s, h) => s + h, 0), 16);
+  assert.equal(heights[cellIndex(b, 3, 0)], 1); // hinge
+});
+
+test('diagonal axes are flagged and filtered', () => {
+  assert.equal(isDiagonal({ axis: 'd', index: 1, side: 'before' }), true);
+  assert.equal(isDiagonal({ axis: 'v', index: 1, side: 'before' }), false);
+  assert.deepEqual(axesFor(), ['v', 'h']);
+  assert.deepEqual(axesFor({ diagonal: true }), ['v', 'h', 'd', 'a']);
 });

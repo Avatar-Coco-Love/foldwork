@@ -19,6 +19,7 @@ import { parseMap, DEV_MAPS } from '../core/maps.js';
 import { generateFloor, templateFloors } from '../core/floors.js';
 import { floorSetupFor, finishFloor, takeOffer, runTag } from '../core/run.js';
 import { relicDef } from '../core/relics.js';
+import { SPIRIT_DEFS, spiritDef } from '../core/spirits.js';
 import { HINTS, hintDef, hintsFor } from '../core/hints.js';
 import { loadSeenHints, saveSeenHints } from './hintStore.js';
 import { createFloorRecorder } from '../telemetry/floorRecorder.js';
@@ -116,12 +117,66 @@ export const howToScreen = {
   },
 };
 
-/** End any run in progress and start a fresh one on its first floor. */
+/**
+ * New Run: end any run in progress and pick a spirit; the spirit select
+ * screen starts the run on its first floor.
+ */
 function startNewRun(ctx) {
   ctx.endRun('abandoned');
-  ctx.startRun();
-  ctx.router.go('floor', { floor: ctx.run.floor });
+  ctx.router.go('spirit');
 }
+
+/**
+ * Spirit select (docs/04 screen 2): one card per spirit with its HP and
+ * perk. Picking one starts the run as that spirit on floor 1. Number keys
+ * pick too. Unlock costs arrive with Phase 7; until then all are open.
+ */
+export const spiritScreen = {
+  mount(root, ctx) {
+    ctx.renderer.setScene(null);
+    const spirits = Object.values(SPIRIT_DEFS);
+    const choose = (id, index) => {
+      ctx.startRun({ spirit: id });
+      ctx.telemetry.track('spirit.pick', { ...runTag(ctx.run), index, offered: spirits.map((d) => d.id) });
+      ctx.router.go('floor', { floor: ctx.run.floor });
+    };
+    const cards = spirits.map((def, i) => el('button', {
+      class: 'offer-card spirit-card',
+      type: 'button',
+      'aria-label': `${i + 1}: ${def.name}. ${def.hp} HP. ${def.perk}`,
+      onclick: () => choose(def.id, i),
+    },
+    el('span', { class: 'offer-key', 'aria-hidden': 'true', text: String(i + 1) }),
+    el('span', { class: 'offer-glyph', 'aria-hidden': 'true', text: def.glyph }),
+    el('strong', { class: 'offer-name', text: def.name }),
+    el('span', { class: 'offer-tags', text: `${def.hp} HP` }),
+    el('span', { class: 'spirit-hearts', 'aria-hidden': 'true', text: '♥'.repeat(def.hp) }),
+    el('span', { class: 'offer-text', text: def.perk })));
+
+    root.append(
+      el('div', { class: 'menu offer' },
+        el('h2', { class: 'outcome-title', text: 'Choose your spirit' }),
+        el('p', { class: 'subtitle', text: 'It sets your HP and gives one perk for the whole run.' }),
+        el('div', { class: 'offer-cards', role: 'group', 'aria-label': 'Spirits' }, cards),
+        el('div', { class: 'menu-buttons' },
+          el('button', { class: 'btn btn-secondary', type: 'button', onclick: () => ctx.router.go('title') }, 'Back')),
+      ),
+    );
+    cards[0]?.focus({ preventScroll: true });
+
+    const onKey = (e) => {
+      const n = Number(e.key);
+      if (Number.isInteger(n) && n >= 1 && n <= spirits.length && !e.repeat) {
+        e.preventDefault();
+        choose(spirits[n - 1].id, n - 1);
+      } else if (e.key === 'Escape') {
+        ctx.router.go('title');
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  },
+};
 
 export const floorScreen = {
   mount(root, ctx, params) {
@@ -149,7 +204,9 @@ export const floorScreen = {
       templateId: info.templateId || null,
       variant: info.variant || null,
       // What the floor started with, so replays rebuild it exactly.
-      loadout: { relics: run.relics.slice(), hp: setup.hp, maxHp: setup.maxHp, landings: setup.landings },
+      loadout: {
+        spirit: run.spirit, relics: run.relics.slice(), hp: setup.hp, maxHp: setup.maxHp, landings: setup.landings,
+      },
       ...(info.overrides ? { overrides: info.overrides } : {}),
     };
     let reported = false;
@@ -190,7 +247,12 @@ export const floorScreen = {
       hud.setFoldStatus(preview ? foldStatusText(preview) : null, !!preview && (!preview.ok || preview.player === 'drop'));
     };
 
+    // The tray shows the spirit first, then the relics.
     const relicList = run.relics.map(relicDef);
+    if (run.spirit) {
+      const sp = spiritDef(run.spirit);
+      relicList.unshift({ id: `spirit-${sp.id}`, name: `${sp.name} (spirit)`, text: sp.perk, glyph: sp.glyph });
+    }
     const hud = createHud(root, {
       floor: floorNo,
       lastFloor: inRun ? run.lastFloor : null,
@@ -342,6 +404,7 @@ export const floorScreen = {
       canvas,
       getLayout: () => ctx.renderer.layout,
       getBoard: () => state.board,
+      foldOptions: () => ({ diagonal: !!state.rules.diagonal }),
       onPreview(crease) {
         recorder.preview(crease);
         preview = crease ? foldPreview(state, crease) : null;
@@ -398,6 +461,7 @@ const REFUSALS = {
   edge: null,
   pinned: 'Pinned under paper. Undo the fold to get free.',
   'no-charges': 'No fold charges left.',
+  'no-diagonal': 'Diagonal creases are locked.',
   'no-undo': 'Nothing to undo.',
   'invalid-fold': null,
 };

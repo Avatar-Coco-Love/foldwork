@@ -16,7 +16,7 @@
 | Action | Mouse | Touch | Keyboard |
 |---|---|---|---|
 | Move / bump | Click adjacent tile | Tap adjacent tile (no swipe: a drag is always a fold) | Arrow keys / WASD |
-| Fold | Drag across board, release to confirm | Drag, release to confirm | F to enter fold mode, arrows move crease, F flips the folding side, Enter confirms, Esc cancels |
+| Fold | Drag across board, release to confirm (with diagonals unlocked, a drag near 45° gives a diagonal crease) | Drag, release to confirm | F to enter fold mode, arrows move crease, F flips the folding side, R turns the crease to the next axis (diagonals unlocked), Enter confirms, Esc cancels |
 | Cancel fold | Drag outside board / right click | Drag off board or tap Cancel | Esc |
 | Undo fold | Button / U | Button | U / Z |
 | Wait | Button / Space | Button | Space |
