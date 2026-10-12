@@ -1,0 +1,195 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Foldwork share image</title>
+<style>
+  body { margin: 0; padding: 16px; background: #ccc; font-family: system-ui, sans-serif; }
+  canvas { display: block; max-width: 100%; height: auto; box-shadow: 0 2px 12px rgba(0,0,0,.25); }
+  a { display: inline-block; margin-top: 12px; }
+</style>
+</head>
+<body>
+<!--
+  Draws the link-preview image (share.png, 1200x630) in code, from the game's
+  own palette and creature shapes. The game never loads share.png; it is only
+  for og:image, which must be a raster file. To regenerate: open this page
+  through the dev server (npm start, then /tools/share-image.html) and click
+  "Download", or run `node tools/share-image.js` (needs Playwright).
+-->
+<canvas id="c" width="1200" height="630"></canvas>
+<a id="dl" download="share.png" href="#">Download share.png</a>
+<script type="module">
+import { getPalette } from '../src/render/palette.js';
+import { drawCreature } from '../src/render/creatures.js';
+
+const W = 1200, H = 630;
+const p = getPalette('paper');
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+const FONT = "system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif";
+
+function roundRect(x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r);
+  ctx.closePath();
+}
+
+// Tile painters, matching render/renderer.js at a fixed size.
+function floor(x, y, s) {
+  const r = s * 0.08;
+  ctx.fillStyle = p.tileEdge; roundRect(x, y + 3, s, s, r); ctx.fill();
+  ctx.fillStyle = p.tileFace; roundRect(x, y, s, s, r); ctx.fill();
+  ctx.strokeStyle = p.gridLine; ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.moveTo(x + s * 0.2, y + s * 0.8); ctx.lineTo(x + s * 0.8, y + s * 0.2); ctx.stroke();
+}
+function voidTile(x, y, s) {
+  ctx.fillStyle = p.voidFace; roundRect(x, y, s, s, s * 0.08); ctx.fill();
+  ctx.strokeStyle = p.inkSoft; ctx.globalAlpha = 0.5; ctx.lineWidth = s * 0.04;
+  ctx.beginPath(); ctx.arc(x + s / 2, y + s / 2, s * 0.28, 0, Math.PI * 2); ctx.stroke();
+  ctx.globalAlpha = 1;
+}
+function exitTile(x, y, s) {
+  floor(x, y, s);
+  const x0 = x + s * 0.2, yb = y + s * 0.8, st = s * 0.2;
+  ctx.beginPath(); ctx.moveTo(x0, yb);
+  for (let k = 0; k < 3; k++) { ctx.lineTo(x0 + k * st, yb - (k + 1) * st); ctx.lineTo(x0 + (k + 1) * st, yb - (k + 1) * st); }
+  ctx.lineTo(x0 + 3 * st, yb); ctx.closePath();
+  ctx.fillStyle = p.accent; ctx.fill();
+  ctx.strokeStyle = p.glyph; ctx.lineWidth = s * 0.04; ctx.lineJoin = 'round'; ctx.stroke();
+}
+function tile(t, x, y, s) {
+  if (t === 'v') voidTile(x, y, s);
+  else if (t === 'x') exitTile(x, y, s);
+  else floor(x, y, s);
+}
+
+// A 5x5 floor; columns 3-4 are the flap, caught mid-fold over the crease.
+const MAP = [
+  '.....',
+  '.....',
+  'vv.vv',
+  '.....',
+  'x....',
+];
+const CREATURES = { '1,0': 'wasp', '1,3': 'player', '3,1': 'mite', '4,4': 'lockjaw' };
+
+// Background: paper with a faint diagonal crease pattern.
+ctx.fillStyle = p.background; ctx.fillRect(0, 0, W, H);
+ctx.strokeStyle = p.backgroundAccent; ctx.lineWidth = 2;
+for (let k = -H; k < W; k += 90) {
+  ctx.beginPath(); ctx.moveTo(k, H); ctx.lineTo(k + H, 0); ctx.stroke();
+}
+
+// Board geometry.
+const S = 86, G = 8, PITCH = S + G, PAD = 14;
+const BX = 650, BY = (H - (5 * PITCH - G + PAD * 2)) / 2;
+const ox = BX + PAD, oy = BY + PAD;
+const creaseX = ox + 3 * PITCH - G / 2;
+const boardW = 5 * PITCH - G + PAD * 2, boardH = boardW;
+
+// Tray: the flat half sits on the board edge; the flap's half is bare tray.
+ctx.save();
+ctx.shadowColor = p.shadow; ctx.shadowBlur = 30; ctx.shadowOffsetY = 12;
+ctx.fillStyle = p.boardEdge; roundRect(BX, BY, boardW, boardH, 16); ctx.fill();
+ctx.restore();
+ctx.fillStyle = 'rgba(60, 45, 25, 0.10)';
+roundRect(creaseX + 2, BY + 6, BX + boardW - creaseX - 8, boardH - 12, 12); ctx.fill();
+
+// Flat side.
+for (let r = 0; r < 5; r++) for (let c = 0; c < 3; c++) tile(MAP[r][c], ox + c * PITCH, oy + r * PITCH, S);
+for (let r = 0; r < 5; r++) for (let c = 0; c < 3; c++) {
+  const kind = CREATURES[c + ',' + r];
+  if (kind) drawCreature(ctx, p, { kind, maxHp: 1 }, ox + c * PITCH, oy + r * PITCH, S);
+}
+
+// The flap's shadow falls on the flat side it is about to cover.
+const ANGLE = 56 * Math.PI / 180; // lifted this far off the table
+const squash = Math.cos(ANGLE);
+const shadowW = 2 * PITCH * 0.55;
+const grad = ctx.createLinearGradient(creaseX, 0, creaseX - shadowW, 0);
+grad.addColorStop(0, 'rgba(60, 45, 25, 0.28)');
+grad.addColorStop(1, 'rgba(60, 45, 25, 0)');
+ctx.fillStyle = grad;
+ctx.fillRect(creaseX - shadowW, oy - 4, shadowW, 5 * PITCH);
+
+// The flap: columns 3-4 rotated up about the crease, foreshortened. The far
+// edge is nearer the viewer, so it grows a little (cheap perspective).
+const midY = oy + (5 * PITCH - G) / 2;
+for (let c = 3; c < 5; c++) {
+  const j = c - 3;
+  const grow = 1 + 0.07 * (j + 0.5);
+  ctx.save();
+  ctx.translate(creaseX + (G / 2 + j * PITCH) * squash, midY);
+  ctx.scale(squash, grow);
+  ctx.translate(0, -midY);
+  // The flap's own slice of board edge, so it reads as one sheet.
+  ctx.fillStyle = p.boardEdge;
+  ctx.fillRect(-G / 2 - 0.5, BY, PITCH + (j === 1 ? PAD - G / 2 : 0) + 1, boardH);
+  for (let r = 0; r < 5; r++) tile(MAP[r][c], 0, oy + r * PITCH, S);
+  for (let r = 0; r < 5; r++) {
+    const kind = CREATURES[c + ',' + r];
+    if (kind) drawCreature(ctx, p, { kind, maxHp: 1 }, 0, oy + r * PITCH, S);
+  }
+  // Light falls off as the paper turns away.
+  ctx.fillStyle = 'rgba(60, 45, 25, 0.10)';
+  ctx.fillRect(-G / 2 - 0.5, BY, PITCH + (j === 1 ? PAD - G / 2 : 0) + 1, boardH);
+  ctx.restore();
+}
+
+// Crease line: dashed accent, the same read as the in-game fold preview.
+ctx.strokeStyle = p.accent; ctx.lineWidth = 5; ctx.lineCap = 'round';
+ctx.setLineDash([14, 10]);
+ctx.beginPath(); ctx.moveTo(creaseX, BY - 18); ctx.lineTo(creaseX, BY + boardH + 18); ctx.stroke();
+ctx.setLineDash([]);
+
+// Fold arrow arcing from the flap back over the crease.
+const ay = BY - 34;
+ctx.strokeStyle = p.ink; ctx.lineWidth = 5;
+ctx.beginPath();
+ctx.moveTo(creaseX + 150, ay + 26);
+ctx.quadraticCurveTo(creaseX + 20, ay - 46, creaseX - 120, ay + 24);
+ctx.stroke();
+ctx.fillStyle = p.ink;
+ctx.beginPath();
+ctx.moveTo(creaseX - 136, ay + 34);
+ctx.lineTo(creaseX - 104, ay + 4);
+ctx.lineTo(creaseX - 98, ay + 36);
+ctx.closePath(); ctx.fill();
+
+// Text block.
+const TX = 72;
+ctx.fillStyle = p.accent;
+ctx.font = `700 26px ${FONT}`;
+ctx.textBaseline = 'alphabetic';
+if ('letterSpacing' in ctx) ctx.letterSpacing = '4px';
+ctx.fillText('A PAPER ROGUELIKE', TX, 196);
+if ('letterSpacing' in ctx) ctx.letterSpacing = '0px';
+
+ctx.fillStyle = p.ink;
+ctx.font = `800 112px ${FONT}`;
+ctx.fillText('Foldwork', TX - 4, 306);
+
+ctx.fillStyle = p.inkSoft;
+ctx.font = `500 34px ${FONT}`;
+ctx.fillText('Fold the dungeon floor to', TX, 370);
+ctx.fillText('solve puzzles and beat enemies.', TX, 414);
+
+// Play pill.
+const px = TX, py = 458, pw = 300, ph = 72;
+ctx.fillStyle = p.accent; roundRect(px, py, pw, ph, 36); ctx.fill();
+ctx.fillStyle = '#ffffff';
+ctx.font = `700 30px ${FONT}`;
+ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+ctx.fillText('Play free  →', px + pw / 2, py + ph / 2 + 1);
+ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
+
+document.getElementById('dl').href = canvas.toDataURL('image/png');
+window.shareImageReady = true;
+</script>
+</body>
+</html>
