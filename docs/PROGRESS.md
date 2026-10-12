@@ -4,15 +4,18 @@
 small. At the end of each conversation, update this file in the same PR.
 
 ## Next up
-**Phase 5d: Floors 5 and 8 (mixes).** Read docs/03 (floor table: F5
-"pinning and stranding enemies as the intended solution", 6x6; F8, 7x7,
-a mix) and the template notes in `core/floors.js`. All six enemies exist;
-F5 and F8 combine them. Once F5 has a template, `runLength()` jumps to 7
-(F1–F7, rest offered after F4 and F7), and to 8 with F8. Watch the
-suite time (~53 s now): a Spore Bloom that can reach the player from turn
-1 makes proofs costly (each Bloom spot, transform or `vary` choice is a
-full solve), so keep variants few and Blooms stranded until a fold opens
-the way where you can.
+**Phase 6a: Great Crane, phase 1 (floor 9 arena).** Read docs/03 (Boss:
+The Great Crane) and docs/02 (fold rules). Open questions to settle with
+the user before building (log them in OPEN-QUESTIONS): how the Crane's
+telegraphed crease is chosen (seeded? aimed at the player?), what its own
+fold does to the player (pin, carry, void drop, like a player fold?),
+whether the Crane is Heavy, and how a fold "drops it onto a void" for
+damage instead of killing it. Then: a `crane` def (6 HP, three phases), an
+AI that plans a crease every 2 turns and executes it on the next beat
+(previewed like a player fold), a 7x7 arena template for floor 9, and a
+`RUN_FLOORS` / `runLength()` change so the run ends on the boss. Suite
+time is ~90 s on the current container (was ~67 s here before 5d); keep
+boss proofs cheap (one arena, few variants).
 
 ## Phase checklist
 Larger phases are split into PR-sized chunks so each conversation stays small.
@@ -32,12 +35,15 @@ Larger phases are split into PR-sized chunks so each conversation stays small.
   - [x] 4a Run state, floor progression, relic hooks + fold relics (PR 9)
   - [x] 4b Relic offers screen, defense + utility relics (PR 10)
   - [x] 4c Spirits (Fox, Frog, Turtle) + spirit select, diagonal creases (PR 11)
-- [ ] **Phase 5** — Full enemy roster, floors 4–8
+- [x] **Phase 5** — Full enemy roster, floors 4–8
   - [x] 5a Paper Wasp + Card Brute, Wax Coat, F2/F3 templates (PR 12)
   - [x] 5b Creaseling + F4 templates (PR 13)
   - [x] 5c Lockjaw + Spore Bloom, F6/F7 templates (PR 14)
-  - [ ] 5d Floors 5 and 8 (mixes)
+  - [x] 5d Floors 5 and 8 (mixes) (PR 15)
 - [ ] **Phase 6** — Great Crane boss, run summary
+  - [ ] 6a Great Crane phase 1, telegraphed crease, floor 9 arena
+  - [ ] 6b Crane phases 2–3 (minions, double creases, shrinking arena)
+  - [ ] 6c Run summary and win/lose flow through the boss
 - [ ] **Phase 7** — Meta-progression, daily seed, persistence
 - [ ] **Phase 8** — Audio and polish
 - [ ] **Phase 9** — Playtesting, balance, manifest
@@ -514,6 +520,41 @@ Larger phases are split into PR-sized chunks so each conversation stays small.
   nearest tile after), phone portrait F7 in Paper and Night Ink
   (countdown, spawn ring, hint card). No console errors.
 
+### PR 15: Phase 5d Floors 5 and 8
+- New need `pin` (`NEEDS` in floors.js): with no hit to spare (HP 1) and
+  no fold that pins, strands or void-drops an enemy, the floor can't be
+  won. That's how F5 proves "pinning and stranding as the intended
+  solution". Solver option `noPins` skips such folds; `isPinEvent`
+  (solver.js) is the shared test.
+- Templates (designed with a throwaway random-layout search that used the
+  solver as the judge; not committed):
+  - `f5-sweep` (6x6, 2 charges): one fold of row 4 onto row 5 pins the
+    Wasp watching the bottom row and strands the Creaseling; then bridge.
+  - `f5-press` (6x6, 3 charges): Mite, Creaseling, Wasp and Brute; one
+    fold pins both row-mates, and the doubled paper you ride stands taller
+    than the Wasp, so it can't see you.
+  - `f8-crossing` (7x7, 2 charges, fold + key + plate): F4's thick exit
+    row (`E L a 1`) across the void; Mite, Wasp, Creaseling. The shortest
+    line takes two hits; the clean one is 20 turns.
+  - `f8-jaws` (same exit row): two Lockjaws, a Creaseling and a loose key;
+    pin the near Lockjaw under the fold that becomes your bridge.
+  Every variant is proven solvable, needing what it lists, with a
+  no-damage line. `runLength()` is now 8: a full run is F1–F8 (rest after
+  F4 and F7).
+- Hints `fold-enemies` (F5/F8 start) and `strand` (on a strand event).
+- Fixed a 5c regression: `drawRest` (the Brute's "z") was deleted, so any
+  floor with a resting Brute threw while drawing. A new test paints every
+  creature kind with its markers on a stub canvas.
+- The Frog proof in `spirits.test.js` now searches straight folds at the
+  Frog's HP (a subset of its moves) except on floor 1: diagonal search on
+  7x7 floors ran past 40000 states.
+- 6 new tests (265 total). Suite ~90 s here (baseline before this PR
+  ~67 s on the same container; PR 14 noted ~53 s elsewhere). Most of the
+  increase is `f8-jaws` (~10 s) and `f8-crossing` (~6 s). Verified in
+  headless Chromium: phone and desktop F5/F8 in Paper and Night Ink,
+  mouse-drag fold on `f5-sweep` (pin preview, Wasp pinned, Pinned hint).
+  No console errors.
+
 ## Conventions worth remembering
 - Dev URL params: `?screen=offer&cleared=4`, `?spirit=frog`, `?screen=floor&floor=2&map=courier&size=7&seed=abc&palette=night-ink&demo=1&speed=slow&motion=on&charges=3&mites=2&relics=all&telemetry=console`.
 - New draw layers → add a pass to `PASSES` in `renderer.js`.
@@ -571,5 +612,8 @@ Larger phases are split into PR-sized chunks so each conversation stays small.
   New per-creature counters must be primitives and go in `stateKey`
   (`creatureKey` in solver.js). Def flags `carry` (held item, dropped on
   death or fall) and `spawn` (`sprout` countdown, ai `spore`).
+- Floor `needs` ids: `fold`, `key`, `plate`, `pin` (pin/strand/drop is
+  the only clean way). Designing a template: sketch it, then run
+  `checkFloor` and a 1 HP `solve` on each variant before adding it.
 - Fold-time creature rules (pin, void drop) → `resolveFold` in `turn.js`;
   the per-cell rule is `coverEffect` (shared with the preview).

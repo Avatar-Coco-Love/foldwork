@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from './harness.js';
-import { CREATURE_SHAPES, ART_BOUNDS, FOOT_LINE, SIZE_CLASSES } from '../src/render/creatures.js';
+import { CREATURE_SHAPES, ART_BOUNDS, FOOT_LINE, SIZE_CLASSES, drawCreature } from '../src/render/creatures.js';
 import { CREATURE_DEFS } from '../src/core/creatures.js';
 
 function bounds(shape) {
@@ -27,4 +27,28 @@ test('creature art: inside the art bounds, centred, on the foot line, sized by c
     const h = b.y1 - b.y0;
     assert.ok(h >= lo - 1e-9 && h <= hi + 1e-9, `${kind} height ${h.toFixed(2)} fits '${shape.size}'`);
   }
+});
+
+// A canvas stand-in: every method is a no-op, every property settable.
+function stubCanvas() {
+  const calls = [];
+  const ctx = new Proxy({}, {
+    get: (t, k) => (k in t ? t[k] : (...args) => calls.push([k, ...args])),
+    set: (t, k, v) => ((t[k] = v), true),
+  });
+  return { ctx, calls };
+}
+
+test('creature art: every kind paints, with its rest, carried key and spawn markers', () => {
+  const palette = new Proxy({}, { get: () => '#000' });
+  for (const [kind, def] of Object.entries(CREATURE_DEFS)) {
+    const { ctx, calls } = stubCanvas();
+    const creature = { id: kind, kind, hp: def.hp, maxHp: def.hp, rest: 1, sprout: 2, item: def.carry || null };
+    drawCreature(ctx, palette, creature, 0, 0, 48, {});
+    assert.ok(calls.length > 0, kind);
+  }
+  // The rest marker is the "z" (regression: its painter went missing).
+  const { ctx, calls } = stubCanvas();
+  drawCreature(ctx, palette, { id: 'b', kind: 'brute', hp: 3, maxHp: 3, rest: 1 }, 0, 0, 48, {});
+  assert.ok(calls.some(([k, text]) => k === 'fillText' && text === 'z'));
 });
