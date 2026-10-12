@@ -555,6 +555,15 @@ Larger phases are split into PR-sized chunks so each conversation stays small.
   mouse-drag fold on `f5-sweep` (pin preview, Wasp pinned, Pinned hint).
   No console errors.
 
+### PR 16: Share image (link preview)
+- `share.png` (1200x630) + og/twitter meta tags in `index.html`, so a
+  shared link shows a card. It's the one raster file in the repo: og:image
+  can't be drawn at runtime. The game never loads it (rule 1 still holds
+  for play). It's drawn in code by `tools/share-image.html` from the
+  game's palette and creature shapes; `node tools/share-image.js`
+  (Playwright, dev server running) regenerates it.
+- Foldwork card added to the projects page (avatar-coco-love.github.io).
+
 ## Conventions worth remembering
 - Dev URL params: `?screen=offer&cleared=4`, `?spirit=frog`, `?screen=floor&floor=2&map=courier&size=7&seed=abc&palette=night-ink&demo=1&speed=slow&motion=on&charges=3&mites=2&relics=all&telemetry=console`.
 - New draw layers → add a pass to `PASSES` in `renderer.js`.
