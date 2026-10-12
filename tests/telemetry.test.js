@@ -7,7 +7,10 @@ import { checkFloorEnd } from '../tools/replay-check.js';
 import { FLOOR_TEMPLATES, buildFloor } from '../src/core/floors.js';
 import { createFloorState, act } from '../src/core/turn.js';
 import { solve } from '../src/core/solver.js';
-import { LOGIC_VERSION } from '../src/config.js';
+import { LOGIC_VERSION, TELEMETRY } from '../src/config.js';
+import { telemetryActive } from '../src/telemetry/browser.js';
+import { parseCsv, rowsToEvents } from '../tools/sheet-to-ndjson.js';
+import { floorSetupFor } from '../src/core/run.js';
 
 function memoryStorage() {
   const m = new Map();
@@ -123,6 +126,27 @@ test('telemetry: opting out clears the queue and records nothing', () => {
   assert.equal(off.tel.track('x'), null);
 });
 
+test('telemetry: a disabled client writes nothing and deletes an old queue', () => {
+  const storage = memoryStorage();
+  storage.setItem(QUEUE_KEY, JSON.stringify({ v: ENVELOPE_VERSION, queue: [{ id: 'old', type: 't' }] }));
+  const { tel } = rig({ enabled: false, storage });
+  assert.equal(tel.track('x'), null);
+  assert.equal(tel.install, null);
+  assert.equal(storage.m.size, 0, 'no install id, no queue');
+  tel.setEnabled(true);
+  assert.ok(tel.install);
+  assert.equal(storage.getItem(INSTALL_KEY), tel.install);
+});
+
+test('telemetry: collection stays off until config.collect, except dev overrides', () => {
+  assert.equal(telemetryActive(true, ''), TELEMETRY.collect);
+  assert.equal(telemetryActive(false, ''), false);
+  assert.equal(telemetryActive(false, 'console'), true);
+  assert.equal(telemetryActive(false, 'http://localhost:8787/collect'), true);
+  assert.equal(telemetryActive(true, 'https://example.com/collect'), TELEMETRY.collect);
+  assert.equal(telemetryActive(true, 'off'), false);
+});
+
 test('telemetry: broken storage never throws', () => {
   const throwing = { getItem() { throw new Error('no'); }, setItem() { throw new Error('no'); }, removeItem() { throw new Error('no'); } };
   const { tel } = rig({ storage: throwing, batchSize: 100 });
@@ -190,4 +214,39 @@ test('replay check: a recorded floor.end rebuilds and replays identically', () =
   assert.ok(checkFloorEnd({ ...ev, logic: LOGIC_VERSION + 1 }).skip);
   assert.ok(checkFloorEnd({ ...ev, data: { ...data, source: 'dev' } }).skip);
   assert.ok(checkFloorEnd({ ...ev, data: { ...data, overrides: { charges: 9 } } }).skip);
+});
+
+test('replay check: floors replay with the loadout (relics, HP) they started with', () => {
+  const template = FLOOR_TEMPLATES[0];
+  const variant = { transform: 'id', picks: [], anchors: [0] };
+  const loadout = { relics: ['spring-crease'], hp: 2, maxHp: 3 };
+  let state = createFloorState(floorSetupFor(loadout, buildFloor(template, variant)));
+  const rec = createFloorRecorder(() => 0);
+  const twoFolds = [{ type: 'fold', fold: { axis: 'h', index: 2, side: 'before' } }, { type: 'fold', fold: { axis: 'h', index: 4, side: 'after' } }];
+  const line = [...twoFolds, { type: 'undo' }, { type: 'undo' }];
+  for (const action of line) {
+    const r = act(state, action);
+    assert.ok(r.ok, `${action.type} accepted`);
+    rec.action(action, 'key', { ok: true, tookTurn: action.type !== 'undo' });
+    state = r.state;
+  }
+  const data = { source: 'template', templateId: template.id, variant, loadout, outcome: 'abandoned', turn: state.turn, ...rec.summary() };
+  const ev = { type: 'floor.end', logic: LOGIC_VERSION, data };
+  assert.equal(checkFloorEnd(ev).ok, true);
+  assert.equal(checkFloorEnd({ ...ev, data: { ...data, loadout: undefined } }).ok, false, 'second undo needs Spring Crease');
+});
+
+test('sheets export: CSV rows (quotes, overflow cells) turn back into events', () => {
+  const data = { log: [[0, 'u', 'key']], text: 'a, "quoted"\nline' };
+  const json = JSON.stringify(data);
+  const cell = (v) => `"${String(v).replace(/"/g, '""')}"`;
+  const csv = [
+    'received,id,type,dv,ts,seq,install,session,run,app,logic,data,',
+    ['2026-01-01T00:00:00Z', 'e_1', 'floor.end', 1, 5, 0, 'i_1', 's_1', '', '0.4.0', 1, json.slice(0, 10), json.slice(10)].map(cell).join(','),
+    ['x', 'e_2', 'bad', 1, 5, 1, '', '', '', '', 1, '{oops', ''].map(cell).join(','),
+  ].join('\r\n');
+  const events = rowsToEvents(parseCsv(csv));
+  assert.equal(events.length, 1);
+  assert.deepEqual(events[0].data, data);
+  assert.deepEqual([events[0].id, events[0].type, events[0].dv, events[0].seq, events[0].run], ['e_1', 'floor.end', 1, 0, null]);
 });

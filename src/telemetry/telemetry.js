@@ -49,11 +49,14 @@ export function createTelemetry(opts) {
     batchSize = 25, flushMs = 15000, maxQueue = 500,
   } = opts;
   let enabled = opts.enabled !== false;
-  const install = loadInstall(storage, newId);
+  // Disabled clients write nothing: no install id, and any queue left from
+  // an earlier session is deleted.
+  let install = enabled ? loadInstall(storage, newId) : null;
   const session = newId('s');
   let seq = 0;
   let run = null;
   let queue = enabled ? loadQueue(storage) : [];
+  if (!enabled) clearQueue(storage);
   let timer = null;
   let sending = false;
 
@@ -158,6 +161,7 @@ export function createTelemetry(opts) {
     /** Turning it off also deletes anything not yet sent. */
     setEnabled(value) {
       enabled = !!value;
+      if (enabled && !install) install = loadInstall(storage, newId);
       if (!enabled) {
         queue = [];
         persist();
@@ -181,6 +185,14 @@ function loadInstall(storage, newId) {
     return id;
   } catch {
     return newId('i');
+  }
+}
+
+function clearQueue(storage) {
+  try {
+    if (storage) storage.removeItem(QUEUE_KEY);
+  } catch {
+    // Blocked storage: nothing was saved either.
   }
 }
 

@@ -1,6 +1,7 @@
 // In-floor HUD. Two regions, placed by CSS: in portrait the status bar sits
 // above the board and the action bar below; in landscape both stack in the
-// side panel. Later phases add the relic tray.
+// side panel. The relic tray (Phase 4a) lists the run's relics after the
+// meters; Phase 4b adds the offers screen where they are chosen.
 //
 // Meters use shape as well as color: a filled heart / charge is one left, a
 // hollow outline is one spent. Each meter also has a text label for screen
@@ -60,17 +61,41 @@ function createCounter(cls, path, label) {
   };
 }
 
-export function createHud(root, { floor, onMenu, onUndo, onCancel, onWait }) {
+// The run's relics: a small chip per relic showing its glyph. Names and
+// effects are in each chip's tooltip and in one screen-reader label.
+function createRelicTray() {
+  const node = el('span', { class: 'hud-relics', role: 'img', hidden: true });
+  let shown = '';
+  return {
+    node,
+    set(relics) {
+      const key = relics.map((r) => r.id).join();
+      if (key === shown) return;
+      shown = key;
+      node.hidden = relics.length === 0;
+      node.replaceChildren(...relics.map((r) => el('span', { class: 'hud-relic', title: `${r.name}: ${r.text}`, text: r.glyph })));
+      node.setAttribute('aria-label', `Relics: ${relics.map((r) => `${r.name} (${r.text})`).join(', ')}`);
+    },
+  };
+}
+
+export function createHud(root, { floor, lastFloor = null, onMenu, onUndo, onCancel, onWait }) {
   const hp = createMeter('hud-hp', HEART, 'HP');
   const charges = createMeter('hud-charges', CHARGE, 'Fold charges');
   const keys = createCounter('hud-keys', KEY, 'Keys');
+  const relics = createRelicTray();
   const message = el('span', { class: 'hud-fold', 'aria-live': 'polite' });
   const status = el('div', { class: 'hud-status', role: 'status' },
     el('div', { class: 'hud-meters' },
-      el('span', { class: 'hud-floor', text: `Floor ${floor}` }),
+      el('span', {
+        class: 'hud-floor',
+        text: lastFloor ? `Floor ${floor}/${lastFloor}` : `Floor ${floor}`,
+        'aria-label': lastFloor ? `Floor ${floor} of ${lastFloor}` : `Floor ${floor}`,
+      }),
       hp.node,
       charges.node,
       keys.node,
+      relics.node,
     ),
     message,
   );
@@ -123,6 +148,10 @@ export function createHud(root, { floor, onMenu, onUndo, onCancel, onWait }) {
     },
     setKeys(value) {
       keys.set(value);
+    },
+    /** Relic defs ({ id, name, text, glyph }) the run holds. */
+    setRelics(list) {
+      relics.set(list);
     },
     /** Preview summary text, or null when no fold is being previewed. */
     setFoldStatus(text, invalid = false) {

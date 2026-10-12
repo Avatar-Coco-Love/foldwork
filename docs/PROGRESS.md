@@ -4,14 +4,16 @@
 small. At the end of each conversation, update this file in the same PR.
 
 ## Next up
-**Phase 4a: run state + floor progression + relic hooks.** Read docs/03
-(run structure, relics, spirits) and docs/05 (`run.js`, `relics.js`).
-Add a plain-data run state (`core/run.js`: seed, floor, HP carried over,
-relics, spirit) that replaces `ctx.startRun()` / the 3b next-floor panel,
-and a hook table for relics (fold relics first: Extra Crease, Thick Paper,
-Recycled Crease, Spring Crease). Floors 4–8 have no templates yet: the
-run can end after floor 3 until Phase 5. Add the Phase 4 telemetry events
-listed in docs/06 (`ctx.telemetry.track`, no backend change).
+**Phase 4b: relic offers screen + defense and utility relics.** Read docs/03
+(relics, run structure: offers after each floor, rest option on floors 4
+and 7) and docs/04 (relic choice screen). Add the offer roll to
+`core/run.js` (seeded `fork(run seed, 'offers-N')`, rarity weights, no
+duplicates), a relic choice screen between floors (replacing the 4a
+"Next floor" panel), and defense + utility relics via the `RELIC_DEFS`
+hooks (add `DEFAULT_RULES` fields where play rules change). Reach 12+
+relics. Telemetry: `relic.offer` / `relic.pick`. Telemetry collection
+stays off (`TELEMETRY.collect`) until the user says playtest data is
+wanted.
 
 ## Phase checklist
 Larger phases are split into PR-sized chunks so each conversation stays small.
@@ -28,7 +30,7 @@ Larger phases are split into PR-sized chunks so each conversation stays small.
   - [x] 3a Keys, locks, plates, exit tiles (PR 7)
   - [x] 3b Solver v1 + floor templates F1–3 + hints + telemetry (PR 8)
 - [ ] **Phase 4** — Run structure, relics (12+), spirits
-  - [ ] 4a Run state, floor progression, relic hooks + fold relics
+  - [x] 4a Run state, floor progression, relic hooks + fold relics (PR 9)
   - [ ] 4b Relic offers screen, defense + utility relics
   - [ ] 4c Spirits (Fox, Frog, Turtle) + spirit select
 - [ ] **Phase 5** — Full enemy roster, floors 4–8
@@ -283,8 +285,42 @@ Larger phases are split into PR-sized chunks so each conversation stays small.
   replaying identically; phone portrait touch fold on F2 with hint cards;
   How to Play. No console errors.
 
+### PR 9: Phase 4a run state, relic hooks, fold relics
+- `core/run.js`: plain-data `RunState` (seed, floor, lastFloor, hp/maxHp,
+  relics, cleared, status, cause). `createRun`, `addRelic`,
+  `floorSetupFor(run, setup)`, `finishFloor(run, floorState)`, `runTag`.
+  `runLength()` = templated floors, capped at 8 (3 until Phase 5).
+- `core/relics.js`: `RELIC_DEFS` with hooks `gain(run)`, `setup(setup)`,
+  `rules(rules)`; `applyRelics`, `rulesFor`. Fold relics: Extra Crease,
+  Thick Paper, Recycled Crease, Spring Crease (provisional rarities).
+- `core/turn.js`: `FloorState.rules` (`DEFAULT_RULES`: `undoDepth`,
+  `foldRefund`) is the hook point relics write to. Undo can chain back
+  `undoDepth` consecutive folds; `refund` event. `createFloorState` takes
+  `hp` and `maxHp` separately (HP carries between floors).
+- Floor screen: run floors use the run's relics + HP; win → next floor
+  (HP shown), last floor → Run complete; defeat ends the run (no retry);
+  Menu mid-floor ends it as abandoned. Dev floors keep Retry / Play again.
+  HUD: `Floor n/N` and a relic tray (glyph chips, tooltip + aria label).
+  Dev `?relics=id,id|all`; `?screen=floor&floor=n` starts the run there.
+- Telemetry: **collection is off** (`TELEMETRY.collect: false`): nothing
+  recorded, queued or stored, "Share play data" hidden; `?telemetry=console`
+  and a localhost collector still work. Floor tag gains `loadout`;
+  `run.start`/`run.end` carry the run tag (won / lost / abandoned).
+  `tools/telemetry-sheets/Code.gs`: Google Sheets + Apps Script collector
+  (setup in docs/07); `tools/sheet-to-ndjson.js` reads its CSV export and
+  `replay-check` accepts `.csv` and replays with the loadout.
+- Art alignment: size/alignment guide for creature art (bounds, centring,
+  foot line, size classes) in docs/04, enforced by
+  `tests/creatures.test.js`; player figure rescaled to the foot line; exit
+  stairs, key and gate bars centred. Remaining items (stack lift into the
+  row above, landscape board margins) are logged for the Phase 8 audit.
+- 20 new tests (188 total). Verified in headless Chromium: phone run with
+  all relics (tray, Floor 2/3, +1 charge), F3 and desktop courier art,
+  run loss → Torn → New run with one run.end; no storage writes besides
+  hints with telemetry off. No console errors.
+
 ## Conventions worth remembering
-- Dev URL params: `?screen=floor&floor=2&map=courier&size=7&seed=abc&palette=night-ink&demo=1&speed=slow&motion=on&charges=3&mites=2&telemetry=console`.
+- Dev URL params: `?screen=floor&floor=2&map=courier&size=7&seed=abc&palette=night-ink&demo=1&speed=slow&motion=on&charges=3&mites=2&relics=all&telemetry=console`.
 - New draw layers → add a pass to `PASSES` in `renderer.js`.
 - New tile types → `TILE`/`TILE_DEFS` in `tiles.js` + a painter in
   `TILE_PAINTERS` (`renderer.js`; painters get the layer). Items →
@@ -300,6 +336,13 @@ Larger phases are split into PR-sized chunks so each conversation stays small.
   (3-high) stacks to stop folds from bypassing the lesson.
 - Tutorial hints → `HINTS` (`core/hints.js`) + the template's `hints`.
 - Telemetry → `ctx.telemetry.track(type, data)`; never change the backend.
+  Collection is gated by `TELEMETRY.collect` in `src/config.js`.
+- Relics → `RELIC_DEFS` in `core/relics.js` (hooks `gain`, `setup`,
+  `rules`). A new in-play effect adds a `DEFAULT_RULES` field read by
+  `turn.js`. Run-wide state → `core/run.js`; floors get it through
+  `floorSetupFor`.
+- Creature art follows the guide in `render/creatures.js` (bounds,
+  centring, foot line, `size` class); `tests/creatures.test.js` checks it.
   Changed `data` shape → bump `dv`. Rule change that alters replays →
   bump `LOGIC_VERSION` (`src/config.js`). New actions → a code in
   `core/replay.js`.

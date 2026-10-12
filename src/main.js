@@ -14,6 +14,8 @@
 //                   the floor's seeded template; ?size= or ?demo=1 gives an
 //                   open dev board
 //   ?floor=2        start the floor screen on this floor (with ?screen=floor)
+//   ?relics=extra-crease,spring-crease   start runs with these relics
+//                   (core/relics.js ids, or 'all')
 //   ?telemetry=console   log telemetry events (also: off, or a localhost
 //                   collector URL, see tools/telemetry-collector.js)
 
@@ -22,7 +24,10 @@ import { HUD_METRICS } from './render/layout.js';
 import { getPalette, cssVarName } from './render/palette.js';
 import { createRouter } from './ui/router.js';
 import { titleScreen, floorScreen, howToScreen } from './ui/screens.js';
-import { setupTelemetry } from './telemetry/browser.js';
+import { setupTelemetry, telemetryActive } from './telemetry/browser.js';
+import { TELEMETRY } from './config.js';
+import { createRun, runTag } from './core/run.js';
+import { RELIC_DEFS, isRelic } from './core/relics.js';
 import { loadSettings, saveSettings, normalizeSettings, resolveMotion } from './ui/settings.js';
 
 const params = Object.fromEntries(new URLSearchParams(location.search));
@@ -48,20 +53,37 @@ const settingsOverride = normalizeSettings({
 
 const tele = setupTelemetry({ enabled: settingsOverride.telemetry === 'on', override: params.telemetry || '' });
 const newSeed = () => params.seed || String(Math.floor(Math.random() * 2 ** 32));
+const devRelics = params.relics === 'all'
+  ? Object.keys(RELIC_DEFS)
+  : String(params.relics || '').split(',').filter(isRelic);
 
 const ctx = {
   seed: newSeed(),
+  /** The run in progress (core/run.js), or null. Screens replace it as it advances. */
+  run: null,
   telemetry: tele.telemetry,
   /** How the latest input was made: 'key', 'mouse', 'touch', 'pen'. */
   inputSource: tele.inputSource,
-  /**
-   * Start a new run: a fresh seed (unless ?seed= pins one) and run id.
-   * Phase 4 grows this into the run state.
-   */
-  startRun() {
+  /** Whether the "Share play data" toggle is offered (config TELEMETRY.collect). */
+  telemetryOffered: TELEMETRY.collect,
+  /** Start a new run: a fresh seed (unless ?seed= pins one) and run id. */
+  startRun({ floor = 1 } = {}) {
     ctx.seed = newSeed();
+    ctx.run = createRun({ seed: ctx.seed, relics: devRelics, floor });
     ctx.telemetry.setRun(`r_${Date.now().toString(36)}${Math.floor(Math.random() * 1e6).toString(36)}`);
-    ctx.telemetry.track('run.start', { seed: ctx.seed, daily: false });
+    ctx.telemetry.track('run.start', { ...runTag(ctx.run), daily: false, lastFloor: ctx.run.lastFloor });
+  },
+  /**
+   * Record the run's end (won, lost, or abandoned when the player leaves
+   * mid-run) and clear it. Safe to call more than once.
+   */
+  endRun(outcome) {
+    const run = ctx.run;
+    if (!run) return;
+    ctx.run = null;
+    ctx.telemetry.track('run.end', { ...runTag(run), outcome, cause: run.cause, cleared: run.cleared, lastFloor: run.lastFloor });
+    ctx.telemetry.flush();
+    ctx.telemetry.setRun(null);
   },
   renderer,
   router: null,
@@ -72,7 +94,9 @@ const ctx = {
     saveSettings(ctx.settings);
     applyMotionClass();
     // Opting out drops anything unsent and records nothing more.
-    if (before.telemetry !== ctx.settings.telemetry) ctx.telemetry.setEnabled(ctx.settings.telemetry === 'on');
+    if (before.telemetry !== ctx.settings.telemetry) {
+      ctx.telemetry.setEnabled(telemetryActive(ctx.settings.telemetry === 'on', params.telemetry || ''));
+    }
     ctx.telemetry.track('settings.change', { patch, settings: ctx.settings });
   },
   /** Effective { speed, reducedMotion } for render/fx.js. */
@@ -150,7 +174,7 @@ ctx.telemetry.track('session.start', {
   entry: { screen: params.screen || 'title', dev: Object.keys(params).filter((k) => k !== 'telemetry') },
 });
 ctx.telemetry.flush(); // anything left from an offline session
-if (params.screen === 'floor') ctx.startRun();
+if (params.screen === 'floor') ctx.startRun({ floor: Number(params.floor) || 1 });
 const startScreen = ctx.router.has(params.screen) ? params.screen : 'title';
 ctx.router.go(startScreen, {
   floor: Number(params.floor) || 1,
