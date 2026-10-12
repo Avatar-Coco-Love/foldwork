@@ -33,6 +33,9 @@ Later (not v1): Ink hazards, Mirror tiles.
 - The preview shows which side folds over which, and the resulting stack. Release to confirm; drag off-board or tap cancel to abort.
 - The side that folds is the side the drag starts from, so each crease line offers two distinct outcomes depending on where the drag begins.
 - Folds are mirrored over the crease. Tiles that would land off the board after mirroring are clipped (they stay under, not destroyed).
+  - Clipped tiles stay on their own cell, unfolded and still active.
+  - A moved stack keeps its internal order (no paper-style flip) and goes on top of the destination stack.
+  - Cells emptied by a fold have no layers and behave as void.
 - Each fold costs 1 **fold charge**. Charges are per floor (default 3, adjustable by floor and relics).
 - Unfold: the most recent fold can be undone for free, and enemies do not act. Only the latest fold can be undone this way, and only before the player takes another action (move, attack, wait, or a new fold).
 - A fold takes a turn: enemies act after it resolves.
