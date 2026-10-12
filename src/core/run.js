@@ -48,10 +48,15 @@ export const RUN_FLOORS = 8;
 
 /**
  * How many floors a run has today: RUN_FLOORS, or fewer while later floors
- * have no templates yet (until Phase 5 the run ends after floor 3).
+ * have no templates yet. It stops before the first floor without one, so
+ * a run never reaches an untemplated floor (F6 and F7 exist before F5;
+ * dev `?floor=` still reaches them).
  */
 export function runLength(floors = templateFloors()) {
-  return Math.min(RUN_FLOORS, Math.max(0, ...floors));
+  const have = new Set(floors);
+  let n = 0;
+  while (n < RUN_FLOORS && have.has(n + 1)) n += 1;
+  return n;
 }
 
 /**

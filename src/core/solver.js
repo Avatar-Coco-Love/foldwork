@@ -18,11 +18,13 @@
 //   noFolds    search without folding (to check a floor needs a fold)
 //
 // The search skips undo (it only returns to a state already seen) and
-// dedupes states by stateKey(). Turn counts aren't part of the key, so the
-// first visit of a state is always its shortest route.
+// dedupes states by stateKey() without the player's HP: a state reached
+// again with no more HP than before is skipped, since more HP never closes
+// off a line (dominance). Turn counts aren't part of the key, so the first
+// visit of a state is always its shortest route.
 
-import { act } from './turn.js';
-import { DIRS } from './board.js';
+import { act, PLAYER_ID } from './turn.js';
+import { DIRS, findCreature } from './board.js';
 import { AXES, SIDES, axesFor } from './fold.js';
 
 export const SOLVER_DEFAULTS = Object.freeze({ maxStates: 20000, maxTurns: 40, noFolds: false });
@@ -46,20 +48,52 @@ export function candidateActions(board, { noFolds = false, diagonal = false } = 
 
 /**
  * Identity of a floor state for the search: the board (tiles, items,
- * links, plate holds, creatures with their HP and rest) plus keys, charges and
- * limited uses left (wards, free locks, landings). Turn number and
- * the undo snapshot don't change what can happen next.
+ * links, plate holds, creatures by kind with their HP, rest, held item and
+ * spawn count) plus keys, charges and limited uses left (wards, free locks,
+ * landings). Turn number, the undo snapshot and creature ids (spawns are
+ * named by turn) don't change what can happen next.
  */
-export function stateKey(state) {
+export function stateKey(state, { playerHp = true } = {}) {
   const u = state.uses || {};
-  const parts = [state.keys, state.charges, u.wards, u.freeLocks, u.landings];
-  for (const cell of state.board.cells) {
-    for (const l of cell.layers) {
-      parts.push(l.tile, l.item || '', l.link || '', l.hold || '', l.creature ? `${l.creature.id}:${l.creature.hp}:${l.creature.rest ?? ''}` : '');
+  // One short string built in place: the search keeps one per state, so
+  // ids (tiles, items, kinds) are replaced by one-character codes.
+  let key = `${state.keys},${state.charges},${u.wards},${u.freeLocks},${u.landings}|`;
+  const cells = state.board.cells;
+  for (let i = 0; i < cells.length; i++) {
+    const layers = cells[i].layers;
+    for (let d = 0; d < layers.length; d++) {
+      const l = layers[d];
+      key += code(l.tile) + (l.item ? code(l.item) : '') + (l.link || '') + (l.hold ? `h${l.hold}` : '');
+      if (l.creature) key += `(${creatureKey(l.creature, playerHp)})`;
+      key += ';';
     }
-    parts.push('|');
+    key += '|';
   }
-  return parts.join(',');
+  return key;
+}
+
+function creatureKey(c, withHp) {
+  const hp = withHp || c.id !== PLAYER_ID ? c.hp : '';
+  return `${code(c.kind)}${hp}${c.rest != null ? `r${c.rest}` : ''}${c.item ? code(c.item) : ''}${c.sprout != null ? `s${c.sprout}` : ''}`;
+}
+
+// Short codes for ids, handed out on first use (letters, so they never
+// clash with the digits and markers around them).
+const CODES = new Map();
+function code(id) {
+  let c = CODES.get(id);
+  if (c === undefined) {
+    const n = CODES.size;
+    c = n < 26 ? String.fromCharCode(65 + n) : `[${n}]`;
+    CODES.set(id, c);
+  }
+  return c;
+}
+
+/** The player's HP in `state` (0 when it has left the board). */
+function playerHp(state) {
+  const p = findCreature(state.board, PLAYER_ID);
+  return p ? p.creature.hp : 0;
 }
 
 export function solve(start, options = {}) {
@@ -70,7 +104,8 @@ export function solve(start, options = {}) {
   if (start.status !== 'playing') return fail(0, false);
 
   // Nodes: { state, parent, action, depth }. Parent links rebuild the line.
-  const seen = new Set([stateKey(start)]);
+  // Search key (no player HP) → the most HP that state was reached with.
+  const seen = new Map([[stateKey(start, { playerHp: false }), playerHp(start)]]);
   const queue = [{ state: start, parent: null, action: null, depth: 0 }];
   let capped = false;
   for (let q = 0; q < queue.length; q++) {
@@ -89,9 +124,10 @@ export function solve(start, options = {}) {
       if (!result.ok || result.state.status === 'lost') continue;
       const child = { state: result.state, parent: node, action, depth: node.depth + 1 };
       if (result.state.status === 'won') return found(child, q + 1);
-      const key = stateKey(result.state);
-      if (seen.has(key)) continue;
-      seen.add(key);
+      const key = stateKey(result.state, { playerHp: false });
+      const hp = playerHp(result.state);
+      if (seen.has(key) && seen.get(key) >= hp) continue;
+      seen.set(key, hp);
       queue.push(child);
     }
   }

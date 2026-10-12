@@ -7,7 +7,8 @@
 //   1-3 plate (link 1-3)            a-c gate (link 1-3, a opens with 1)
 //   @  player start (on floor)      m  Scrap Mite (on floor)
 //   W  Paper Wasp (on floor)        B  Card Brute (on floor)
-//   C  Creaseling (on floor)
+//   C  Creaseling (on floor)    J  Lockjaw (on floor)
+//   S  Spore Bloom (on floor)
 //   ?  enemy anchor (on floor): a spot a floor template may place an enemy
 //
 // parseMap(rows, { under }) → { board, player, enemies, anchors }, ready
@@ -36,6 +37,8 @@ export const MAP_LEGEND = Object.freeze({
   W: { tile: TILE.FLOOR, enemy: 'wasp' },
   B: { tile: TILE.FLOOR, enemy: 'brute' },
   C: { tile: TILE.FLOOR, enemy: 'creaseling' },
+  J: { tile: TILE.FLOOR, enemy: 'lockjaw' },
+  S: { tile: TILE.FLOOR, enemy: 'bloom' },
   '?': { tile: TILE.FLOOR, anchor: true },
   ...Object.fromEntries(Object.entries(PLATES).map(([ch, link]) => [ch, { tile: TILE.PLATE, link }])),
   ...Object.fromEntries(Object.entries(GATES).map(([ch, link]) => [ch, { tile: TILE.GATE, link }])),

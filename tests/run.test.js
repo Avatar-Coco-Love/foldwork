@@ -125,9 +125,14 @@ test('Thick Paper allows a fourth layer in play', () => {
 
 // --- Run state ------------------------------------------------------------
 
-test('run: length follows the floors that have templates, capped at 8', () => {
-  assert.equal(runLength(), Math.max(...templateFloors()));
+test('run: length follows the floors that have templates, up to the first gap, capped at 8', () => {
+  const floors = templateFloors();
+  let n = 0;
+  while (floors.includes(n + 1)) n += 1;
+  assert.equal(runLength(), Math.min(n, RUN_FLOORS));
   assert.equal(runLength([1, 2, 3, 4, 5, 6, 7, 8, 9]), RUN_FLOORS);
+  assert.equal(runLength([1, 2, 3, 4, 6, 7]), 4, 'a missing floor 5 ends the run after 4');
+  assert.equal(runLength([2, 3]), 0);
   const run = createRun({ seed: 'abc' });
   assert.deepEqual([run.floor, run.hp, run.maxHp, run.status, run.relics], [1, 3, 3, 'playing', []]);
   assert.equal(run.lastFloor, runLength());

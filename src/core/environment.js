@@ -12,6 +12,7 @@
 //   - A key opens a lock when the player walks into the lock carrying one,
 //     or when a fold stacks a key's layer and a lock directly on each other
 //     (either one on top). The key is used up and the lock becomes a door.
+//     A key held by a creature (Lockjaw) counts as on its layer here.
 //   - Heavy Stamp (rules.plateHold = n): a plate stays pressed for n turns
 //     after its creature leaves (the turn it leaves counts). The plate layer
 //     counts down in `layer.hold`; a covered plate is not pressed and keeps
@@ -77,8 +78,20 @@ export function syncGates(board, emit = null) {
 /** Whether a lock tile is still locked. */
 export const isLocked = (layer) => !!layer && !!tileDef(layer.tile).unlocksTo;
 
-/** Whether a layer carries an item that opens locks. */
-export const holdsKey = (layer) => !!layer && !!layer.item && !!itemDef(layer.item).opens;
+/** Whether an item id opens locks. */
+const opens = (item) => !!item && !!itemDef(item).opens;
+
+/**
+ * Whether a layer carries an item that opens locks: lying on it, or held
+ * by the creature standing on it (a Lockjaw's key, core/creatures.js).
+ */
+export const holdsKey = (layer) => !!layer && (opens(layer.item) || (!!layer.creature && opens(layer.creature.item)));
+
+/** Use up the key `layer` holds (holdsKey): the one on the paper first. */
+export function spendKey(layer) {
+  if (opens(layer.item)) layer.item = null;
+  else layer.creature.item = null;
+}
 
 /** Turn a lock layer into its open form (mutates the layer). */
 export function unlockLayer(layer) {

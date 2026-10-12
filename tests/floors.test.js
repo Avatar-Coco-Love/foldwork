@@ -3,7 +3,7 @@ import { test } from './harness.js';
 import { parseMap, transformRows } from '../src/core/maps.js';
 import { topLayer, stackHeight } from '../src/core/board.js';
 import { TILE } from '../src/core/tiles.js';
-import { createFloorState, act } from '../src/core/turn.js';
+import { createFloorState, act, playerOf } from '../src/core/turn.js';
 import { validateFold } from '../src/core/fold.js';
 import { solve } from '../src/core/solver.js';
 import { replay } from '../src/core/replay.js';
@@ -14,8 +14,9 @@ import {
 } from '../src/core/floors.js';
 import { createRng } from '../src/core/rng.js';
 
-// Generous caps: the tests are where every variant gets proven.
-const PROOF = { maxStates: 20000, maxTurns: 40 };
+// Generous caps: the tests are where every variant gets proven (7x7
+// floors with a Spore Bloom need the most room).
+const PROOF = { maxStates: 40000, maxTurns: 40 };
 
 test('parseMap: `under` grids stack layers beneath the top row symbols', () => {
   const { board, anchors } = parseMap(['E ?', '. @'], { under: [['. _', '_ _'], ['# _', '_ _']] });
@@ -34,8 +35,8 @@ test('map transforms mirror and rotate rows', () => {
   assert.throws(() => transformRows(rows, 'spin'));
 });
 
-test('templates: well-formed data covering floors 1–4', () => {
-  assert.deepEqual(templateFloors(), [1, 2, 3, 4]);
+test('templates: well-formed data covering floors 1–4, 6 and 7', () => {
+  assert.deepEqual(templateFloors(), [1, 2, 3, 4, 6, 7]);
   const ids = new Set();
   for (const t of FLOOR_TEMPLATES) {
     assert.ok(!ids.has(t.id), `duplicate id ${t.id}`);
@@ -49,12 +50,19 @@ test('templates: well-formed data covering floors 1–4', () => {
   // docs/03: F1–2 are 5x5, F3–5 are 6x6.
   for (const t of templatesFor(1).concat(templatesFor(2))) assert.equal(buildFloor(t).board.w, 5);
   for (const t of templatesFor(3).concat(templatesFor(4))) assert.equal(buildFloor(t).board.w, 6);
+  // F6–8 are 7x7.
+  for (const t of templatesFor(6).concat(templatesFor(7))) assert.equal(buildFloor(t).board.w, 7);
 });
 
 // docs/05: every floor shown must be solvable. Variants are finite, so this
 // proves every one, and that each floor really needs what it teaches.
+// Phase 5 floors also prove the new enemy can always be handled without
+// taking a hit (solvable at 1 HP), though the shortest line may take one.
+const NO_DAMAGE = new Set(['f2-wasp', 'f3-brute', 'f4-relay', 'f4-gatehouse', 'f6-drop', 'f6-twin', 'f7-pocket']);
+
 for (const template of FLOOR_TEMPLATES) {
-  test(`template ${template.id}: every variant is solvable and needs ${(template.needs || []).join(' + ') || 'nothing'}`, () => {
+  const extra = NO_DAMAGE.has(template.id) ? ', with a no-damage line' : '';
+  test(`template ${template.id}: every variant is solvable${extra} and needs ${(template.needs || []).join(' + ') || 'nothing'}`, () => {
     const variants = allVariants(template);
     assert.ok(variants.length >= 1);
     for (const v of variants) {
@@ -63,6 +71,10 @@ for (const template of FLOOR_TEMPLATES) {
       assert.ok(check.ok, `${template.id} ${JSON.stringify(v)}: ${check.reason}`);
       const result = replay(createFloorState(built), check.solution.actions);
       assert.equal(result.state.status, 'won');
+      // The shortest line is itself the no-damage line when it took no
+      // hit; otherwise search again at 1 HP.
+      if (!NO_DAMAGE.has(template.id) || playerOf(result.state).hp === playerOf(createFloorState(built)).hp) continue;
+      assert.ok(solve(createFloorState({ ...built, hp: 1 }), PROOF).solvable, `${template.id} ${JSON.stringify(v)}: no no-damage line`);
     }
   });
 }
@@ -143,16 +155,6 @@ test('variants: mixed enemy kinds get every split of the anchors, and rolls matc
   }
 });
 
-// Phase 5 floors: the new enemy can always be handled without taking a
-// hit (solvable at 1 HP), though the shortest line may take one.
-for (const id of ['f2-wasp', 'f3-brute', 'f4-relay', 'f4-gatehouse']) {
-  test(`template ${id}: every variant has a no-damage line`, () => {
-    for (const v of allVariants(templateById(id))) {
-      const built = buildFloor(templateById(id), v);
-      assert.ok(solve(createFloorState({ ...built, hp: 1 }), PROOF).solvable, JSON.stringify(v));
-    }
-  });
-}
 
 test('template f3-brute: the one-fold bridge would land on the Brute, so it is refused', () => {
   const s = createFloorState(buildFloor(templateById('f3-brute')));

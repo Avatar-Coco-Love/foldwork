@@ -4,20 +4,15 @@
 small. At the end of each conversation, update this file in the same PR.
 
 ## Next up
-**Phase 5c: Lockjaw + Spore Bloom, F6/F7 templates.** Read docs/03
-(enemies table: Lockjaw, Spore Bloom; floor table: F6 "guarded keys", F7
-"time pressure from spawners") and docs/02 (enemies and folds). Lockjaw:
-2 HP, stationary guard, attacks adjacent tiles for 1, holds a key that
-drops on death (keys are items, so it can carry one; decide and log where
-it drops if it dies pinned or falls). Spore Bloom: 2 HP, stationary,
-spawns a Mite every 3 turns on an adjacent free tile; stranding or pinning
-stops it (the spawn counter is a new per-creature primitive: add it to
-`stateKey`; decide and log which adjacent tile wins, seeded or fixed
-order). Both are `fixed`. Add F6 and F7 templates (7x7). Watch out:
-`runLength()` is the highest templated floor, so F6/F7 without F5 makes
-the run 7 floors long with no F5 template (the floor screen would fall
-back to a dev floor). Either cap `runLength()` at the first gap, or
-build 5d (floors 5 and 8, mixes) first. Ask the user.
+**Phase 5d: Floors 5 and 8 (mixes).** Read docs/03 (floor table: F5
+"pinning and stranding enemies as the intended solution", 6x6; F8, 7x7,
+a mix) and the template notes in `core/floors.js`. All six enemies exist;
+F5 and F8 combine them. Once F5 has a template, `runLength()` jumps to 7
+(F1–F7, rest offered after F4 and F7), and to 8 with F8. Watch the
+suite time (~53 s now): a Spore Bloom that can reach the player from turn
+1 makes proofs costly (each Bloom spot, transform or `vary` choice is a
+full solve), so keep variants few and Blooms stranded until a fold opens
+the way where you can.
 
 ## Phase checklist
 Larger phases are split into PR-sized chunks so each conversation stays small.
@@ -40,7 +35,7 @@ Larger phases are split into PR-sized chunks so each conversation stays small.
 - [ ] **Phase 5** — Full enemy roster, floors 4–8
   - [x] 5a Paper Wasp + Card Brute, Wax Coat, F2/F3 templates (PR 12)
   - [x] 5b Creaseling + F4 templates (PR 13)
-  - [ ] 5c Lockjaw + Spore Bloom, F6/F7 templates
+  - [x] 5c Lockjaw + Spore Bloom, F6/F7 templates (PR 14)
   - [ ] 5d Floors 5 and 8 (mixes)
 - [ ] **Phase 6** — Great Crane boss, run summary
 - [ ] **Phase 7** — Meta-progression, daily seed, persistence
@@ -473,6 +468,52 @@ Larger phases are split into PR-sized chunks so each conversation stays small.
   phone portrait Night Ink F4 relay (the Creaseling rides a fold then
   slides; a pinning fold shows no arrow). No console errors.
 
+### PR 14: Phase 5c Lockjaw, Spore Bloom, F6/F7 templates
+- Settled with the user first (OPEN-QUESTIONS): `runLength()` stops at
+  the first floor without a template (still 4: F5 is missing; dev
+  `?floor=6` / `7` plays them outside the run); a Lockjaw that falls
+  drops its key on the nearest free footing; a Bloom with no walkable
+  path to the player (or pinned) doesn't count down; spawns go to the
+  free neighbour closest to the player, ties in DIRS order.
+- `core/creatures.js`: `lockjaw` (2 HP, ai `guard`, `fixed`, new def flag
+  `carry: 'key'` → instance `item`) and `bloom` (2 HP, ai `spore`,
+  `fixed`, new def flag `spawn: { kind: 'mite', every: 3 }` → instance
+  counter `sprout`). Map symbols `J`, `S`.
+- `core/enemies.js`: `guard` AI (bump an orthogonal neighbour), `spore`
+  AI with `spawnSpot(board, from, field)` (pure) and `pendingSpawns`
+  (the cells Blooms fill this turn; the renderer marks them).
+- `core/turn.js`: the enemy phase ticks `sprout` (paused while stranded)
+  and applies `spawn` plans (event `spawn`; spawns are named
+  `${bloomId}-t${turn}` and act from the next turn). Carriers drop their
+  item on death or fall (`dropItem`, `nearestFreeFooting`; event `drop`
+  with `from`, `at`). A fold that stacks a carried key and a lock opens it
+  (`holdsKey` / `spendKey` in environment.js). `createFloorState` enemies
+  take `item` (null strips a carried key; `NEEDS.key` uses it).
+- Solver: `stateKey` now keys creatures by kind (ids don't change what
+  happens next, and spawn ids hold the turn), includes `item` and
+  `sprout`, and is built as one short string. The search skips a state
+  reached again with no more player HP (dominance), and `act()` rejects
+  unplayable folds before copying the state (`ACTIONS.fold.check`).
+- Templates (7x7): `f6-drop` (fold the void row up onto the Lockjaw; its
+  key pops out), `f6-twin` (two locks, two Lockjaws, one bridging fold
+  drops both; 14 turns), `f7-pocket` (start beside a Bloom; the quick
+  bridge takes a bite, a row-6-onto-row-5 fold first then a second fold
+  gets you clear; `needs` only `fold`, see OPEN-QUESTIONS). Every
+  variant has a no-damage line; that check now lives in the template
+  proof test and skips the extra search when the shortest line took no
+  hit.
+- Hints `lockjaw-guard`, `bloom-spawn`. Render: Lockjaw (jaw with
+  teeth) and Spore Bloom (paper flower in a cup) shapes, a carried-key
+  badge at the creature's feet, a countdown ring on the Bloom (solid at 1),
+  pass `drawSpawnMarks` (dashed ring plus cross where the next Mite
+  sprouts), clips `spawn` (pops out of the Bloom) and `drop` (the key
+  hops out).
+- 12 new tests in `tests/guards.test.js` (259 total). Suite time ~53 s
+  (was ~31 s): the F6/F7 proofs. Verified in headless Chromium: desktop
+  F6 drop fold by mouse drag (drop arrow in the preview, key on the
+  nearest tile after), phone portrait F7 in Paper and Night Ink
+  (countdown, spawn ring, hint card). No console errors.
+
 ## Conventions worth remembering
 - Dev URL params: `?screen=offer&cleared=4`, `?spirit=frog`, `?screen=floor&floor=2&map=courier&size=7&seed=abc&palette=night-ink&demo=1&speed=slow&motion=on&charges=3&mites=2&relics=all&telemetry=console`.
 - New draw layers → add a pass to `PASSES` in `renderer.js`.
@@ -527,6 +568,8 @@ Larger phases are split into PR-sized chunks so each conversation stays small.
   `sightLanes`, drawn by `drawSightLanes`), `fixed` (never stranded),
   `slide` (fold-aware glide via `slidePath`; previewed by `slidePreview`).
   Turn phases get `(state, emit, { action })`.
-  New per-creature counters must be primitives and go in `stateKey`.
+  New per-creature counters must be primitives and go in `stateKey`
+  (`creatureKey` in solver.js). Def flags `carry` (held item, dropped on
+  death or fall) and `spawn` (`sprout` countdown, ai `spore`).
 - Fold-time creature rules (pin, void drop) → `resolveFold` in `turn.js`;
   the per-cell rule is `coverEffect` (shared with the preview).

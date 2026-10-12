@@ -75,6 +75,16 @@ export const HINTS = Object.freeze({
     text: 'After every fold, a Creaseling slides up to 3 tiles along the crease toward you (the dashed arrow in the fold preview). Otherwise it steps like a Mite. Pick creases that send it the wrong way.',
     on: 'start',
   },
+  'lockjaw-guard': {
+    title: 'Lockjaws',
+    text: 'A Lockjaw never moves and bites you on any tile next to it. It holds a key (shown at its feet) and drops it when it dies. Fold it onto a lock, or a lock onto it, to use its key without a fight.',
+    on: 'start',
+  },
+  'bloom-spawn': {
+    title: 'Spore Blooms',
+    text: 'The number on a Bloom counts down the turns until a Scrap Mite sprouts next to it (the dashed ring). Pin it under a fold, or cut it off from you, and it stops counting.',
+    on: 'start',
+  },
   'key-fold': {
     title: 'Fold a key in',
     text: 'A fold that stacks a key straight onto a lock opens it too, no walking needed.',

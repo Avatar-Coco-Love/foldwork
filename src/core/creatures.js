@@ -20,6 +20,14 @@
 //          rides its layer)
 //   slide  after the player folds, slides up to this many tiles along the
 //          crease toward the player instead of stepping (ai 'creep')
+//   carry  an item id (core/tiles.js ITEM) the creature holds; instances
+//          keep it in `item`. Dropped where it dies; if it falls, on the
+//          nearest free footing (turn.js dropItem). A fold that stacks the
+//          carrier and a lock delivers it, like a key on paper.
+//   spawn  { kind, every }: puts a new `kind` on a free neighbour every
+//          `every` turns (ai 'spore'). Instances count down in `sprout`
+//          (turns left; 1 = spawns this enemy phase). Pinned or stranded
+//          (no walkable path to the player), the count waits.
 
 export const CREATURE_DEFS = Object.freeze({
   player: { kind: 'player', name: 'You', team: 'player', hp: 3 },
@@ -32,6 +40,10 @@ export const CREATURE_DEFS = Object.freeze({
   // After a fold, slides up to 3 tiles along the crease toward the player;
   // otherwise moves like a Mite.
   creaseling: { kind: 'creaseling', name: 'Creaseling', team: 'enemy', hp: 2, attack: 1, ai: 'creep', slide: 3 },
+  // Stationary guard: bites the player on any adjacent tile for 1. Holds a key.
+  lockjaw: { kind: 'lockjaw', name: 'Lockjaw', team: 'enemy', hp: 2, attack: 1, ai: 'guard', fixed: true, carry: 'key' },
+  // Stationary; a Scrap Mite sprouts next to it every 3 turns. Never attacks.
+  bloom: { kind: 'bloom', name: 'Spore Bloom', team: 'enemy', hp: 2, ai: 'spore', fixed: true, spawn: { kind: 'mite', every: 3 } },
 });
 
 export function creatureDef(kind) {
@@ -50,6 +62,8 @@ export function createCreature(kind, { id = kind, hp, maxHp } = {}) {
   const max = maxHp ?? hp ?? def.hp;
   const creature = { id, kind, hp: Math.min(hp ?? max, max), maxHp: max };
   if (def.pace > 1) creature.rest = def.pace - 1;
+  if (def.carry) creature.item = def.carry;
+  if (def.spawn) creature.sprout = def.spawn.every;
   return creature;
 }
 

@@ -29,8 +29,8 @@ All content is data-driven (plain JS objects). Numbers are starting values for t
 | Paper Wasp | 1 | Stationary. Hits the player for 1 if in clear line (row/column) within 4 tiles. | A layer stacked over its line of sight (taller than its own stack), a wall or another creature blocks the shot. Fold it away from line, or pin it, to disarm. |
 | Card Brute | 3 | Moves every other turn toward the player (rests first); hits for 1. | **Cannot be pinned** (too heavy): a fold can't land on it, except a void sheet, which drops it. It can still be stranded. |
 | Creaseling | 2 | After any fold, it slides along the crease line toward the player (up to 3 tiles): in its own lane, parallel to the crease, stopping before anything it can't stand on, any creature or you. The slide replaces its step and never hits. Otherwise moves like a Mite. | Fold-aware. Counter it by choosing creases that move it away from you; the fold preview shows each slide as a dashed arrow. Pinned, it can't slide. |
-| Lockjaw | 2 | Stationary guard. Attacks adjacent tiles for 1. Holds a key (dropped on death). | Fold it away from its key spot, or deliver the key via a fold without fighting it. |
-| Spore Bloom | 2 | Stationary. Spawns a Scrap Mite every 3 turns on an adjacent free tile. | Stranding or pinning stops its spawns. Pressure to solve quickly. |
+| Lockjaw | 2 | Stationary guard. Bites the player on an adjacent tile (not diagonal) for 1. Holds a key, dropped where it dies; if it falls, the key lands on the nearest free tile. | Drop it into a void with a fold to take its key without a fight, or fold it and a lock together (either on top) to open the lock with its key. |
+| Spore Bloom | 2 | Stationary; never attacks. Spawns a Scrap Mite every 3 turns on the free adjacent tile closest to the player (a countdown on the Bloom; a dashed ring marks the spot). | Stranding (no walkable path to the player) or pinning pauses its countdown. Pressure to solve quickly. |
 
 ## Boss: The Great Crane (floor 9)
 A giant paper crane that refolds the arena itself. The player must out-fold it.
