@@ -4,13 +4,13 @@
 small. At the end of each conversation, update this file in the same PR.
 
 ## Next up
-**Phase 2b: Scrap Mite AI, pin/strand/void-drop.** Add `core/enemies.js`
-(Mite def in `CREATURE_DEFS`, AI: step toward the player, bump for 1) and fill
-the `enemies` entry of `TURN_PHASES` in `core/turn.js` (fixed order:
-top-to-bottom, left-to-right; reuse `damageAt`, `fall` and the `move` / `bump`
-events, so playback already works). Implement pin, strand and void drop in
-the `resolveFold` hook, and add a Mite shape to `CREATURE_SHAPES`. Settle the
-open questions about a pinned player and empty cells for enemies first.
+**Phase 3a: keys, locks, plates, exit tiles.** Add the tiles to
+`TILE`/`TILE_DEFS` (`core/tiles.js`) with painters, fill the `environment`
+entry of `TURN_PHASES` (plates are pressed by any creature on the top layer,
+docs/02), deliver keys by walking or folding onto a lock (the `landings`
+captured in `runFold` / `resolveFold`), and add the win outcome (reach the
+exit) next to defeat in `runOutcome` + a victory panel. Confirm the void-drop
+reading in `docs/OPEN-QUESTIONS.md` first.
 
 ## Phase checklist
 Larger phases are split into PR-sized chunks so each conversation stays small.
@@ -20,9 +20,9 @@ Larger phases are split into PR-sized chunks so each conversation stays small.
   - [x] 1a Fold logic + tests (`core/fold.js`) (PR 2)
   - [x] 1b Drag-to-fold input + live preview (pointer + keyboard, `ui/input.js`) (PR 3)
   - [x] 1c Fold animation + reduced-motion / speed setting (`render/fx.js`) (PR 4)
-- [ ] **Phase 2** — Player, turns, combat
+- [x] **Phase 2** — Player, turns, combat
   - [x] 2a Turn engine + event list, player move/bump/wait/HP (PR 5)
-  - [ ] 2b Scrap Mite AI, pin/strand/void-drop, event playback
+  - [x] 2b Scrap Mite AI, pin/strand/void-drop, event playback (PR 6)
 - [ ] **Phase 3** — Puzzle tiles, floors 1–3, tutorial hints, solver v1
   - [ ] 3a Keys, locks, plates, exit tiles
   - [ ] 3b Solver v1 + floor templates F1–3 + hints
@@ -164,8 +164,43 @@ Larger phases are split into PR-sized chunks so each conversation stays small.
   the fold, fall into a void → defeat → Retry), landscape + Night Ink +
   reduced motion. No console errors.
 
+### PR 6: Phase 2b Scrap Mite, pin / strand / void drop
+- Decided: the pinned-player rule stays, and a fold that causes defeat can't
+  be undone. Empty cells are void for enemies too.
+- `core/creatures.js`: `mite` def (team enemy, 1 HP, attack 1, ai 'chase'),
+  `isEnemy`. `DIRS` and `isFooting` moved to `core/board.js` (`turn.js`
+  re-exports `DIRS`).
+- `core/enemies.js` (pure): AI only plans (`wait` / `move` / `bump`);
+  `turn.js` applies the plan. `reachField` is a BFS from the player over
+  footing cells (creatures don't block, stacks climb freely). The Mite takes
+  a shortest step, closing the longer axis gap first, skips occupied cells,
+  bumps only an unpinned player, and waits when stranded. `actingEnemies`
+  gives the docs/02 order (row-major, pinned excluded). `ENEMY_AI` table for
+  new behaviors. `scatterEnemies` is the seeded dev placement.
+- `core/turn.js`: `createFloorState({ enemies })`; the `enemies` phase runs
+  each enemy once and stops on defeat. `stepCreature` is the shared step
+  (player and enemies; empty cell / void → `fall`). `fall` now clears a
+  creature at any depth.
+- Fold effects: `runFold` captures `landings`, emits `fold`, then
+  `resolveFold(s, landings, emit)` pins whoever was covered (`pin` event), or
+  void-drops them (`fall`) when the new top layer is a hole. Then it compares
+  `enemiesInReach` before/after and emits `strand`. `coverEffect` is the
+  shared pure rule.
+- Preview: `EFFECT` per landing cell + `pv.player`. A pin shows a paper clip;
+  a drop shows a dashed red outline and a "↓" badge. The HUD status warns
+  when the fold pins or drops the player.
+- `render/creatures.js`: Mite shape (squat hexagon, spiky legs, feelers).
+  Enemy move/bump/fall reuse the existing clips; pin and strand have none
+  (the board already shows the pinned ghost).
+- Floor screen: dev floors scatter 2 Mites (`?mites=` param, `fork(seed,
+  'enemies')`) at least 3 steps from the start.
+- 24 new tests (122 total). Verified in headless Chromium: mites approach and
+  double-bump to defeat, Retry, keyboard pin preview + confirm (pinned ghost
+  with clip, mite stops acting), phone + Night Ink demo board. No console
+  errors.
+
 ## Conventions worth remembering
-- Dev URL params: `?screen=floor&size=7&seed=abc&palette=night-ink&demo=1&speed=slow&motion=on`.
+- Dev URL params: `?screen=floor&size=7&seed=abc&palette=night-ink&demo=1&speed=slow&motion=on&charges=3&mites=2`.
 - New draw layers → add a pass to `PASSES` in `renderer.js`.
 - New tile types → `TILE`/`TILE_DEFS` in `tiles.js` + a painter in `renderer.js`.
 - New screens → `ui/screens.js`, register in `main.js`.
@@ -183,6 +218,8 @@ Larger phases are split into PR-sized chunks so each conversation stays small.
   (`render/playback.js`).
 - Creature kinds → `CREATURE_DEFS` (`core/creatures.js`) + a shape in
   `CREATURE_SHAPES` (`render/creatures.js`). Damage goes through `damageAt`,
-  falls through `fall`.
-- Fold-time creature rules (pin, strand, void drop) → `resolveFold` in
-  `turn.js`.
+  falls through `fall`, steps through `stepCreature`.
+- Enemy behaviors → `ENEMY_AI` in `core/enemies.js` (plans only, never
+  mutates); name the key in the def's `ai`.
+- Fold-time creature rules (pin, void drop) → `resolveFold` in `turn.js`;
+  the per-cell rule is `coverEffect` (shared with the preview).

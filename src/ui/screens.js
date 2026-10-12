@@ -8,8 +8,9 @@ import { buildFoldPreview } from '../render/preview.js';
 import { createFxPlayer } from '../render/fx.js';
 import { createPlayback, buildClips } from '../render/playback.js';
 import {
-  createFloorState, act, canUndo, foldCheck, playerOf, PLAYER_ID, DEFAULT_FOLD_CHARGES,
+  createFloorState, defaultStart, act, canUndo, foldCheck, playerOf, PLAYER_ID, DEFAULT_FOLD_CHARGES,
 } from '../core/turn.js';
+import { scatterEnemies } from '../core/enemies.js';
 import { CREATURE_DEFS } from '../core/creatures.js';
 import { ANIM_SPEEDS, MOTION_MODES, cycleOption, optionName } from './settings.js';
 import { createBoard, findCreature } from '../core/board.js';
@@ -69,7 +70,12 @@ export const floorScreen = {
     const size = clampSize(Number(params.size) || 5);
     const board = params.demo ? demoBoard(size, ctx.seed) : createBoard(size, size);
     const charges = Number.isInteger(params.charges) ? params.charges : DEFAULT_FOLD_CHARGES;
-    let state = createFloorState({ board, charges });
+    // Dev floors scatter Scrap Mites (default 2, ?mites=) until the Phase 3b
+    // templates place enemies on anchors.
+    const mites = Number.isInteger(params.mites) ? params.mites : DEV_MITES;
+    const start = defaultStart(board);
+    const enemies = scatterEnemies(board, fork(createRng(ctx.seed), 'enemies'), { kind: 'mite', count: mites, avoid: start });
+    let state = createFloorState({ board, player: start, enemies, charges });
     let shownBoard = state.board; // what the renderer shows (lags during playback)
     let preview = null;
     let queued = null; // one action pressed during playback (docs/04 input buffer)
@@ -91,7 +97,7 @@ export const floorScreen = {
       hud.setHp(me ? me.hp : 0, me ? me.maxHp : CREATURE_DEFS.player.hp);
       hud.setCharges(state.charges, state.maxCharges);
       hud.setUndoEnabled(canUndo(state));
-      hud.setFoldStatus(preview ? foldStatusText(preview) : null, preview && !preview.ok);
+      hud.setFoldStatus(preview ? foldStatusText(preview) : null, !!preview && (!preview.ok || preview.player === 'drop'));
     };
 
     const hud = createHud(root, {
@@ -225,8 +231,12 @@ function foldStatusText(pv) {
     const n = pv.reasons.filter((r) => r.code === 'stack-overflow').length;
     return `Too tall: ${n} stack${n === 1 ? '' : 's'} over ${pv.reasons[0]?.max ?? 3}`;
   }
+  if (pv.player === 'drop') return 'Warning: a void lands on you';
+  if (pv.player === 'pin') return 'Warning: this pins you';
   return 'Ready to fold';
 }
+
+const DEV_MITES = 2;
 
 function clampSize(n) {
   return Math.min(8, Math.max(5, Math.round(n)));

@@ -6,7 +6,7 @@
 // Shape = { parts: [{ fill, stroke?, points: [[x, y], ...] }] }
 //   points are in cell units (0..1 across the tile face); fill/stroke are
 //   palette token names. Parts are painted in order.
-// New creature kinds (Phase 2b+) add an entry to CREATURE_SHAPES.
+// New creature kinds add an entry to CREATURE_SHAPES.
 
 export const CREATURE_SHAPES = Object.freeze({
   // A folded-paper figure: a tall rhombus body with one shaded facet and a
@@ -16,6 +16,20 @@ export const CREATURE_SHAPES = Object.freeze({
       { fill: 'accent', stroke: 'ink', points: [[0.5, 0.22], [0.8, 0.56], [0.5, 0.9], [0.2, 0.56]] },
       { fill: 'shadow', points: [[0.5, 0.22], [0.5, 0.9], [0.2, 0.56]] },
       { fill: 'tileFace', stroke: 'ink', points: [[0.5, 0.06], [0.63, 0.2], [0.5, 0.34], [0.37, 0.2]] },
+    ],
+  },
+  // Scrap Mite: a low, wide hexagonal scrap with spiky legs and two
+  // feelers. Squat and horizontal where the player is tall and narrow.
+  mite: {
+    parts: [
+      { fill: 'ink', points: [[0.22, 0.6], [0.06, 0.5], [0.26, 0.54]] },
+      { fill: 'ink', points: [[0.24, 0.72], [0.06, 0.84], [0.3, 0.76]] },
+      { fill: 'ink', points: [[0.78, 0.6], [0.94, 0.5], [0.74, 0.54]] },
+      { fill: 'ink', points: [[0.76, 0.72], [0.94, 0.84], [0.7, 0.76]] },
+      { fill: 'ink', points: [[0.38, 0.45], [0.3, 0.26], [0.45, 0.44]] },
+      { fill: 'ink', points: [[0.62, 0.45], [0.7, 0.26], [0.55, 0.44]] },
+      { fill: 'danger', stroke: 'ink', points: [[0.18, 0.63], [0.32, 0.44], [0.68, 0.44], [0.82, 0.63], [0.68, 0.82], [0.32, 0.82]] },
+      { fill: 'shadow', points: [[0.5, 0.44], [0.68, 0.44], [0.82, 0.63], [0.68, 0.82], [0.5, 0.82]] },
     ],
   },
 });

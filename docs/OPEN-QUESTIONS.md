@@ -8,25 +8,30 @@ to "Resolved" with the answer once decided.
 - Relic rarity assignments.
 - Great Crane balance and arena templates.
 - Names and mechanics for the two later spirits (ideas: Rabbit, Koi).
-- Empty (vacated) cells act as void. For the player this is now decided (see
-  Resolved). Do enemies that step into an empty cell fall too? A creature
-  riding a fold always moves with its layer, so it is never left on an empty
-  cell. Settle this in Phase 2b with void drop.
-- A fold can stack paper over the player. For now (2a) the player is then
-  "pinned": can't move, but can wait, fold or undo. Is that the intended rule?
-  Should such folds be invalid, or should the player ride up to the top
-  instead? Folds move whole stacks, so the covering layer never leaves on its
-  own, which makes this a soft-lock unless the player undoes or folds the
-  stack again.
 - Touch "swipe to move" (docs/04) conflicts with drag-to-fold on the board.
   2a only supports tapping an adjacent tile. Should swipes be dropped, or
   should they mean something else (e.g. a swipe that starts on the player)?
-- Can a fold that leads to defeat be undone? In 2a, no: defeat ends the floor
-  at once. (A fold can't cause defeat until enemies act in 2b.)
+- Void drop reading (2b, please confirm): docs/02 says "an enemy left on a
+  void cell falls and dies", but creatures ride their layer, so the only way
+  to end up on a void is a fold landing a stack whose top layer is a void on
+  a creature's cell. 2b treats that as a void drop: the covered creature
+  falls (the player too, which is defeat). Any other landing pins. The fold
+  preview warns with a "↓" badge and the HUD says "a void lands on you".
+- Mite tuning: 2 Mites deal 2 damage a turn against 3 HP, so waiting next to
+  them is lethal fast. Dev floors scatter 2; revisit with real templates.
 - Diagonal creases (relic): how are cells that sit on the crease diagonal
   handled, and what happens to non-square boards?
 
 ## Resolved
+- A player covered by a fold is pinned (kept, decided in 2b): can't move,
+  but can wait, fold or undo. Enemies can't attack a pinned player.
+- A fold that leads to defeat (e.g. a void dropped on the player) can't be
+  undone: defeat ends the floor at once (decided in 2b).
+- Empty (vacated) cells are void for enemies too: an enemy stepping into one
+  falls. Enemy AI never steps into a void or empty cell on its own.
+- Strand = an enemy with no walkable path to the player (walls, voids and
+  empty cells block; stack heights don't). It waits. A fold that cuts an
+  enemy off emits a `strand` event (for relics like Recycled Crease).
 - Stack order when folding: the moved stack keeps its internal order (bottom
   stays bottom) and goes on top of the destination. There is no paper-style
   flip. (Tech doc: "preserving internal order".)

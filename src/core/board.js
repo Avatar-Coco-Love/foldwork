@@ -35,6 +35,21 @@ export function createBoard(w, h, fill = TILE.FLOOR, { maxStack = DEFAULT_MAX_ST
   return { w, h, maxStack, cells };
 }
 
+/** Orthogonal steps, in the fixed order used wherever a tie needs breaking. */
+export const DIRS = Object.freeze({
+  up: Object.freeze({ dc: 0, dr: -1 }),
+  down: Object.freeze({ dc: 0, dr: 1 }),
+  left: Object.freeze({ dc: -1, dr: 0 }),
+  right: Object.freeze({ dc: 1, dr: 0 }),
+});
+
+/** A layer a creature can stand on: walkable and not a hole. */
+export function isFooting(layer) {
+  if (!layer) return false;
+  const def = tileDef(layer.tile);
+  return def.walkable && !def.hole;
+}
+
 export function inBounds(board, col, row) {
   return col >= 0 && row >= 0 && col < board.w && row < board.h;
 }

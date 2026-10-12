@@ -9,6 +9,7 @@
 //   ?speed=slow     animation speed for this session (slow|normal|fast)
 //   ?motion=on      reduced motion for this session (system|on|off)
 //   ?charges=1      fold charges for the floor (default 3)
+//   ?mites=0        Scrap Mites scattered on the floor (default 2)
 
 import { createRenderer } from './render/renderer.js';
 import { HUD_METRICS } from './render/layout.js';
@@ -120,4 +121,5 @@ ctx.router.go(startScreen, {
   size: params.size,
   demo: params.demo === '1',
   charges: params.charges != null ? Number(params.charges) : undefined,
+  mites: params.mites != null ? Number(params.mites) : undefined,
 });

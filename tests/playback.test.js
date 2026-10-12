@@ -139,3 +139,30 @@ test('playback with no clips ends at once; finish() skips the rest', () => {
   assert.equal(shown[shown.length - 1], 'end2');
   assert.deepEqual(fx.log, ['fold']);
 });
+
+test('enemy turn: mite move and bump play as actor clips', () => {
+  const s = createFloorState({
+    board: createBoard(5, 5), player: { col: 2, row: 2 }, enemies: [{ kind: 'mite', col: 2, row: 0, id: 'm' }],
+  });
+  const r1 = run(s, { type: 'wait' });
+  const c1 = buildClips(s.board, r1.events, normal);
+  assert.deepEqual(c1.map((c) => [c.actor.kind, c.actor.id]), [['move', 'm']]);
+  const r2 = run(r1.state, { type: 'wait' });
+  const c2 = buildClips(r1.state.board, r2.events, normal);
+  assert.deepEqual(c2.map((c) => [c.actor.kind, c.actor.id]), [['bump', 'm'], ['hit', PLAYER_ID]]);
+});
+
+test('fold effects: void drop plays a fall after the fold; pin and strand have no clip', () => {
+  const b = createBoard(5, 5, (c, r) => (c === 0 && r === 2 ? TILE.VOID : TILE.FLOOR));
+  const s = createFloorState({
+    board: b, player: { col: 4, row: 4 },
+    enemies: [{ kind: 'mite', col: 1, row: 2, id: 'drop' }, { kind: 'mite', col: 1, row: 0, id: 'pin' }],
+  });
+  const r = run(s, { type: 'fold', fold: { axis: 'v', index: 1, side: 'before' } });
+  const clips = buildClips(s.board, r.events, normal);
+  assert.ok(clips[0].fold);
+  assert.equal(clips[1].actor.kind, 'fall');
+  assert.equal(clips[1].actor.id, 'drop');
+  // The fall clip shows the folded board, with the mite still under the void.
+  assert.equal(getCell(clips[1].board, 1, 2).layers[0].creature.id, 'drop');
+});
