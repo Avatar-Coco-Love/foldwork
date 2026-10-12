@@ -14,6 +14,11 @@
 //                       state's own undo chains back rules.undoDepth folds)
 //     rules,            RULES values for this floor (relics and spirits set
 //                       them, core/relics.js; plain data, constant per floor)
+//     uses,             what's left of limited effects: { wards (hits to
+//                       ignore this floor), freeLocks (locks that open
+//                       without a key), landings (falls to survive; run-wide,
+//                       carried by core/run.js), guard (the next hit this
+//                       turn is negated) }
 //   }
 //
 // States are values: act() works on a copy and never mutates its input. The
@@ -56,13 +61,18 @@
 //                                                (rules.foldRefund; by: what
 //                                                earned it: 'pin' | 'strand'
 //                                                | 'fall')
+//   { type: 'block', id, by, at }                a hit was negated (by: 'guard'
+//                                                | 'ward')
+//   { type: 'catch', id, at, from }              a fall into `at` was survived
+//                                                (uses.landings); the
+//                                                creature stays at `from`
 
 import { DIRS, inBounds, getCell, topLayer, findCreature, cloneBoard, isFooting } from './board.js';
 import { tileDef, itemDef, ITEM } from './tiles.js';
 import { validateFold, applyFold } from './fold.js';
 import { createCreature, creatureDef } from './creatures.js';
 import { actingEnemies, reachField, planEnemy, enemiesInReach } from './enemies.js';
-import { syncGates, isLocked, unlockLayer, keyMeetsLock } from './environment.js';
+import { syncGates, tickPlates, isLocked, unlockLayer, keyMeetsLock } from './environment.js';
 
 export { DIRS };
 
@@ -78,18 +88,30 @@ export const BUMP_DAMAGE = 1;
  *   undoDepth   consecutive folds the free undo can take back (docs/02: 1)
  *   foldRefund  charges a fold gives back when it pins, strands or drops an
  *               enemy (once per fold; never above maxCharges)
+ *   wards       hits on the player ignored per floor (Laminate)
+ *   foldGuard   after a fold, the next hit on the player that turn is
+ *               negated (Folded Shield)
+ *   freeLocks   locks per floor the player opens by walking in without a
+ *               key (Master Key)
+ *   stackBump   extra damage the player's bump deals to a creature on a
+ *               stacked cell, 2+ layers (Paper Cut)
+ *   plateHold   turns a plate stays pressed after its creature leaves
+ *               (Heavy Stamp; core/environment.js)
  */
-export const DEFAULT_RULES = Object.freeze({ undoDepth: 1, foldRefund: 0 });
+export const DEFAULT_RULES = Object.freeze({
+  undoDepth: 1, foldRefund: 0, wards: 0, foldGuard: false, freeLocks: 0, stackBump: 0, plateHold: 0,
+});
 
 /**
  * Start a floor: places the player on the top layer of `player` ({col,row},
  * default: defaultStart), then each of `enemies` ([{ kind, col, row, id? }],
  * ids default to `${kind}-${n}`). The input board is not mutated.
  * `hp` / `maxHp` carry the player's HP between floors (default: full);
- * `rules` overrides DEFAULT_RULES fields.
+ * `rules` overrides DEFAULT_RULES fields. `landings` is how many falls
+ * the player survives (Soft Landing; run-wide, so the run passes it in).
  */
 export function createFloorState({
-  board, player = null, enemies = [], charges = DEFAULT_FOLD_CHARGES, hp, maxHp, rules = null,
+  board, player = null, enemies = [], charges = DEFAULT_FOLD_CHARGES, hp, maxHp, rules = null, landings = 0,
 } = {}) {
   const next = cloneBoard(board);
   const at = player || defaultStart(next);
@@ -102,9 +124,11 @@ export function createFloorState({
     spot.creature = createCreature(e.kind, { id: e.id || `${e.kind}-${n}` });
   });
   syncGates(next); // a creature may start on a plate
+  const floorRules = { ...DEFAULT_RULES, ...rules };
   return {
     board: next, turn: 0, charges, maxCharges: charges, keys: 0, status: 'playing', outcome: null, undo: null,
-    rules: { ...DEFAULT_RULES, ...rules },
+    rules: floorRules,
+    uses: { wards: floorRules.wards, freeLocks: floorRules.freeLocks, landings, guard: false },
   };
 }
 
@@ -205,7 +229,7 @@ const ACTIONS = {
  */
 export const TURN_PHASES = [
   { id: 'enemies', run: runEnemies },
-  { id: 'environment', run: (s, emit) => syncGates(s.board, emit) },
+  { id: 'environment', run: runEnvironment },
   { id: 'outcome', run: runOutcome },
 ];
 
@@ -217,7 +241,7 @@ export function act(state, action, { snapshots = false } = {}) {
 
   const handler = ACTIONS[action.type];
   if (!handler) return reject('bad-action');
-  const next = { ...state, board: cloneBoard(state.board), undo: null };
+  const next = { ...state, board: cloneBoard(state.board), undo: null, uses: { ...state.uses } };
   const events = [];
   const emit = (ev) => {
     if (snapshots) ev.board = cloneBoard(next.board);
@@ -233,6 +257,7 @@ export function act(state, action, { snapshots = false } = {}) {
       phase.run(next, emit);
     }
     next.turn += 1;
+    next.uses.guard = false; // Folded Shield lasts one turn cycle
   }
   return { ok: true, state: next, events, reason: null };
 }
@@ -250,18 +275,22 @@ function runMove(s, action, emit) {
   const dest = topLayer(s.board, to.col, to.row);
   if (dest && dest.creature) {
     emit({ type: 'bump', id: PLAYER_ID, target: dest.creature.id, from, to });
-    damageAt(s, to, BUMP_DAMAGE, emit);
+    const stacked = getCell(s.board, to.col, to.row).layers.length >= 2;
+    damageAt(s, to, BUMP_DAMAGE + (stacked ? s.rules.stackBump : 0), emit);
     return null;
   }
   if (isLocked(dest)) {
-    if (s.keys <= 0) return 'locked';
-    s.keys -= 1;
+    let by = 'walk';
+    if (s.keys > 0) s.keys -= 1;
+    else if (s.uses.freeLocks > 0) {
+      s.uses.freeLocks -= 1;
+      by = 'master-key';
+    } else return 'locked';
     unlockLayer(dest);
-    emit({ type: 'unlock', at: { ...to }, by: 'walk' });
+    emit({ type: 'unlock', at: { ...to }, by });
   }
   if (dest && !tileDef(dest.tile).walkable) return tileDef(dest.tile).powered ? 'gate-closed' : 'blocked';
-  stepCreature(s, me, to, emit);
-  if (s.status !== 'playing') return null; // fell
+  if (!stepCreature(s, me, to, emit) || s.status !== 'playing') return null; // fell, or caught
   if (dest.item && itemDef(dest.item).pickup) {
     emit({ type: 'pickup', id: PLAYER_ID, item: dest.item, at: { ...to } });
     if (dest.item === ITEM.KEY) s.keys += 1;
@@ -289,6 +318,7 @@ function runFold(s, action, outerEmit, before) {
     },
   });
   s.charges -= 1;
+  if (s.rules.foldGuard) s.uses.guard = true;
   // The whole prior state, so undo also restores charges and anything the
   // enemy phase did after the fold. With undoDepth > 1 it keeps its own
   // undo, so consecutive folds unwind one at a time.
@@ -362,6 +392,11 @@ function runEnemies(s, emit) {
   }
 }
 
+function runEnvironment(s, emit) {
+  syncGates(s.board, emit);
+  tickPlates(s.board, s.rules.plateHold);
+}
+
 function runOutcome(s, emit) {
   const me = findCreature(s.board, PLAYER_ID);
   if (!me || me.creature.hp <= 0) lose(s, me ? 'hp' : 'fall', emit);
@@ -375,10 +410,11 @@ function runOutcome(s, emit) {
  * Deal `amount` damage to the creature on the top layer at `at`. Creatures
  * at 0 HP are removed (the player losing all HP ends the floor).
  */
-export function damageAt(s, at, amount, emit) {
+export function damageAt(s, at, amount, emit, { blockable = true } = {}) {
   const layer = topLayer(s.board, at.col, at.row);
   const creature = layer && layer.creature;
   if (!creature) return;
+  if (blockable && creature.id === PLAYER_ID && blockHit(s, creature, at, emit)) return;
   creature.hp = Math.max(0, creature.hp - amount);
   emit({ type: 'damage', id: creature.id, amount, hp: creature.hp, at: { ...at } });
   if (creature.hp > 0) return;
@@ -387,18 +423,40 @@ export function damageAt(s, at, amount, emit) {
   if (creature.id === PLAYER_ID) lose(s, 'hp', emit);
 }
 
+// A hit on the player is negated by Folded Shield's guard (this turn only)
+// first, then by Laminate's wards (per floor).
+function blockHit(s, creature, at, emit) {
+  const uses = s.uses;
+  const by = uses.guard ? 'guard' : uses.wards > 0 ? 'ward' : null;
+  if (!by) return false;
+  if (by === 'guard') uses.guard = false;
+  else uses.wards -= 1;
+  emit({ type: 'block', id: creature.id, by, at: { ...at } });
+  return true;
+}
+
 /**
  * Move the creature found at `me` (findCreature()'s result) onto `to`'s top
  * layer. Walls are the caller's check. An empty cell (vacated by a fold) has
- * no paper left, so like a void it makes the creature fall.
+ * no paper left, so like a void it makes the creature fall. Returns false
+ * when the player didn't move: a Soft Landing caught the fall.
  */
 export function stepCreature(s, me, to, emit) {
   const from = { col: me.col, row: me.row };
-  getCell(s.board, me.col, me.row).layers[me.depth].creature = null;
   const dest = topLayer(s.board, to.col, to.row);
+  const hole = !dest || tileDef(dest.tile).hole;
+  if (hole && me.creature.id === PLAYER_ID && s.uses && s.uses.landings > 0) {
+    // Back to the tile it left, for 1 damage (a fall, not a hit: no block).
+    s.uses.landings -= 1;
+    emit({ type: 'catch', id: me.creature.id, at: { ...to }, from });
+    damageAt(s, from, 1, emit, { blockable: false });
+    return false;
+  }
+  getCell(s.board, me.col, me.row).layers[me.depth].creature = null;
   if (dest) dest.creature = me.creature;
   emit({ type: 'move', id: me.creature.id, from, to: { ...to } });
-  if (!dest || tileDef(dest.tile).hole) fall(s, me.creature, to, emit);
+  if (hole) fall(s, me.creature, to, emit);
+  return true;
 }
 
 /**

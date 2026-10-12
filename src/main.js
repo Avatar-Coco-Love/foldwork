@@ -14,6 +14,7 @@
 //                   the floor's seeded template; ?size= or ?demo=1 gives an
 //                   open dev board
 //   ?floor=2        start the floor screen on this floor (with ?screen=floor)
+//   ?screen=offer&cleared=4   the relic offer after clearing that floor
 //   ?relics=extra-crease,spring-crease   start runs with these relics
 //                   (core/relics.js ids, or 'all')
 //   ?telemetry=console   log telemetry events (also: off, or a localhost
@@ -23,10 +24,10 @@ import { createRenderer } from './render/renderer.js';
 import { HUD_METRICS } from './render/layout.js';
 import { getPalette, cssVarName } from './render/palette.js';
 import { createRouter } from './ui/router.js';
-import { titleScreen, floorScreen, howToScreen } from './ui/screens.js';
+import { titleScreen, floorScreen, howToScreen, offerScreen } from './ui/screens.js';
 import { setupTelemetry, telemetryActive } from './telemetry/browser.js';
 import { TELEMETRY } from './config.js';
-import { createRun, runTag } from './core/run.js';
+import { createRun, runTag, rollOffer } from './core/run.js';
 import { RELIC_DEFS, isRelic } from './core/relics.js';
 import { loadSettings, saveSettings, normalizeSettings, resolveMotion } from './ui/settings.js';
 
@@ -124,7 +125,11 @@ function applyMotionClass() {
 reducedMotionQuery.addEventListener?.('change', applyMotionClass);
 applyMotionClass();
 
-ctx.router.register('title', titleScreen).register('floor', floorScreen).register('howto', howToScreen);
+ctx.router
+  .register('title', titleScreen)
+  .register('floor', floorScreen)
+  .register('offer', offerScreen)
+  .register('howto', howToScreen);
 
 // --- Viewport tracking -----------------------------------------------------
 
@@ -175,6 +180,12 @@ ctx.telemetry.track('session.start', {
 });
 ctx.telemetry.flush(); // anything left from an offline session
 if (params.screen === 'floor') ctx.startRun({ floor: Number(params.floor) || 1 });
+// Dev: the relic offer after clearing floor ?cleared= (4 or 7 shows rest).
+if (params.screen === 'offer') {
+  const cleared = Number(params.cleared) || 1;
+  ctx.startRun({ floor: cleared + 1 });
+  ctx.run = { ...ctx.run, cleared, offer: rollOffer(ctx.run, cleared) };
+}
 const startScreen = ctx.router.has(params.screen) ? params.screen : 'title';
 ctx.router.go(startScreen, {
   floor: Number(params.floor) || 1,

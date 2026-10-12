@@ -6,9 +6,12 @@ to "Resolved" with the answer once decided.
 ## Open
 These belong to later phases and get decided when that phase is built.
 - Exact scrap costs and earn rates (Phase 7; tune in Phase 9).
-- Relic rarity assignments (Phase 4b, with offers). 4a gives provisional
-  ones: Extra Crease and Spring Crease common, Thick Paper and Recycled
-  Crease uncommon.
+- Relic rarities and offer weights (provisional since 4b; tune in Phase 9
+  playtests). Weights common 6 / uncommon 3 / rare 1. Common: Extra Crease,
+  Spring Crease, Paper Heart, Laminate, Mender, Master Key, Paper Cut.
+  Uncommon: Thick Paper, Recycled Crease, Soft Landing, Folded Shield,
+  Heavy Stamp. Rare: Origami Luck. The 11 relics not built yet get theirs
+  when they arrive (aim: ~12/8/4 overall, docs/03).
 - Telemetry start: collection is off (`TELEMETRY.collect: false`) until the
   first playtests have been watched; then deploy the Sheets collector and
   switch it on (docs/07).
@@ -22,10 +25,37 @@ These belong to later phases and get decided when that phase is built.
   endpoint is configured in `src/config.js`.
 
 ## Resolved
+- Relic offers (4b): after every floor won except the last, pick 1 of 3
+  (4 with Origami Luck), weighted by rarity, never a relic you own, never
+  a repeat in one offer; seeded per floor (`offers-<n>`). There is no skip:
+  a choice is required, unless the pool is empty. Rest (after floors 4
+  and 7) heals 1 and can be taken at full HP (it says so on the card).
+- Laminate / Folded Shield (4b): both negate a whole hit on the player.
+  Folded Shield's guard lasts until the end of the turn the fold was made
+  (the enemy phase right after it) and is used first; Laminate's ward is
+  per floor. Undo restores both, like everything else.
+- Soft Landing (4b): only a step into a void or empty cell is caught
+  (stay put, 1 damage that can't be blocked; it can still tear you at 1
+  HP). Being void-dropped by a fold isn't caught: there's no previous tile,
+  and the fold preview already warns. One use per run, carried as
+  `run.landings`.
+- Master Key (4b): "opens automatically" means the first lock you walk
+  into on each floor opens without a key. A carried key is used first.
+  Fold delivery is unaffected.
+- Mender (4b): heals 1 after every 2nd floor cleared (run.cleared even),
+  before the offer.
+- Paper Cut (4b): "stacked tile" = the target's cell has 2+ layers. Only
+  the player's bumps.
+- Heavy Stamp (4b): the plate stays pressed the turn you step off and the
+  next 2 (3 turns in all). A creature standing on it keeps it topped up.
+- Not built yet (need later systems): Diagonal Crease, Echo Fold, Crease
+  Trap, Pocket Fold, Sticky Tape, Sharp Edge (fold relics; diagonal axis
+  and timed effects), Wax Coat (needs the Wasp, Phase 5), Scout's Eye and
+  Compass (render-side), Lucky Scrap (scraps, Phase 7), Rewind Charm.
 - Telemetry hosting (4a): Google Sheets via an Apps Script web app for
   playtests (`tools/telemetry-sheets/`); a real database before launch.
-- Run rules (4a, provisional, playtest them): HP carries between floors,
-  with no healing yet (rest/heal relics arrive in 4b). Defeat ends the run
+- Run rules (4a, provisional, playtest them): HP carries between floors;
+  healing comes from Paper Heart, Mender and rest (4b). Defeat ends the run
   (no more same-floor retry). Leaving mid-floor ends the run as
   `abandoned` until Phase 7 can save and resume runs.
 - Spring Crease (4a): undo unwinds up to 2 consecutive folds, one per
