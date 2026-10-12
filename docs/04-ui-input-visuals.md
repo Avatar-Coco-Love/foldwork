@@ -15,7 +15,7 @@
 ## Input
 | Action | Mouse | Touch | Keyboard |
 |---|---|---|---|
-| Move / bump | Click adjacent tile | Tap adjacent tile or swipe | Arrow keys / WASD |
+| Move / bump | Click adjacent tile | Tap adjacent tile (no swipe: a drag is always a fold) | Arrow keys / WASD |
 | Fold | Drag across board, release to confirm | Drag, release to confirm | F to enter fold mode, arrows move crease, F flips the folding side, Enter confirms, Esc cancels |
 | Cancel fold | Drag outside board / right click | Drag off board or tap Cancel | Esc |
 | Undo fold | Button / U | Button | U / Z |

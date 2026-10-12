@@ -9,7 +9,9 @@
 //   ?speed=slow     animation speed for this session (slow|normal|fast)
 //   ?motion=on      reduced motion for this session (system|on|off)
 //   ?charges=1      fold charges for the floor (default 3)
-//   ?mites=0        Scrap Mites scattered on the floor (default 2)
+//   ?mites=0        Scrap Mites on the floor (default: the map's, or 2 scattered)
+//   ?map=sandbox    hand-made dev floor (core/maps.js DEV_MAPS); the default
+//                   unless ?size= or ?demo=1 asks for an open dev board
 
 import { createRenderer } from './render/renderer.js';
 import { HUD_METRICS } from './render/layout.js';
@@ -119,6 +121,7 @@ const startScreen = ctx.router.has(params.screen) ? params.screen : 'title';
 ctx.router.go(startScreen, {
   floor: 1,
   size: params.size,
+  map: params.map,
   demo: params.demo === '1',
   charges: params.charges != null ? Number(params.charges) : undefined,
   mites: params.mites != null ? Number(params.mites) : undefined,

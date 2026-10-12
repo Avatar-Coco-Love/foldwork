@@ -1,6 +1,7 @@
 // Color palettes. Each palette defines the same token set; renderers and CSS
 // read tokens by name, never raw colors. Tile types also get distinct symbols
-// (drawn by the renderer), so color is never the only cue.
+// (drawn by the renderer), so color is never the only cue. `glyph` is ink
+// that reads on a tile face in every palette (tile symbols, keys).
 
 const PAPER = {
   id: 'paper',
@@ -14,6 +15,7 @@ const PAPER = {
   tileEdge: '#d8cfbd',
   gridLine: 'rgba(90, 75, 55, 0.12)',
   wallFace: '#8c8070',
+  glyph: '#3a3229',
   voidFace: '#2e2a33',
   ink: '#3a3229',
   inkSoft: '#6d6253',
@@ -35,6 +37,7 @@ const NIGHT_INK = {
   tileEdge: '#9f998b',
   gridLine: 'rgba(20, 20, 30, 0.18)',
   wallFace: '#5a5866',
+  glyph: '#2a2833',
   voidFace: '#07070b',
   ink: '#ebe6da',
   inkSoft: '#a9a49a',
@@ -56,6 +59,7 @@ const HIGH_CONTRAST = {
   tileEdge: '#000000',
   gridLine: 'rgba(0, 0, 0, 0.55)',
   wallFace: '#404040',
+  glyph: '#000000',
   voidFace: '#000000',
   ink: '#000000',
   inkSoft: '#222222',

@@ -4,13 +4,13 @@
 small. At the end of each conversation, update this file in the same PR.
 
 ## Next up
-**Phase 3a: keys, locks, plates, exit tiles.** Add the tiles to
-`TILE`/`TILE_DEFS` (`core/tiles.js`) with painters, fill the `environment`
-entry of `TURN_PHASES` (plates are pressed by any creature on the top layer,
-docs/02), deliver keys by walking or folding onto a lock (the `landings`
-captured in `runFold` / `resolveFold`), and add the win outcome (reach the
-exit) next to defeat in `runOutcome` + a victory panel. Confirm the void-drop
-reading in `docs/OPEN-QUESTIONS.md` first.
+**Phase 3b: solver v1 + floor templates F1–3 + tutorial hints.** Read
+docs/03 (floor progression), docs/04 (tutorial) and docs/05 (solver). Build
+the solver over `act()` (states are values, so a BFS/IDDFS over actions
+works as is). Templates can start from `parseMap` rows (`core/maps.js`) and
+extend the legend for stacked layers and enemy anchors. Replace `devFloor`
+in `ui/screens.js` with seeded template floors, validate each with the
+solver, and revisit Mite tuning (see `docs/OPEN-QUESTIONS.md`).
 
 ## Phase checklist
 Larger phases are split into PR-sized chunks so each conversation stays small.
@@ -24,7 +24,7 @@ Larger phases are split into PR-sized chunks so each conversation stays small.
   - [x] 2a Turn engine + event list, player move/bump/wait/HP (PR 5)
   - [x] 2b Scrap Mite AI, pin/strand/void-drop, event playback (PR 6)
 - [ ] **Phase 3** — Puzzle tiles, floors 1–3, tutorial hints, solver v1
-  - [ ] 3a Keys, locks, plates, exit tiles
+  - [x] 3a Keys, locks, plates, exit tiles (PR 7)
   - [ ] 3b Solver v1 + floor templates F1–3 + hints
 - [ ] **Phase 4** — Run structure, relics (12+), spirits
 - [ ] **Phase 5** — Full enemy roster, floors 4–8
@@ -199,10 +199,52 @@ Larger phases are split into PR-sized chunks so each conversation stays small.
   with clip, mite stops acting), phone + Night Ink demo board. No console
   errors.
 
+### PR 7: Phase 3a keys, locks, plates, gates, exit
+- Open questions settled (see `docs/OPEN-QUESTIONS.md`): void-drop reading
+  confirmed; touch swipe-to-move dropped (docs/04 updated); diagonal crease
+  rule set for Phase 4.
+- `core/tiles.js`: new tiles `lock`, `door` (an unlocked lock), `plate`,
+  `gate`, `gate-open`, `exit`, with data flags (`unlocksTo`, `plate`,
+  `powered`/`unpowered`, `exit`). Keys are items (`ITEM`/`ITEM_DEFS`) on
+  `layer.item`. Plates and gates carry `layer.link`.
+- `core/environment.js` (pure): `pressedLinks`, `syncGates` (gates at any
+  depth follow their link, can't close on a creature), `keyMeetsLock`,
+  `unlockLayer`.
+- `core/turn.js`: `FloorState.keys`. Move picks up keys, opens a lock with
+  a key and steps in (no key: refused as `locked`, no turn), refuses a shut
+  gate as `gate-closed`, and wins at once on an exit. `resolveFold` opens a
+  lock when a fold stacks it directly with a key (either order). The
+  `environment` phase runs `syncGates`. `runOutcome` also checks the exit.
+  New events: `pickup`, `unlock`, `gate`, `victory`.
+- `core/maps.js`: `parseMap(rows)` for ASCII layouts (legend in the file)
+  and `DEV_MAPS` (`sandbox`, `courier`). New Run now plays the sandbox;
+  `?map=` picks a map, `?size=`/`?demo=1` still give the old open board.
+- Preview: `unlock` / `unlocks` per landing; the board shows a key badge
+  and the HUD says "Ready: opens a lock".
+- Renderer: painters get the layer; padlock, open-shackle door, plate
+  (raised / pressed with a dashed rim), barred gate / retracted bars,
+  stairs exit, key item, and link marks (dot, triangle, square) on plates
+  and gates. New `glyph` palette token: ink that reads on tile faces in
+  every palette.
+- HUD: key counter (hidden at 0); `notify(text, { info })` so environment
+  notes aren't shown as refusals; victory panel (Play again / Menu).
+- 14 new tests (136 total), including both dev maps being winnable.
+  Verified in headless Chromium: phone portrait, desktop (Paper, Night
+  Ink, High Contrast), key route to victory by keyboard, plate opening the
+  gate, mouse drag fold delivering the key on `?map=courier`. No console
+  errors.
+
 ## Conventions worth remembering
-- Dev URL params: `?screen=floor&size=7&seed=abc&palette=night-ink&demo=1&speed=slow&motion=on&charges=3&mites=2`.
+- Dev URL params: `?screen=floor&map=courier&size=7&seed=abc&palette=night-ink&demo=1&speed=slow&motion=on&charges=3&mites=2`.
 - New draw layers → add a pass to `PASSES` in `renderer.js`.
-- New tile types → `TILE`/`TILE_DEFS` in `tiles.js` + a painter in `renderer.js`.
+- New tile types → `TILE`/`TILE_DEFS` in `tiles.js` + a painter in
+  `TILE_PAINTERS` (`renderer.js`; painters get the layer). Items →
+  `ITEM_DEFS` + `ITEM_PAINTERS`. Glyphs on tile faces use the `glyph` token.
+- Environment rules (plates, gates, locks) → `core/environment.js`, run
+  from the `environment` turn phase; fold-time tile rules go in
+  `resolveFold` next to the creature rules.
+- Hand-made layouts → `parseMap` rows (`core/maps.js`); new symbols go in
+  `MAP_LEGEND`.
 - New screens → `ui/screens.js`, register in `main.js`.
 - New random streams → `fork(runRng, 'label')`; never use `Math.random` in logic.
 - Fold geometry → add an entry to `AXES` in `fold.js`; creature effects of a

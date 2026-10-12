@@ -5,6 +5,7 @@
 import { validateFold } from '../core/fold.js';
 import { cellIndex, topLayer } from '../core/board.js';
 import { coverEffect, PLAYER_ID } from '../core/turn.js';
+import { keyMeetsLock } from '../core/environment.js';
 
 export const CELL = Object.freeze({
   NONE: 0,
@@ -23,10 +24,13 @@ export const EFFECT = Object.freeze({
 
 /**
  * @returns {{ fold, ok, reasons, heights: number[], state: Uint8Array,
- *   source: Int16Array, effect: Uint8Array, player: 'pin'|'drop'|null }}
+ *   source: Int16Array, effect: Uint8Array, unlock: Uint8Array,
+ *   unlocks: number, player: 'pin'|'drop'|null }}
  *   `source[dest]` is the cell index whose stack lands on `dest` (or -1).
- *   `effect[dest]` is an EFFECT; `player` says what the fold does to the
- *   player. Returns null for a malformed crease.
+ *   `effect[dest]` is an EFFECT; `unlock[dest]` is 1 where the landing
+ *   stacks a key and a lock together (the lock opens), `unlocks` counts
+ *   them. `player` says what the fold does to the player. Returns null for
+ *   a malformed crease.
  */
 export function buildFoldPreview(board, fold) {
   const check = validateFold(board, fold);
@@ -35,6 +39,8 @@ export function buildFoldPreview(board, fold) {
   const state = new Uint8Array(n);
   const source = new Int16Array(n).fill(-1);
   const effect = new Uint8Array(n);
+  const unlock = new Uint8Array(n);
+  let unlocks = 0;
   let player = null;
   for (const m of check.moves) {
     const from = cellIndex(board, m.from.col, m.from.row);
@@ -47,6 +53,10 @@ export function buildFoldPreview(board, fold) {
     const to = cellIndex(board, m.to.col, m.to.row);
     state[to] = CELL.LANDING;
     source[to] = from;
+    if (keyMeetsLock(topLayer(board, m.to.col, m.to.row), topLayer(board, m.from.col, m.from.row))) {
+      unlock[to] = 1;
+      unlocks += 1;
+    }
     const fx = coverEffect(board, m.from, m.to);
     if (!fx) continue;
     effect[to] = fx === 'drop' ? EFFECT.DROP : EFFECT.PIN;
@@ -55,5 +65,5 @@ export function buildFoldPreview(board, fold) {
   for (const r of check.reasons) {
     if (r.code === 'stack-overflow') state[cellIndex(board, r.col, r.row)] = CELL.OVERFLOW;
   }
-  return { fold, ok: check.ok, reasons: check.reasons, heights: check.perCellHeights, state, source, effect, player };
+  return { fold, ok: check.ok, reasons: check.reasons, heights: check.perCellHeights, state, source, effect, unlock, unlocks, player };
 }

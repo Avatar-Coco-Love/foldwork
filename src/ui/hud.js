@@ -12,6 +12,8 @@ const SVG_NS = 'http://www.w3.org/2000/svg';
 const HEART = 'M12 21s-7.5-4.6-9.6-9.2C.9 8.4 3 4.5 6.6 4.5c2.2 0 3.6 1.3 5.4 3.3 1.8-2 3.2-3.3 5.4-3.3 3.6 0 5.7 3.9 4.2 7.3C19.5 16.4 12 21 12 21z';
 // A sheet with a folded corner.
 const CHARGE = 'M4 3h11l5 5v13H4zM15 3v5h5';
+// A key: ring bow on the left, shaft and two teeth to the right.
+const KEY = 'M7.5 8.5a3.5 3.5 0 1 0 0 7a3.5 3.5 0 0 0 3.2-2H15v2.5h2.5V13.5H19v2h2v-4H10.7a3.5 3.5 0 0 0-3.2-3z';
 
 function icon(path, cls) {
   const svg = document.createElementNS(SVG_NS, 'svg');
@@ -43,15 +45,32 @@ function createMeter(cls, path, label) {
   };
 }
 
+// Carried keys: one icon and a count, hidden while none are carried.
+function createCounter(cls, path, label) {
+  const count = el('span', { class: 'hud-count' });
+  const node = el('span', { class: `hud-meter ${cls}`, role: 'img', hidden: true }, icon(path, 'hud-icon'), count);
+  return {
+    node,
+    set(value) {
+      node.hidden = value <= 0;
+      count.textContent = `×${value}`;
+      node.setAttribute('aria-label', `${label}: ${value}`);
+      node.title = `${label}: ${value}`;
+    },
+  };
+}
+
 export function createHud(root, { floor, onMenu, onUndo, onCancel, onWait }) {
   const hp = createMeter('hud-hp', HEART, 'HP');
   const charges = createMeter('hud-charges', CHARGE, 'Fold charges');
+  const keys = createCounter('hud-keys', KEY, 'Keys');
   const message = el('span', { class: 'hud-fold', 'aria-live': 'polite' });
   const status = el('div', { class: 'hud-status', role: 'status' },
     el('div', { class: 'hud-meters' },
       el('span', { class: 'hud-floor', text: `Floor ${floor}` }),
       hp.node,
       charges.node,
+      keys.node,
     ),
     message,
   );
@@ -81,14 +100,14 @@ export function createHud(root, { floor, onMenu, onUndo, onCancel, onWait }) {
   root.append(hud);
 
   let foldText = null;
-  let note = null; // transient message, e.g. why a move was refused
+  let note = null; // transient { text, invalid }, e.g. why a move was refused
   let noteTimer = 0;
   let overlay = null;
 
   function syncMessage() {
-    const text = foldText ? foldText.text : note;
-    message.textContent = text || '';
-    message.toggleAttribute('data-invalid', !!(foldText ? foldText.invalid : note));
+    const shown = foldText || note;
+    message.textContent = shown ? shown.text : '';
+    message.toggleAttribute('data-invalid', !!shown && shown.invalid);
   }
 
   return {
@@ -101,6 +120,9 @@ export function createHud(root, { floor, onMenu, onUndo, onCancel, onWait }) {
     setCharges(value, max) {
       charges.set(value, max);
     },
+    setKeys(value) {
+      keys.set(value);
+    },
     /** Preview summary text, or null when no fold is being previewed. */
     setFoldStatus(text, invalid = false) {
       foldText = text == null ? null : { text, invalid };
@@ -108,10 +130,13 @@ export function createHud(root, { floor, onMenu, onUndo, onCancel, onWait }) {
       waitBtn.hidden = text != null;
       syncMessage();
     },
-    /** Short-lived notice (cleared after `ms`, or by the next notice). */
-    notify(text, ms = 1800) {
+    /**
+     * Short-lived notice (cleared after `ms`, or by the next notice). Shown
+     * as a refusal unless `info` is set.
+     */
+    notify(text, { ms = 1800, info = false } = {}) {
       clearTimeout(noteTimer);
-      note = text;
+      note = { text, invalid: !info };
       syncMessage();
       noteTimer = setTimeout(() => {
         note = null;

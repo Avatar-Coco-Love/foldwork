@@ -180,6 +180,18 @@ body {
   width: 18px;
   height: 18px;
 }
+.hud-keys {
+  align-items: center;
+}
+.hud-keys[hidden] {
+  display: none;
+}
+.hud-keys .hud-icon {
+  fill: var(--c-accent);
+}
+.hud-count {
+  font-size: 15px;
+}
 /* Spent: hollow and dashed, so it never relies on color alone. */
 .hud-meter .hud-icon-spent {
   fill: none;
