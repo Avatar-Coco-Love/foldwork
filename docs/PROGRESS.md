@@ -4,18 +4,28 @@
 small. At the end of each conversation, update this file in the same PR.
 
 ## Next up
-**Phase 6a: Great Crane, phase 1 (floor 9 arena).** Read docs/03 (Boss:
-The Great Crane) and docs/02 (fold rules). Open questions to settle with
-the user before building (log them in OPEN-QUESTIONS): how the Crane's
-telegraphed crease is chosen (seeded? aimed at the player?), what its own
-fold does to the player (pin, carry, void drop, like a player fold?),
-whether the Crane is Heavy, and how a fold "drops it onto a void" for
-damage instead of killing it. Then: a `crane` def (6 HP, three phases), an
-AI that plans a crease every 2 turns and executes it on the next beat
-(previewed like a player fold), a 7x7 arena template for floor 9, and a
-`RUN_FLOORS` / `runLength()` change so the run ends on the boss. Suite
-time is ~90 s on the current container (was ~67 s here before 5d); keep
-boss proofs cheap (one arena, few variants).
+**Phase 6a, part 2: the floor 9 arena and the Crane on screen.** The core
+rules are in (PR 17, `core/boss.js`; see OPEN-QUESTIONS "Great Crane core
+rules"). Still to do:
+- Arena template `f9-crane` (7x7, voids at corners and edge notches off
+  the centre lines, Crane `G` at the centre, 3 charges, `needs: []`, win
+  cause `boss`, no exit). A draft that played well:
+  `o . o . o . o / . . . . . . . / o . . . . . o / . . . G . . . /
+  o . . . . . o / . . . . . . . / o . o @ o . o`.
+- Proof by **stored line**: a template field (e.g. `line`, action codes
+  from `core/replay.js`) that the test replays to a win; plus a capped
+  no-fold search that must not win. A full `solve` took ~170 s.
+  `checkFloor` / `generateFloor` need to skip runtime solving for it.
+- `runLength()`: run to floor 9 (`BOSS_FLOOR`), so the run ends on the
+  boss; fix `runPanel` text for the boss win (6c does the full summary).
+- Render the telegraph: a pass that draws the Crane's marked crease
+  (`buildFoldPreview` on its mark, cached per board): dashed danger line +
+  chevron, hatched landing cells, a "!" on the player if covered, grey if
+  it would fizzle. While the player previews a fold, the HUD status says
+  what the Crane's fold will then do (play the turn with `act()` like
+  `slidePreview`: swat / fizzle / pinned / dropped).
+- Hints (`crane-telegraph` at start, `crane-swat` on `swat`), and verify in
+  headless Chromium on phone and desktop.
 
 ## Phase checklist
 Larger phases are split into PR-sized chunks so each conversation stays small.
@@ -42,6 +52,8 @@ Larger phases are split into PR-sized chunks so each conversation stays small.
   - [x] 5d Floors 5 and 8 (mixes) (PR 15)
 - [ ] **Phase 6** — Great Crane boss, run summary
   - [ ] 6a Great Crane phase 1, telegraphed crease, floor 9 arena
+    - [x] core rules: crane def, aimed strip crease, swat, drop, flee (PR 17)
+    - [ ] arena template, stored-line proof, run to floor 9, telegraph render
   - [ ] 6b Crane phases 2–3 (minions, double creases, shrinking arena)
   - [ ] 6c Run summary and win/lose flow through the boss
 - [ ] **Phase 7** — Meta-progression, daily seed, persistence
@@ -564,6 +576,27 @@ Larger phases are split into PR-sized chunks so each conversation stays small.
   (Playwright, dev server running) regenerates it.
 - Foldwork card added to the projects page (avatar-coco-love.github.io).
 
+### PR 17: Phase 6a (part 1) Great Crane core rules
+- Settled with the user (OPEN-QUESTIONS "Great Crane core rules"). The
+  first draft (always ride its own half, perch on phase loss) was trivial
+  in the solver: its first fold collapsed the arena. The user took the
+  fix: strip creases and flee after every hit.
+- `core/boss.js` (pure): `chooseCrease` (aimed strip crease), `planCrane`
+  (ai `crane`: plan `mark` or `crease`), `markCode` / `markFold` (the
+  mark is a primitive string on the creature, e.g. `h3a`), `phaseOf`,
+  `fleeSpot`, `isBoss`.
+- `core/creatures.js`: `crane` (6 HP, `fixed`, def flag `boss: { phases,
+  drop }`). Map symbol `G`. Solver `stateKey` includes `mark`.
+- `core/turn.js`: enemy phase applies `mark` (event `mark`) and `crease`
+  (`bossFold`: fizzle when invalid, else the fold with `by`, then
+  `resolveFold(..., { swat })`). `swatPlayer`, `flee` (event `flee`),
+  `bossDrop` (a boss `fall` deals `boss.drop`); a boss death wins the
+  floor (`victory` cause `boss`). A pinned boss loses its mark.
+- Render: Crane shape (large origami crane), `flee` clip (high arc),
+  `swat` reuses the move clip; HUD notes for swat, fizzle and flee. The
+  Crane isn't on any floor yet.
+- 10 new tests in `tests/boss.test.js`.
+
 ## Conventions worth remembering
 - Dev URL params: `?screen=offer&cleared=4`, `?spirit=frog`, `?screen=floor&floor=2&map=courier&size=7&seed=abc&palette=night-ink&demo=1&speed=slow&motion=on&charges=3&mites=2&relics=all&telemetry=console`.
 - New draw layers → add a pass to `PASSES` in `renderer.js`.
@@ -624,5 +657,7 @@ Larger phases are split into PR-sized chunks so each conversation stays small.
 - Floor `needs` ids: `fold`, `key`, `plate`, `pin` (pin/strand/drop is
   the only clean way). Designing a template: sketch it, then run
   `checkFloor` and a 1 HP `solve` on each variant before adding it.
+- Bosses → def flag `boss` + `core/boss.js`; a boss's own fold goes
+  through `bossFold` (turn.js), so pins, drops and swats share the rules.
 - Fold-time creature rules (pin, void drop) → `resolveFold` in `turn.js`;
   the per-cell rule is `coverEffect` (shared with the preview).

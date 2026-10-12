@@ -474,6 +474,9 @@ const NOTICES = {
   refund: () => 'Recycled Crease: charge refunded.',
   block: (ev) => (ev.id !== PLAYER_ID ? null : BLOCK_NOTES[ev.by] || null),
   catch: () => 'Soft Landing: you catch yourself at the edge.',
+  swat: () => 'The Crane\'s fold swats you aside.',
+  fizzle: () => 'The Crane\'s fold fizzles.',
+  flee: () => 'The Crane takes flight.',
 };
 
 const BLOCK_NOTES = {

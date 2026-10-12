@@ -12,7 +12,7 @@
 //   fold    buildFoldAnim() result (fold / unfold events)
 //   actor   { kind, id, creature, from, to, fromLevel, toLevel, skip }
 //           kind: 'move' | 'slide' | 'bump' | 'shoot' | 'hit' | 'death'
-//           | 'fall' | 'spawn' | 'drop' (drop: `item` instead of a creature)
+//           | 'fall' | 'spawn' | 'drop' | 'flee' (drop: `item` instead of a creature)
 //           from/to are cells (equal for in-place clips); levels are the
 //           stack level the creature stands on (0 = one layer).
 //           skip: the board pass leaves this creature out, because the actor
@@ -82,6 +82,14 @@ function clipFor(ev, before, after, motion) {
           fromLevel: level(before, ev.from), toLevel: level(after, ev.at), skip: false },
       };
     }
+    case 'swat':
+      // A boss fold knocked the player out from under it.
+      return actorClip(before, 'move', ev.id, creatureIn(before, ev.id), ev.from, ev.to,
+        level(before, ev.from), level(after, ev.to), true, motion);
+    case 'flee':
+      // A hit boss flies off (it may already be off the board after a fall).
+      return actorClip(before, 'flee', ev.id, ev.creature, ev.from, ev.to,
+        level(before, ev.from), level(after, ev.to), true, motion);
     case 'death':
     case 'fall':
       return actorClip(before, ev.type, ev.id, ev.creature, ev.at, ev.at, level(before, ev.at), level(before, ev.at), true, motion);

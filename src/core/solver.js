@@ -50,10 +50,11 @@ export function candidateActions(board, { noFolds = false, diagonal = false } = 
 
 /**
  * Identity of a floor state for the search: the board (tiles, items,
- * links, plate holds, creatures by kind with their HP, rest, held item and
- * spawn count) plus keys, charges and limited uses left (wards, free locks,
- * landings). Turn number, the undo snapshot and creature ids (spawns are
- * named by turn) don't change what can happen next.
+ * links, plate holds, creatures by kind with their HP, rest, held item,
+ * spawn count and marked crease) plus keys, charges and limited uses left
+ * (wards, free locks, landings). Turn number, the undo snapshot and
+ * creature ids (spawns are named by turn) don't change what can happen
+ * next.
  */
 export function stateKey(state, { playerHp = true } = {}) {
   const u = state.uses || {};
@@ -76,7 +77,7 @@ export function stateKey(state, { playerHp = true } = {}) {
 
 function creatureKey(c, withHp) {
   const hp = withHp || c.id !== PLAYER_ID ? c.hp : '';
-  return `${code(c.kind)}${hp}${c.rest != null ? `r${c.rest}` : ''}${c.item ? code(c.item) : ''}${c.sprout != null ? `s${c.sprout}` : ''}`;
+  return `${code(c.kind)}${hp}${c.rest != null ? `r${c.rest}` : ''}${c.item ? code(c.item) : ''}${c.sprout != null ? `s${c.sprout}` : ''}${c.mark ? `m${c.mark}` : ''}`;
 }
 
 // Short codes for ids, handed out on first use (letters, so they never

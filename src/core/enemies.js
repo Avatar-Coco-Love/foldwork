@@ -9,6 +9,8 @@
 //        | { type: 'slide', to, path }  glide along `path` (Creaseling)
 //        | { type: 'spawn', to, kind }  a new `kind` appears on `to`
 //                                       (Spore Bloom; turn.js decides when)
+//        | { type: 'mark', fold }   mark a crease to fold next turn (Crane)
+//        | { type: 'crease', fold } fold the marked crease (Crane)
 //
 // Pathing works on a reach field: BFS distance from the player over cells
 // whose top layer is footing (walkable, not a hole). Creatures don't block
@@ -24,6 +26,7 @@ import { creatureDef, isEnemy } from './creatures.js';
 import { tileDef } from './tiles.js';
 import { AXES } from './fold.js';
 import { shuffle } from './rng.js';
+import { planCrane } from './boss.js';
 
 const WAIT = Object.freeze({ type: 'wait' });
 
@@ -33,6 +36,7 @@ export const ENEMY_AI = {
   creep: planCreep,
   guard: planGuard,
   spore: planSpore,
+  crane: planCrane,
 };
 
 /**
