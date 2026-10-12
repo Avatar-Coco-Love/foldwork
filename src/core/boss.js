@@ -26,7 +26,7 @@
 // null), `homeCol` / `homeRow` (its perch; set by createFloorState).
 
 import { AXES, SIDES, validateFold, mirrorCell } from './fold.js';
-import { creatureDef } from './creatures.js';
+import { creatureDef, CREATURE_DEFS } from './creatures.js';
 
 const WAIT = Object.freeze({ type: 'wait' });
 
@@ -44,9 +44,10 @@ export function markFold(code) {
   return m ? { axis: m[1], index: Number(m[2]), side: m[3] === 'b' ? 'before' : 'after' } : null;
 }
 
-/** Whether a creature is a boss (def `boss`). */
+/** Whether a creature is a boss (def `boss`; unknown kinds are not). */
 export function isBoss(creature) {
-  return !!creature && !!creatureDef(creature.kind).boss;
+  const def = creature && CREATURE_DEFS[creature.kind];
+  return !!def && !!def.boss;
 }
 
 /** Which phase a boss is in, 1..phases, from the HP it has lost. */
