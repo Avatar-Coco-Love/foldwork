@@ -34,8 +34,8 @@ test('map transforms mirror and rotate rows', () => {
   assert.throws(() => transformRows(rows, 'spin'));
 });
 
-test('templates: well-formed data covering floors 1–3', () => {
-  assert.deepEqual(templateFloors(), [1, 2, 3]);
+test('templates: well-formed data covering floors 1–4', () => {
+  assert.deepEqual(templateFloors(), [1, 2, 3, 4]);
   const ids = new Set();
   for (const t of FLOOR_TEMPLATES) {
     assert.ok(!ids.has(t.id), `duplicate id ${t.id}`);
@@ -46,9 +46,9 @@ test('templates: well-formed data covering floors 1–3', () => {
     assert.ok(built.player, `${t.id}: no player start`);
     assert.ok(built.board.w >= 5 && built.board.w <= 8 && built.board.w === built.board.h, `${t.id}: board size`);
   }
-  // docs/03: F1–2 are 5x5, F3 is 6x6.
+  // docs/03: F1–2 are 5x5, F3–5 are 6x6.
   for (const t of templatesFor(1).concat(templatesFor(2))) assert.equal(buildFloor(t).board.w, 5);
-  for (const t of templatesFor(3)) assert.equal(buildFloor(t).board.w, 6);
+  for (const t of templatesFor(3).concat(templatesFor(4))) assert.equal(buildFloor(t).board.w, 6);
 });
 
 // docs/05: every floor shown must be solvable. Variants are finite, so this
@@ -143,9 +143,9 @@ test('variants: mixed enemy kinds get every split of the anchors, and rolls matc
   }
 });
 
-// Phase 5a floors: the new enemy can always be handled without taking a
+// Phase 5 floors: the new enemy can always be handled without taking a
 // hit (solvable at 1 HP), though the shortest line may take one.
-for (const id of ['f2-wasp', 'f3-brute']) {
+for (const id of ['f2-wasp', 'f3-brute', 'f4-relay', 'f4-gatehouse']) {
   test(`template ${id}: every variant has a no-damage line`, () => {
     for (const v of allVariants(templateById(id))) {
       const built = buildFloor(templateById(id), v);

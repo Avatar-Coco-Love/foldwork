@@ -47,6 +47,10 @@ function clipFor(ev, before, after, motion) {
     case 'move':
       return actorClip(before, 'move', ev.id, creatureIn(before, ev.id), ev.from, ev.to,
         level(before, ev.from), level(after, ev.to), true, motion);
+    case 'slide':
+      // A Creaseling glides along the crease: one smooth move, no hop.
+      return actorClip(before, 'slide', ev.id, creatureIn(before, ev.id), ev.from, ev.to,
+        level(before, ev.from), level(after, ev.to), true, motion);
     case 'bump':
       return actorClip(before, 'bump', ev.id, creatureIn(before, ev.id), ev.from, ev.to,
         level(before, ev.from), level(before, ev.to), true, motion);

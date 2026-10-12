@@ -70,6 +70,11 @@ export const HINTS = Object.freeze({
     text: 'Brutes have 3 HP and move every other turn (a "z" means it rests next turn). Too heavy to pin: no fold can land on one, except a void sheet that drops it.',
     on: 'start',
   },
+  'creaseling-slide': {
+    title: 'Creaselings',
+    text: 'After every fold, a Creaseling slides up to 3 tiles along the crease toward you (the dashed arrow in the fold preview). Otherwise it steps like a Mite. Pick creases that send it the wrong way.',
+    on: 'start',
+  },
   'key-fold': {
     title: 'Fold a key in',
     text: 'A fold that stacks a key straight onto a lock opens it too, no walking needed.',

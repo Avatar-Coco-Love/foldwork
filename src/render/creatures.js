@@ -81,6 +81,20 @@ export const CREATURE_SHAPES = Object.freeze({
       { fill: 'ink', points: [[0.42, 0.15], [0.58, 0.15], [0.58, 0.19], [0.42, 0.19]] },
     ],
   },
+  // Creaseling: an accordion-pleated body (zigzag sides, an ink crease
+  // across the middle), a folded-up triangle tip for a head, and two
+  // pointed feet. Medium height, pinched at the waist like folded paper.
+  creaseling: {
+    size: 'medium',
+    parts: [
+      { fill: 'ink', points: [[0.34, 0.74], [0.45, 0.74], [0.39, 0.86]] },
+      { fill: 'ink', points: [[0.55, 0.74], [0.66, 0.74], [0.61, 0.86]] },
+      { fill: 'danger', stroke: 'ink', points: [[0.24, 0.34], [0.5, 0.24], [0.76, 0.34], [0.66, 0.54], [0.76, 0.76], [0.5, 0.8], [0.24, 0.76], [0.34, 0.54]] },
+      { fill: 'shadow', points: [[0.5, 0.24], [0.76, 0.34], [0.66, 0.54], [0.76, 0.76], [0.5, 0.8]] },
+      { fill: 'ink', points: [[0.34, 0.52], [0.66, 0.52], [0.66, 0.56], [0.34, 0.56]] },
+      { fill: 'tileFace', stroke: 'ink', points: [[0.5, 0.12], [0.61, 0.28], [0.39, 0.28]] },
+    ],
+  },
 });
 
 // Unknown kinds: a plain token with the kind's initial, so tests and new

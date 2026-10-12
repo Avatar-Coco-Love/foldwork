@@ -4,7 +4,7 @@ import { el } from './dom.js';
 import { createHud } from './hud.js';
 import { createFoldInput } from './input.js';
 import { dirToward } from './moveInput.js';
-import { buildFoldPreview } from '../render/preview.js';
+import { buildFoldPreview, slidePreview } from '../render/preview.js';
 import { createFxPlayer } from '../render/fx.js';
 import { createPlayback, buildClips } from '../render/playback.js';
 import {
@@ -487,7 +487,8 @@ function foldPreview(state, crease) {
   const pv = buildFoldPreview(state.board, crease);
   if (!pv) return null;
   const check = foldCheck(state, crease);
-  return check.ok === pv.ok ? pv : { ...pv, ok: check.ok, reasons: check.reasons };
+  const slides = check.ok ? slidePreview(state, crease) : [];
+  return { ...pv, ok: check.ok, reasons: check.ok === pv.ok ? pv.reasons : check.reasons, slides };
 }
 
 function foldStatusText(pv) {

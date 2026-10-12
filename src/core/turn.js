@@ -44,6 +44,9 @@
 //   { type: 'move', id, from, to }
 //   { type: 'bump', id, target, from, to }       attacker stays put
 //   { type: 'shoot', id, target, from, to }      ranged hit (Paper Wasp)
+//   { type: 'slide', id, from, to, path }        glided along a crease
+//                                                (Creaseling; path: the
+//                                                cells passed, `to` last)
 //   { type: 'damage', id, amount, hp, at }
 //   { type: 'death', id, creature, at }
 //   { type: 'fall', id, creature, at }           into a void or empty cell,
@@ -235,8 +238,8 @@ const ACTIONS = {
 
 /**
  * Phases after a turn-taking player action, in order (docs/02 turn order).
- * Each run(state, emit) mutates the working copy. They stop once the floor
- * has ended.
+ * Each run(state, emit, turn) mutates the working copy; `turn` = { action }
+ * is the player's action this turn. They stop once the floor has ended.
  */
 export const TURN_PHASES = [
   { id: 'enemies', run: runEnemies },
@@ -265,7 +268,7 @@ export function act(state, action, { snapshots = false } = {}) {
   if (handler.takesTurn) {
     for (const phase of TURN_PHASES) {
       if (next.status !== 'playing') break;
-      phase.run(next, emit);
+      phase.run(next, emit, { action });
     }
     next.turn += 1;
     next.uses.guard = false; // Folded Shield lasts one turn cycle
@@ -387,11 +390,13 @@ function runUndo(state, snapshots) {
 // Enemies act once each, in actingEnemies() order (docs/02). The player
 // doesn't move during this phase and creatures don't block the reach field,
 // so one field serves the whole phase. Slow enemies (def `pace`) sit out
-// while their `rest` counts down.
-function runEnemies(s, emit) {
+// while their `rest` counts down. Fold-aware AI (Creaseling) gets the
+// crease the player folded this turn.
+function runEnemies(s, emit, { action } = {}) {
   const player = findCreature(s.board, PLAYER_ID);
   if (!player) return;
-  const ctx = { field: reachField(s.board, player), player };
+  const fold = action && action.type === 'fold' ? action.fold : null;
+  const ctx = { field: reachField(s.board, player), player, fold };
   for (const id of actingEnemies(s.board)) {
     if (s.status !== 'playing') break;
     const me = findCreature(s.board, id);
@@ -413,6 +418,11 @@ function runEnemies(s, emit) {
         continue;
       }
       damageAt(s, plan.to, def.attack ?? BUMP_DAMAGE, emit);
+    } else if (plan.type === 'slide') {
+      // slidePath only crosses free footing, so the slide never falls.
+      getCell(s.board, me.col, me.row).layers[me.depth].creature = null;
+      topLayer(s.board, plan.to.col, plan.to.row).creature = me.creature;
+      emit({ type: 'slide', id, from: { col: me.col, row: me.row }, to: { ...plan.to }, path: plan.path.map((c) => ({ ...c })) });
     } else {
       stepCreature(s, me, plan.to, emit);
     }

@@ -4,7 +4,7 @@
 
 import { validateFold, AXES } from '../core/fold.js';
 import { cellIndex, topLayer } from '../core/board.js';
-import { coverEffect, PLAYER_ID } from '../core/turn.js';
+import { coverEffect, PLAYER_ID, act } from '../core/turn.js';
 import { keyMeetsLock } from '../core/environment.js';
 
 export const CELL = Object.freeze({
@@ -26,7 +26,7 @@ export const EFFECT = Object.freeze({
 /**
  * @returns {{ fold, ok, reasons, heights: number[], state: Uint8Array,
  *   source: Int16Array, effect: Uint8Array, unlock: Uint8Array,
- *   unlocks: number, player: 'pin'|'drop'|null, line }}
+ *   unlocks: number, player: 'pin'|'drop'|null, line, slides }}
  *   `source[dest]` is the cell index whose stack lands on `dest` (or -1).
  *   `effect[dest]` is an EFFECT; `unlock[dest]` is 1 where the landing
  *   stacks a key and a lock together (the lock opens), `unlocks` counts
@@ -71,7 +71,21 @@ export function buildFoldPreview(board, fold) {
   return {
     fold, ok: check.ok, reasons: check.reasons, heights: check.perCellHeights, state, source, effect, unlock, unlocks, player,
     line: creaseSegment(board, fold),
+    slides: [], // filled by the caller from slidePreview(), which needs the floor state
   };
+}
+
+/**
+ * Where fold-aware enemies (Creaselings) will slide if `fold` is played
+ * from floor state `state`: [{ id, from, to, path }], from the slide
+ * events of the real turn (core/turn.js), so the preview is exact even
+ * when other enemies move first. Empty when the fold can't be played.
+ */
+export function slidePreview(state, fold) {
+  const result = act(state, { type: 'fold', fold });
+  if (!result.ok) return [];
+  return result.events.filter((ev) => ev.type === 'slide')
+    .map(({ id, from, to, path }) => ({ id, from, to, path }));
 }
 
 /**

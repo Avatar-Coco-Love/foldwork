@@ -4,17 +4,20 @@
 small. At the end of each conversation, update this file in the same PR.
 
 ## Next up
-**Phase 5b: Creaseling + floor 4 templates.** Read docs/03 (enemies table:
-Creaseling; floor table: F4 "combined plate + key puzzles") and docs/02
-(enemies and folds). Creaseling: 2 HP, after any fold it slides along the
-crease line toward the player (up to 3 tiles), otherwise moves like a
-Mite. It needs a hook after the fold resolves (it reacts to the crease, so
-the AI gets the fold; decide and log in OPEN-QUESTIONS what "slides along
-the crease line" means for a diagonal crease and for blocked cells). Add
-F4 templates (6x6) and raise `runLength()` once floor 4 exists (it follows
-the templated floors). Later 5 chunks: 5c Lockjaw (F6, drops its key) +
-Spore Bloom (F7, spawner); 5d floors 5 and 8 (mixes; template variants
-already prove mixed-kind anchor splits).
+**Phase 5c: Lockjaw + Spore Bloom, F6/F7 templates.** Read docs/03
+(enemies table: Lockjaw, Spore Bloom; floor table: F6 "guarded keys", F7
+"time pressure from spawners") and docs/02 (enemies and folds). Lockjaw:
+2 HP, stationary guard, attacks adjacent tiles for 1, holds a key that
+drops on death (keys are items, so it can carry one; decide and log where
+it drops if it dies pinned or falls). Spore Bloom: 2 HP, stationary,
+spawns a Mite every 3 turns on an adjacent free tile; stranding or pinning
+stops it (the spawn counter is a new per-creature primitive: add it to
+`stateKey`; decide and log which adjacent tile wins, seeded or fixed
+order). Both are `fixed`. Add F6 and F7 templates (7x7). Watch out:
+`runLength()` is the highest templated floor, so F6/F7 without F5 makes
+the run 7 floors long with no F5 template (the floor screen would fall
+back to a dev floor). Either cap `runLength()` at the first gap, or
+build 5d (floors 5 and 8, mixes) first. Ask the user.
 
 ## Phase checklist
 Larger phases are split into PR-sized chunks so each conversation stays small.
@@ -36,7 +39,7 @@ Larger phases are split into PR-sized chunks so each conversation stays small.
   - [x] 4c Spirits (Fox, Frog, Turtle) + spirit select, diagonal creases (PR 11)
 - [ ] **Phase 5** — Full enemy roster, floors 4–8
   - [x] 5a Paper Wasp + Card Brute, Wax Coat, F2/F3 templates (PR 12)
-  - [ ] 5b Creaseling + F4 templates
+  - [x] 5b Creaseling + F4 templates (PR 13)
   - [ ] 5c Lockjaw + Spore Bloom, F6/F7 templates
   - [ ] 5d Floors 5 and 8 (mixes)
 - [ ] **Phase 6** — Great Crane boss, run summary
@@ -430,6 +433,46 @@ Larger phases are split into PR-sized chunks so each conversation stays small.
   portrait F2 Wasp with lanes and hint card, desktop F3 Brute with the
   rest marker and the Heavy preview refusal. No console errors.
 
+### PR 13: Phase 5b Creaseling, F4 templates
+- Decided with the user (OPEN-QUESTIONS): after the player folds, the
+  Creaseling slides **instead of** stepping, in its enemy-phase slot, up
+  to 3 tiles in its own lane **parallel to the crease** (diagonals too),
+  toward the player. It stops before anything that isn't free footing,
+  any creature and the player's cell, and **never hits**. Level with the
+  player, or blocked at once, it steps like a Mite. The fold preview shows
+  each slide. Also logged: stranded still slides, pinned doesn't, riding
+  the fold slides from where it lands.
+- `core/creatures.js`: `creaseling` (2 HP, ai `creep`, new def flag
+  `slide: 3`). Map symbol `C`.
+- `core/enemies.js`: `slidePath(board, from, fold, target, max)` (pure;
+  the lane comes from the crease's `AXES` normal, so a new axis needs no
+  change here) and the `creep` AI (plan `slide` with `path`, else
+  `planChase`). Plan ctx gains `fold`.
+- `core/turn.js`: `TURN_PHASES` get a third argument `{ action }` (the
+  player's action this turn); the enemy phase passes the fold to the AI
+  and applies `slide` plans (event `slide` with `from`, `to`, `path`).
+- Templates (6x6, 2 charges, needs fold + key + plate): `f4-relay`
+  (thick exit row `E L a 1`: key across the void, hold the plate, slip
+  through the gate, unlock; 9–10 turns, 1–2 folds) and `f4-gatehouse`
+  (`E a 1 L`: the plate is behind the lock, so key first; 18–20 turns).
+  Each has a no-damage line on every variant. The solver found two
+  cheeses while designing (thick exit cells folded onto emptied cells, or
+  a mirrored E/L pair); both layouts keep the exit on the player's side
+  with 2 charges. `runLength()` is now 4, so F4 ends the run (no offer,
+  so no rest yet).
+- Hint `creaseling-slide`. Render: Creaseling shape (pleated zigzag body,
+  ink crease, folded tip head; medium), `slide` clip (a flat glide, 240
+  ms), preview pass `drawSlides` (dashed arrow plus a dashed ring at the
+  landing cell, at the post-fold stack height). `slidePreview(state,
+  fold)` (render/preview.js) plays the real turn with `act()` and keeps
+  the slide events, so the preview is exact; `foldPreview` in screens.js
+  attaches it as `pv.slides`.
+- 13 new tests (248 total). Suite time is now ~31 s (was ~17 s): most
+  of it is the F4 proofs and their no-damage checks. Verified in headless
+  Chromium: desktop F4 gatehouse (keyboard crease, slide arrow, hint card),
+  phone portrait Night Ink F4 relay (the Creaseling rides a fold then
+  slides; a pinning fold shows no arrow). No console errors.
+
 ## Conventions worth remembering
 - Dev URL params: `?screen=offer&cleared=4`, `?spirit=frog`, `?screen=floor&floor=2&map=courier&size=7&seed=abc&palette=night-ink&demo=1&speed=slow&motion=on&charges=3&mites=2&relics=all&telemetry=console`.
 - New draw layers → add a pass to `PASSES` in `renderer.js`.
@@ -478,9 +521,12 @@ Larger phases are split into PR-sized chunks so each conversation stays small.
   `CREATURE_SHAPES` (`render/creatures.js`). Damage goes through `damageAt`,
   falls through `fall`, steps through `stepCreature`.
 - Enemy behaviors → `ENEMY_AI` in `core/enemies.js` (plans only, never
-  mutates); name the key in the def's `ai`. Def flags: `pace` (slow,
+  mutates); name the key in the def's `ai`. Plan ctx: `{ field, player,
+  fold }` (`fold`: this turn's crease, or null). Def flags: `pace` (slow,
   counts `rest`), `heavy` (can't be pinned), `range` (ranged lanes via
-  `sightLanes`, drawn by `drawSightLanes`), `fixed` (never stranded).
+  `sightLanes`, drawn by `drawSightLanes`), `fixed` (never stranded),
+  `slide` (fold-aware glide via `slidePath`; previewed by `slidePreview`).
+  Turn phases get `(state, emit, { action })`.
   New per-creature counters must be primitives and go in `stateKey`.
 - Fold-time creature rules (pin, void drop) → `resolveFold` in `turn.js`;
   the per-cell rule is `coverEffect` (shared with the preview).
