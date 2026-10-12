@@ -8,7 +8,7 @@
 //     keys,             keys the player carries
 //     status,           'playing' | 'won' | 'lost'
 //     outcome,          null, or { cause } once the floor ends ('fall', 'hp',
-//                       or 'exit' for a win)
+//                       or 'exit' / 'boss' for a win)
 //     undo,             null, or { state, fold }: the state before the latest
 //                       fold, while it can still be undone for free (that
 //                       state's own undo chains back rules.undoDepth folds)
@@ -58,14 +58,25 @@
 //                                                on `from` left its item on `at`
 //   { type: 'strand', id, at }                   a fold cut it off from the player
 //   { type: 'wait', id }
-//   { type: 'fold', fold }
+//   { type: 'fold', fold, by? }                  by: the enemy that folded
+//                                                (Great Crane); none for
+//                                                the player's own fold
 //   { type: 'unfold', fold }
+//   { type: 'mark', id, fold }                   a boss marked the crease it
+//                                                folds next turn
+//   { type: 'fizzle', id, fold }                 its marked fold was invalid
+//                                                when due: nothing happens
+//   { type: 'swat', id, by, from, to }           a boss fold landed on the
+//                                                player: moved from `from`
+//                                                to `to` (a damage follows)
+//   { type: 'perch', id, creature, from, to }    a boss lost a phase (or fell)
+//                                                and went back to its perch
 //   { type: 'pickup', id, item, at }             the player took an item
 //   { type: 'unlock', at, by }                   by: 'walk' | 'fold' |
 //                                                'master-key'
 //   { type: 'gate', at, open, link }             environment phase
 //   { type: 'defeat', cause }
-//   { type: 'victory', cause }                   cause: 'exit'
+//   { type: 'victory', cause }                   cause: 'exit' | 'boss'
 //   { type: 'refund', amount, by }               a fold gave charges back
 //                                                (rules.foldRefund; by: what
 //                                                earned it: 'pin' | 'strand'
@@ -81,6 +92,7 @@ import { tileDef, itemDef, ITEM } from './tiles.js';
 import { validateFold, applyFold, isDiagonal } from './fold.js';
 import { createCreature, creatureDef, isHeavy } from './creatures.js';
 import { actingEnemies, reachField, planEnemy, enemiesInReach } from './enemies.js';
+import { isBoss, phaseOf, markCode } from './boss.js';
 import { syncGates, tickPlates, isLocked, unlockLayer, keyMeetsLock, spendKey } from './environment.js';
 
 export { DIRS };
@@ -88,6 +100,8 @@ export { DIRS };
 export const PLAYER_ID = 'player';
 export const DEFAULT_FOLD_CHARGES = 3;
 export const BUMP_DAMAGE = 1;
+/** Damage a boss fold deals the player it lands on (core/boss.js swat). */
+export const SWAT_DAMAGE = 1;
 
 /**
  * Rule values the turn engine reads from FloorState.rules. These are the
@@ -136,6 +150,10 @@ export function createFloorState({
     const spot = topLayer(next, e.col, e.row);
     if (!spot || !isFooting(spot) || spot.creature) throw new Error(`No room for ${e.kind} at ${e.col},${e.row}`);
     spot.creature = createCreature(e.kind, { id: e.id || `${e.kind}-${n}` });
+    if (isBoss(spot.creature)) {
+      spot.creature.homeCol = e.col;
+      spot.creature.homeRow = e.row;
+    }
     if (e.item !== undefined) {
       if (e.item) spot.creature.item = e.item;
       else delete spot.creature.item;
@@ -215,9 +233,11 @@ export function coverEffect(board, from, to) {
 /**
  * Creature effects of a fold that just landed (applyFold's `landings`, on
  * s.board): pin or void-drop whoever was covered. Strands are found by
- * runFold, which can compare reach before and after.
+ * runFold, which can compare reach before and after. `swat` is the id of
+ * the boss that folded, if one did: a player it covers is swatted (moved
+ * out and hit) instead of pinned or dropped. A pinned boss loses its mark.
  */
-export function resolveFold(s, landings, emit) {
+export function resolveFold(s, landings, emit, { swat = null } = {}) {
   for (const l of landings) {
     const cell = getCell(s.board, l.to.col, l.to.row);
     const at = { col: l.to.col, row: l.to.row };
@@ -230,9 +250,29 @@ export function resolveFold(s, landings, emit) {
     }
     const covered = lower ? lower.creature : null;
     if (!covered) continue;
-    if (tileDef(cell.layers[cell.layers.length - 1].tile).hole) fall(s, covered, at, emit);
-    else emit({ type: 'pin', id: covered.id, at });
+    if (swat && covered.id === PLAYER_ID) swatPlayer(s, lower, at, swat, emit);
+    else if (tileDef(cell.layers[cell.layers.length - 1].tile).hole) fall(s, covered, at, emit);
+    else {
+      if (isBoss(covered)) covered.mark = null; // pinned: its fold fizzles
+      emit({ type: 'pin', id: covered.id, at });
+    }
   }
+}
+
+// A boss fold landed on the player (on `layer`, now covered at `at`): out
+// to the nearest free footing (the new top of `at` if it is one), then 1
+// damage. Nowhere to go: the player falls.
+function swatPlayer(s, layer, at, by, emit) {
+  const player = layer.creature;
+  layer.creature = null;
+  const to = nearestFreeFooting(s.board, at);
+  if (!to) {
+    fall(s, player, at, emit);
+    return;
+  }
+  topLayer(s.board, to.col, to.row).creature = player;
+  emit({ type: 'swat', id: PLAYER_ID, by, from: { ...at }, to });
+  damageAt(s, to, SWAT_DAMAGE, emit);
 }
 
 // ---------------------------------------------------------------------------
@@ -449,6 +489,15 @@ function runEnemies(s, emit, { action } = {}) {
       getCell(s.board, me.col, me.row).layers[me.depth].creature = null;
       topLayer(s.board, plan.to.col, plan.to.row).creature = me.creature;
       emit({ type: 'slide', id, from: { col: me.col, row: me.row }, to: { ...plan.to }, path: plan.path.map((c) => ({ ...c })) });
+    } else if (plan.type === 'mark') {
+      me.creature.mark = markCode(plan.fold);
+      emit({ type: 'mark', id, fold: { ...plan.fold } });
+    } else if (plan.type === 'crease') {
+      me.creature.mark = null;
+      bossFold(s, id, plan.fold, emit);
+      // The board changed under everyone still to act.
+      ctx.player = findCreature(s.board, PLAYER_ID);
+      ctx.field = reachField(s.board, ctx.player);
     } else if (plan.type === 'spawn') {
       const spawn = createCreature(plan.kind, { id: `${id}-t${s.turn}` });
       topLayer(s.board, plan.to.col, plan.to.row).creature = spawn;
@@ -458,6 +507,25 @@ function runEnemies(s, emit, { action } = {}) {
       stepCreature(s, me, plan.to, emit);
     }
   }
+}
+
+// A boss folds its marked crease (core/boss.js): no charge, no undo of its
+// own (the player's undo of this turn's fold still restores the state
+// before it). Invalid when due: it fizzles.
+function bossFold(s, id, fold, emit) {
+  if (!validateFold(s.board, fold).ok) {
+    emit({ type: 'fizzle', id, fold: { ...fold } });
+    return;
+  }
+  let landings = [];
+  s.board = applyFold(s.board, fold, {
+    resolve: (b, l) => {
+      landings = l;
+      return b;
+    },
+  });
+  emit({ type: 'fold', fold: { ...fold }, by: id });
+  resolveFold(s, landings, emit, { swat: id });
 }
 
 function runEnvironment(s, emit) {
@@ -483,13 +551,48 @@ export function damageAt(s, at, amount, emit, { blockable = true } = {}) {
   const creature = layer && layer.creature;
   if (!creature) return;
   if (blockable && creature.id === PLAYER_ID && blockHit(s, creature, at, emit)) return;
+  const phase = isBoss(creature) ? phaseOf(creature) : 0;
   creature.hp = Math.max(0, creature.hp - amount);
   emit({ type: 'damage', id: creature.id, amount, hp: creature.hp, at: { ...at } });
-  if (creature.hp > 0) return;
+  if (creature.hp > 0) {
+    if (phase && phaseOf(creature) !== phase) {
+      layer.creature = null;
+      perch(s, creature, at, emit);
+    }
+    return;
+  }
   layer.creature = null;
   emit({ type: 'death', id: creature.id, creature, at: { ...at } });
   if (creature.id === PLAYER_ID) lose(s, 'hp', emit);
-  else dropItem(s, creature, at, emit);
+  else {
+    dropItem(s, creature, at, emit);
+    if (isBoss(creature)) win(s, 'boss', emit);
+  }
+}
+
+// A boss (already off its cell) goes back to its perch: the nearest free
+// footing to it. Its mark is cleared. Nowhere free: it stays out (can't
+// happen on a board with any free footing).
+function perch(s, creature, from, emit) {
+  creature.mark = null;
+  const to = nearestFreeFooting(s.board, { col: creature.homeCol ?? from.col, row: creature.homeRow ?? from.row });
+  if (!to) return;
+  topLayer(s.board, to.col, to.row).creature = creature;
+  emit({ type: 'perch', id: creature.id, creature: { ...creature }, from: { ...from }, to });
+}
+
+// A boss that falls (a void dropped on it) takes boss.drop damage instead
+// of dying, then perches; at 0 HP it dies and the floor is won.
+function bossDrop(s, creature, at, emit) {
+  const amount = creatureDef(creature.kind).boss.drop;
+  creature.hp = Math.max(0, creature.hp - amount);
+  emit({ type: 'damage', id: creature.id, amount, hp: creature.hp, at: { ...at } });
+  if (creature.hp > 0) {
+    perch(s, creature, at, emit);
+    return;
+  }
+  emit({ type: 'death', id: creature.id, creature, at: { ...at } });
+  win(s, 'boss', emit);
 }
 
 /**
@@ -572,8 +675,11 @@ export function fall(s, creature, at, emit) {
   for (const layer of cell ? cell.layers : []) {
     if (layer.creature === creature) layer.creature = null;
   }
-  emit({ type: 'fall', id: creature.id, creature, at: { ...at } });
+  const boss = isBoss(creature);
+  // A boss comes back (bossDrop changes it), so the event keeps a copy.
+  emit({ type: 'fall', id: creature.id, creature: boss ? { ...creature } : creature, at: { ...at } });
   if (creature.id === PLAYER_ID) lose(s, 'fall', emit);
+  else if (boss) bossDrop(s, creature, at, emit);
   else dropItem(s, creature, at, emit);
 }
 

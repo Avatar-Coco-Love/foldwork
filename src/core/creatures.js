@@ -28,6 +28,11 @@
 //          `every` turns (ai 'spore'). Instances count down in `sprout`
 //          (turns left; 1 = spawns this enemy phase). Pinned or stranded
 //          (no walkable path to the player), the count waits.
+//   boss   { phases, drop }: a boss (core/boss.js). Its HP is split into
+//          `phases` equal phases; losing one sends it back to its perch. A
+//          void drop deals `drop` damage instead of killing it. Instances
+//          keep `mark` (the crease it will fold next, or null) and their
+//          perch (`homeCol`, `homeRow`, set by createFloorState).
 
 export const CREATURE_DEFS = Object.freeze({
   player: { kind: 'player', name: 'You', team: 'player', hp: 3 },
@@ -44,6 +49,11 @@ export const CREATURE_DEFS = Object.freeze({
   lockjaw: { kind: 'lockjaw', name: 'Lockjaw', team: 'enemy', hp: 2, attack: 1, ai: 'guard', fixed: true, carry: 'key' },
   // Stationary; a Scrap Mite sprouts next to it every 3 turns. Never attacks.
   bloom: { kind: 'bloom', name: 'Spore Bloom', team: 'enemy', hp: 2, ai: 'spore', fixed: true, spawn: { kind: 'mite', every: 3 } },
+  // Boss (floor 9): marks a crease, then folds it on its next turn. Its
+  // fold is its only attack. Never walks (so never stranded); not heavy.
+  crane: {
+    kind: 'crane', name: 'Great Crane', team: 'enemy', hp: 6, ai: 'crane', fixed: true, boss: { phases: 3, drop: 2 },
+  },
 });
 
 export function creatureDef(kind) {
@@ -64,6 +74,7 @@ export function createCreature(kind, { id = kind, hp, maxHp } = {}) {
   if (def.pace > 1) creature.rest = def.pace - 1;
   if (def.carry) creature.item = def.carry;
   if (def.spawn) creature.sprout = def.spawn.every;
+  if (def.boss) creature.mark = null;
   return creature;
 }
 
