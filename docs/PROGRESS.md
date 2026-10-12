@@ -4,16 +4,19 @@
 small. At the end of each conversation, update this file in the same PR.
 
 ## Next up
-**Phase 4b: relic offers screen + defense and utility relics.** Read docs/03
-(relics, run structure: offers after each floor, rest option on floors 4
-and 7) and docs/04 (relic choice screen). Add the offer roll to
-`core/run.js` (seeded `fork(run seed, 'offers-N')`, rarity weights, no
-duplicates), a relic choice screen between floors (replacing the 4a
-"Next floor" panel), and defense + utility relics via the `RELIC_DEFS`
-hooks (add `DEFAULT_RULES` fields where play rules change). Reach 12+
-relics. Telemetry: `relic.offer` / `relic.pick`. Telemetry collection
-stays off (`TELEMETRY.collect`) until the user says playtest data is
-wanted.
+**Phase 4c: spirits (Fox, Frog, Turtle) + spirit select.** Read docs/03
+(spirits table) and docs/04 (spirit select screen, screen 2). Spirits are
+data like relics: a `SPIRIT_DEFS` table whose hooks reuse the relic hook
+points (`setup`, `rules`, `gain`) plus starting HP; `createRun({ spirit })`
+already has the field. Fox +1 charge per floor, Turtle 4 HP and
+`undoDepth: 2`, Frog 2 HP and diagonal creases: add a diagonal entry to
+`AXES` in `core/fold.js` (rule settled in OPEN-QUESTIONS: crease through
+cell centres, cells on the line are the hinge), gated by a new
+`DEFAULT_RULES` field, plus keyboard/drag input and preview for it. New Run
+→ spirit select → floor 1. Frog/Turtle unlock costs wait for Phase 7 (all
+three selectable until then). Telemetry: spirit in the run tag (already
+there) and a `spirit.pick` event. Collection stays off
+(`TELEMETRY.collect`) until the user says playtest data is wanted.
 
 ## Phase checklist
 Larger phases are split into PR-sized chunks so each conversation stays small.
@@ -31,7 +34,7 @@ Larger phases are split into PR-sized chunks so each conversation stays small.
   - [x] 3b Solver v1 + floor templates F1–3 + hints + telemetry (PR 8)
 - [ ] **Phase 4** — Run structure, relics (12+), spirits
   - [x] 4a Run state, floor progression, relic hooks + fold relics (PR 9)
-  - [ ] 4b Relic offers screen, defense + utility relics
+  - [x] 4b Relic offers screen, defense + utility relics (PR 10)
   - [ ] 4c Spirits (Fox, Frog, Turtle) + spirit select
 - [ ] **Phase 5** — Full enemy roster, floors 4–8
 - [ ] **Phase 6** — Great Crane boss, run summary
@@ -319,8 +322,44 @@ Larger phases are split into PR-sized chunks so each conversation stays small.
   run loss → Torn → New run with one run.end; no storage writes besides
   hints with telemetry off. No console errors.
 
+### PR 10: Phase 4b relic offers, defense + utility relics
+- `core/run.js`: `rollOffer(run, floor)` (seeded `fork(seed,
+  'offers-<n>')`, `RARITY_WEIGHTS` common 6 / uncommon 3 / rare 1, no
+  owned relics, no repeats, `rest` after floors 4 and 7), `takeOffer(run,
+  choice)` (relic id, `'rest'` heals 1, null only when nothing is offered;
+  anything else is refused). `finishFloor` runs `cleared` hooks and sets
+  `run.offer` on every win but the last. Run also carries `landings`
+  (Soft Landing). `RUN_VERSION` 2.
+- `core/relics.js`: new hooks `cleared(run)` and `offer({count})`. 9 new
+  relics, 13 in all: Paper Heart, Laminate, Soft Landing, Folded Shield,
+  Mender (defense); Master Key, Paper Cut, Heavy Stamp, Origami Luck
+  (utility). Rarities provisional (OPEN-QUESTIONS).
+- `core/turn.js`: `DEFAULT_RULES` gains `wards`, `foldGuard`, `freeLocks`,
+  `stackBump`, `plateHold`. `FloorState.uses` holds limited effects
+  (`wards`, `freeLocks`, `landings`, `guard`); undo restores it. Hits on
+  the player go through `blockHit` (guard, then ward; `block` event).
+  `stepCreature` catches a player's fall with a landing (`catch` event,
+  1 unblockable damage) and returns false when the player stayed put.
+  Master Key unlocks emit `unlock` with `by: 'master-key'`.
+- `core/environment.js`: `tickPlates(board, turns)` after `syncGates`;
+  a plate's `layer.hold` keeps it pressed (Heavy Stamp). The solver's
+  `stateKey` includes `uses` and plate holds.
+- Offer screen (`offerScreen`, route `offer`): replaces the "Next floor"
+  panel. One card per relic (glyph, name, rarity and group written out,
+  text; rarity also in the border style: solid / double / accent ring),
+  dashed Rest card, number keys 1–4, 44px+ targets, Menu abandons the run.
+  Dev: `?screen=offer&cleared=4` (rest shows on 4 and 7).
+- HUD notes for block, catch and Master Key; `catch` plays a lunge clip.
+- Telemetry: `relic.offer` / `relic.pick` (docs/07); floor `loadout` gains
+  `landings`. Collection still off.
+- 17 new tests (205 total). Verified in headless Chromium: desktop run
+  F1→F3 by keyboard with offers picked by number key (cards match the
+  seeded roll, tray grows, Run complete), phone portrait Night Ink offer
+  with Rest (tap → next floor), phone landscape High Contrast with Origami
+  Luck (5 cards). No console errors.
+
 ## Conventions worth remembering
-- Dev URL params: `?screen=floor&floor=2&map=courier&size=7&seed=abc&palette=night-ink&demo=1&speed=slow&motion=on&charges=3&mites=2&relics=all&telemetry=console`.
+- Dev URL params: `?screen=offer&cleared=4`, `?screen=floor&floor=2&map=courier&size=7&seed=abc&palette=night-ink&demo=1&speed=slow&motion=on&charges=3&mites=2&relics=all&telemetry=console`.
 - New draw layers → add a pass to `PASSES` in `renderer.js`.
 - New tile types → `TILE`/`TILE_DEFS` in `tiles.js` + a painter in
   `TILE_PAINTERS` (`renderer.js`; painters get the layer). Items →
@@ -338,9 +377,11 @@ Larger phases are split into PR-sized chunks so each conversation stays small.
 - Telemetry → `ctx.telemetry.track(type, data)`; never change the backend.
   Collection is gated by `TELEMETRY.collect` in `src/config.js`.
 - Relics → `RELIC_DEFS` in `core/relics.js` (hooks `gain`, `setup`,
-  `rules`). A new in-play effect adds a `DEFAULT_RULES` field read by
-  `turn.js`. Run-wide state → `core/run.js`; floors get it through
-  `floorSetupFor`.
+  `rules`, `cleared`, `offer`) with a `rarity` from `RARITY_WEIGHTS`. A
+  new in-play effect adds a `DEFAULT_RULES` field read by `turn.js`;
+  limited-use effects count down in `FloorState.uses` (add it to the
+  solver's `stateKey`). Run-wide state → `core/run.js`; floors get it
+  through `floorSetupFor` and hand it back in `finishFloor`.
 - Creature art follows the guide in `render/creatures.js` (bounds,
   centring, foot line, `size` class); `tests/creatures.test.js` checks it.
   Changed `data` shape → bump `dv`. Rule change that alters replays →

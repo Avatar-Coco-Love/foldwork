@@ -12,20 +12,42 @@
 //   - A key opens a lock when the player walks into the lock carrying one,
 //     or when a fold stacks a key's layer and a lock directly on each other
 //     (either one on top). The key is used up and the lock becomes a door.
+//   - Heavy Stamp (rules.plateHold = n): a plate stays pressed for n turns
+//     after its creature leaves (the turn it leaves counts). The plate layer
+//     counts down in `layer.hold`; a covered plate is not pressed and keeps
+//     its count.
 
 import { tileDef, itemDef } from './tiles.js';
 
 /** Link channel of a plate or gate layer. */
 export const linkOf = (layer) => layer.link ?? 0;
 
-/** Links with at least one pressed plate (a creature on its top layer). */
+/**
+ * Links with at least one pressed plate: a creature on its top layer, or a
+ * Heavy Stamp hold still counting down.
+ */
 export function pressedLinks(board) {
   const pressed = new Set();
   for (const cell of board.cells) {
     const top = cell.layers[cell.layers.length - 1];
-    if (top && top.creature && tileDef(top.tile).plate) pressed.add(linkOf(top));
+    if (top && (top.creature || top.hold > 0) && tileDef(top.tile).plate) pressed.add(linkOf(top));
   }
   return pressed;
+}
+
+/**
+ * Heavy Stamp countdown, after gates were synced (mutates `board`): a plate
+ * with a creature on it is held for `turns` more turns; an empty one counts
+ * down. Nothing happens with turns = 0.
+ */
+export function tickPlates(board, turns) {
+  if (!(turns > 0)) return;
+  for (const cell of board.cells) {
+    const top = cell.layers[cell.layers.length - 1];
+    if (!top || !tileDef(top.tile).plate) continue;
+    if (top.creature) top.hold = turns;
+    else if (top.hold > 0) top.hold -= 1;
+  }
 }
 
 /**

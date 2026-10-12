@@ -10,21 +10,35 @@
 //     lastFloor,  the run is won after clearing this floor
 //     hp, maxHp,  the player's HP, carried between floors
 //     relics,     relic ids, in the order taken (core/relics.js)
+//     landings,   falls the player can still survive (Soft Landing)
 //     cleared,    floors cleared
+//     offer,      null, or the relic offer waiting to be taken after a
+//                 floor: { floor, relics: [ids], rest } (rollOffer)
 //     status,     'playing' | 'won' | 'lost'
 //     cause,      why it was lost ('hp', 'fall'), else null
 //   }
 //
 // The floor screen asks floorSetupFor() how to start each floor and hands
-// the finished FloorState to finishFloor(). Relic offers between floors
-// (Phase 4b) and spirits (4c) extend this module.
+// the finished FloorState to finishFloor(). A win before the last floor
+// rolls an offer; the offer screen hands the choice to takeOffer(), and
+// the next floor starts. Spirits (4c) extend this module.
 
 import { playerOf } from './turn.js';
 import { CREATURE_DEFS } from './creatures.js';
 import { templateFloors } from './floors.js';
-import { applyRelics, relicDef } from './relics.js';
+import { applyRelics, relicDef, runHooks, RELIC_DEFS, RARITY_WEIGHTS } from './relics.js';
+import { createRng, fork, pickWeighted } from './rng.js';
 
-export const RUN_VERSION = 1;
+export const RUN_VERSION = 2;
+
+/** Relic choices per offer (docs/03), before relic hooks (Origami Luck). */
+export const OFFER_SIZE = 3;
+
+/** Floors whose offer also has a rest option (docs/03). */
+export const REST_FLOORS = Object.freeze([4, 7]);
+
+/** HP the rest option heals. */
+export const REST_HEAL = 1;
 
 /** Floors in a full run before the boss (docs/03). */
 export const RUN_FLOORS = 8;
@@ -52,7 +66,9 @@ export function createRun({ seed, relics = [], spirit = null, floor = 1, lastFlo
     hp,
     maxHp: hp,
     relics: [],
+    landings: 0,
     cleared: 0,
+    offer: null,
     status: 'playing',
     cause: null,
   };
@@ -74,13 +90,15 @@ export function addRelic(run, id) {
  * the carried HP.
  */
 export function floorSetupFor(run, setup) {
-  return { ...applyRelics(setup, run.relics, run), hp: run.hp, maxHp: run.maxHp };
+  return { ...applyRelics(setup, run.relics, run), hp: run.hp, maxHp: run.maxHp, landings: run.landings || 0 };
 }
 
 /**
- * The run after a floor ends. A win carries the player's HP over and moves
- * to the next floor, or wins the run after lastFloor. A loss ends the run.
- * A floor still being played changes nothing.
+ * The run after a floor ends. A win carries the player's HP (and Soft
+ * Landings left) over, runs the relics' `cleared` hooks, and moves to the
+ * next floor with an offer to take first, or wins the run after lastFloor
+ * (no offer after the last floor). A loss ends the run. A floor still being
+ * played changes nothing.
  */
 export function finishFloor(run, floorState) {
   if (run.status !== 'playing') return run;
@@ -90,9 +108,50 @@ export function finishFloor(run, floorState) {
   }
   if (floorState.status !== 'won') return run;
   const me = playerOf(floorState);
-  const next = { ...run, hp: me ? me.hp : run.hp, cleared: run.cleared + 1 };
+  const uses = floorState.uses || {};
+  let next = {
+    ...run, hp: me ? me.hp : run.hp, landings: uses.landings ?? run.landings, cleared: run.cleared + 1,
+  };
+  next = runHooks(next.relics, 'cleared', next);
   if (run.floor >= run.lastFloor) return { ...next, status: 'won' };
-  return { ...next, floor: run.floor + 1 };
+  return { ...next, floor: run.floor + 1, offer: rollOffer(next, run.floor) };
+}
+
+/**
+ * The relic offer after clearing `floor`: OFFER_SIZE relics (or what the
+ * relics' `offer` hooks make it), weighted by rarity, none already owned
+ * and no repeats, from the run seed's own stream (`offers-<floor>`), so a
+ * seed always offers the same. `rest` adds the rest option (REST_FLOORS).
+ * Fewer relics are offered once the pool runs low.
+ */
+export function rollOffer(run, floor) {
+  const { count } = runHooks(run.relics, 'offer', { count: OFFER_SIZE });
+  const rng = fork(createRng(run.seed), `offers-${floor}`);
+  const pool = Object.keys(RELIC_DEFS).filter((id) => !run.relics.includes(id));
+  const relics = [];
+  while (relics.length < count && pool.length) {
+    const id = pickWeighted(rng, pool, (r) => RARITY_WEIGHTS[relicDef(r).rarity] ?? 1);
+    relics.push(id);
+    pool.splice(pool.indexOf(id), 1);
+  }
+  return { floor, relics, rest: REST_FLOORS.includes(floor) };
+}
+
+/**
+ * Take the waiting offer: `choice` is one of its relic ids, or 'rest' when
+ * it has the rest option (heal REST_HEAL). With nothing to choose from
+ * (an empty pool, no rest), null moves on. Anything else is refused: the
+ * run comes back unchanged.
+ */
+export function takeOffer(run, choice) {
+  const offer = run.offer;
+  if (!offer || run.status !== 'playing') return run;
+  if (choice === 'rest' && offer.rest) {
+    return { ...run, offer: null, hp: Math.min(run.maxHp, run.hp + REST_HEAL) };
+  }
+  if (offer.relics.includes(choice)) return addRelic({ ...run, offer: null }, choice);
+  if (choice == null && !offer.relics.length && !offer.rest) return { ...run, offer: null };
+  return run;
 }
 
 /** What telemetry (and the HUD) report about a run. */

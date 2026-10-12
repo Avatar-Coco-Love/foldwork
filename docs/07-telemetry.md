@@ -123,7 +123,7 @@ New version (keeps the same URL).
 ## Events (data dictionary)
 All `dv: 1`. Floor events share a tag: `floor`, `seed`, `source`
 (`template` | `dev`), `templateId`, `variant`, `loadout` (what the floor
-started with: `relics`, `hp`, `maxHp`; replays need it), and `overrides`
+started with: `relics`, `hp`, `maxHp`, `landings`; replays need it), and `overrides`
 when dev URL params changed the floor (such floors aren't replayable).
 Run events share a run tag: `seed`, `floor`, `hp`, `maxHp`, `relics`,
 `spirit`.
@@ -134,7 +134,9 @@ Run events share a run tag: `seed`, `floor`, `hp`, `maxHp`, `relics`,
 | `session.hide` | Page hidden / closed | `ms` since load |
 | `screen.view` | Every screen change | `name`, `floor` |
 | `run.start` | New Run | run tag, `daily`, `lastFloor` |
-| `run.end` | Run won, lost, or left (`abandoned`: Menu mid-floor, or a new run started) | run tag, `outcome`, `cause`, `cleared`, `lastFloor` |
+| `run.end` | Run won, lost, or left (`abandoned`: Menu mid-floor or on a relic offer, or a new run started) | run tag, `outcome`, `cause`, `cleared`, `lastFloor` |
+| `relic.offer` | Relic choice shown after a floor | run tag, `cleared` (the floor just cleared), `offered` [relic ids, in card order], `rest` |
+| `relic.pick` | A choice taken | run tag (after taking it), `cleared`, `pick` (relic id, `rest`, or null when nothing was offered), `index` (card position), `offered` |
 | `floor.start` | Floor shown | floor tag, `map` (dev), `attempt`, `checked`, `size`, `charges`, `enemies` [{kind, col, row}] |
 | `floor.end` | Won, lost, or left mid-floor (`abandoned`) | floor tag, `outcome`, `cause`, `turn`, `chargesLeft`, `keys`, `hp`, `ms`, `turns`, `folds`, `undos`, `refused`, `previews`, `foldAttempts`, `previewsCancelled`, `hints`, `inputs` {source: count}, `log` |
 | `hint.show` | Tutorial hint shown | floor tag, `id`, `turn` |

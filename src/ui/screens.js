@@ -17,7 +17,7 @@ import { createBoard, findCreature } from '../core/board.js';
 import { TILE } from '../core/tiles.js';
 import { parseMap, DEV_MAPS } from '../core/maps.js';
 import { generateFloor, templateFloors } from '../core/floors.js';
-import { floorSetupFor, finishFloor } from '../core/run.js';
+import { floorSetupFor, finishFloor, takeOffer, runTag } from '../core/run.js';
 import { relicDef } from '../core/relics.js';
 import { HINTS, hintDef, hintsFor } from '../core/hints.js';
 import { loadSeenHints, saveSeenHints } from './hintStore.js';
@@ -149,7 +149,7 @@ export const floorScreen = {
       templateId: info.templateId || null,
       variant: info.variant || null,
       // What the floor started with, so replays rebuild it exactly.
-      loadout: { relics: run.relics.slice(), hp: setup.hp, maxHp: setup.maxHp },
+      loadout: { relics: run.relics.slice(), hp: setup.hp, maxHp: setup.maxHp, landings: setup.landings },
       ...(info.overrides ? { overrides: info.overrides } : {}),
     };
     let reported = false;
@@ -319,7 +319,9 @@ export const floorScreen = {
       report(state.status === 'won' ? 'won' : 'lost');
       if (inRun) {
         ctx.run = finishFloor(run, state);
-        hud.showOutcome(runPanel(ctx, ctx.run, floorNo, cause, params));
+        // Cleared with more to come: the relic offer replaces the panel.
+        if (ctx.run.offer) ctx.router.go('offer', params);
+        else hud.showOutcome(runPanel(ctx, ctx.run, floorNo, cause, params));
         return;
       }
       if (state.status === 'won') {
@@ -403,9 +405,11 @@ const REFUSALS = {
 /** HUD notes per event type (null = say nothing). */
 const NOTICES = {
   pickup: () => 'Got a key.',
-  unlock: (ev) => (ev.by === 'fold' ? 'The key opens the lock.' : 'Unlocked.'),
+  unlock: (ev) => (ev.by === 'fold' ? 'The key opens the lock.' : ev.by === 'master-key' ? 'Master Key: the lock opens.' : 'Unlocked.'),
   gate: (ev) => (ev.open ? 'A gate opens.' : 'A gate closes.'),
   refund: () => 'Recycled Crease: charge refunded.',
+  block: (ev) => (ev.id !== PLAYER_ID ? null : ev.by === 'guard' ? 'Folded Shield: hit negated.' : 'Laminate: hit ignored.'),
+  catch: () => 'Soft Landing: you catch yourself at the edge.',
 };
 
 /** Fold preview for the HUD and board, including the charge check. */
@@ -462,6 +466,103 @@ function devVictoryPanel(ctx, params) {
     ],
   };
 }
+
+const RARITY_NAMES = { common: 'Common', uncommon: 'Uncommon', rare: 'Rare' };
+const GROUP_NAMES = { fold: 'Fold', defense: 'Defense', utility: 'Utility' };
+
+/**
+ * Relic choice (docs/04 screen 4), between run floors: one card per relic
+ * offered, plus a rest card on REST_FLOORS. Picking one takes it and starts
+ * the next floor. Number keys pick too. Rarity and group are written out
+ * (not shown by color alone).
+ */
+export const offerScreen = {
+  mount(root, ctx, params) {
+    ctx.renderer.setScene(null);
+    const run = ctx.run;
+    if (!run || !run.offer) {
+      root.append(el('div', { class: 'menu' },
+        el('p', { class: 'subtitle', text: 'No relic offer is waiting.' }),
+        el('button', { class: 'btn btn-primary', type: 'button', onclick: () => ctx.router.go('title') }, 'Menu')));
+      return undefined;
+    }
+    const { offer } = run;
+    ctx.telemetry.track('relic.offer', { ...runTag(run), cleared: offer.floor, offered: offer.relics.slice(), rest: offer.rest });
+
+    const choose = (choice, index) => {
+      const next = takeOffer(ctx.run, choice);
+      if (next === ctx.run) return;
+      ctx.telemetry.track('relic.pick', { ...runTag(next), cleared: offer.floor, pick: choice, index, offered: offer.relics.slice() });
+      ctx.run = next;
+      ctx.router.go('floor', { ...params, floor: next.floor });
+    };
+
+    const choices = offer.relics.map((id) => {
+      const def = relicDef(id);
+      return {
+        id,
+        rarity: def.rarity,
+        label: `${def.name}. ${RARITY_NAMES[def.rarity]} ${GROUP_NAMES[def.group]} relic. ${def.text}`,
+        body: [
+          el('span', { class: 'offer-glyph', 'aria-hidden': 'true', text: def.glyph }),
+          el('strong', { class: 'offer-name', text: def.name }),
+          el('span', { class: 'offer-tags', text: `${RARITY_NAMES[def.rarity]} · ${GROUP_NAMES[def.group]}` }),
+          el('span', { class: 'offer-text', text: def.text }),
+        ],
+      };
+    });
+    if (offer.rest) {
+      const full = run.hp >= run.maxHp;
+      choices.push({
+        id: 'rest',
+        rarity: 'rest',
+        label: `Rest. Heal 1 HP.${full ? ' Your HP is full.' : ''}`,
+        body: [
+          el('span', { class: 'offer-glyph', 'aria-hidden': 'true', text: '☾' }),
+          el('strong', { class: 'offer-name', text: 'Rest' }),
+          el('span', { class: 'offer-tags', text: 'Instead of a relic' }),
+          el('span', { class: 'offer-text', text: full ? 'Heal 1 HP (your HP is full).' : 'Heal 1 HP.' }),
+        ],
+      });
+    }
+    const cards = choices.map((c, i) => el('button', {
+      class: `offer-card rarity-${c.rarity}`, type: 'button', 'aria-label': `${i + 1}: ${c.label}`, onclick: () => choose(c.id, i),
+    }, el('span', { class: 'offer-key', 'aria-hidden': 'true', text: String(i + 1) }), ...c.body));
+
+    const empty = !choices.length;
+    root.append(
+      el('div', { class: 'menu offer' },
+        el('h2', { class: 'outcome-title', text: `Floor ${offer.floor} cleared` }),
+        el('p', { class: 'subtitle', text: empty
+          ? `No relics left to offer. HP ${run.hp}/${run.maxHp}.`
+          : `Choose ${choices.length > 1 ? 'one' : 'it'} to take to floor ${run.floor}. HP ${run.hp}/${run.maxHp}.` }),
+        el('div', { class: 'offer-cards', role: 'group', 'aria-label': 'Relic choices' }, cards),
+        el('div', { class: 'menu-buttons' },
+          empty ? el('button', { class: 'btn btn-primary', type: 'button', onclick: () => choose(null, -1) }, 'Next floor') : null,
+          el('button', {
+            class: 'btn btn-secondary',
+            type: 'button',
+            onclick: () => {
+              ctx.endRun('abandoned');
+              ctx.router.go('title');
+            },
+          }, 'Menu'),
+        ),
+      ),
+    );
+    (cards[0] || root.querySelector('.btn-primary'))?.focus({ preventScroll: true });
+
+    const onKey = (e) => {
+      const n = Number(e.key);
+      if (Number.isInteger(n) && n >= 1 && n <= choices.length && !e.repeat) {
+        e.preventDefault();
+        choose(choices[n - 1].id, n - 1);
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  },
+};
 
 /**
  * End-of-floor panel for a run floor, given the run after finishFloor():

@@ -50,6 +50,10 @@ function clipFor(ev, before, after, motion) {
     case 'bump':
       return actorClip(before, 'bump', ev.id, creatureIn(before, ev.id), ev.from, ev.to,
         level(before, ev.from), level(before, ev.to), true, motion);
+    case 'catch':
+      // Soft Landing: a lunge toward the void and back.
+      return actorClip(before, 'bump', ev.id, creatureIn(before, ev.id), ev.from, ev.at,
+        level(before, ev.from), level(before, ev.from), true, motion);
     case 'damage': {
       const layer = topLayer(before, ev.at.col, ev.at.row);
       const creature = layer && layer.creature;
