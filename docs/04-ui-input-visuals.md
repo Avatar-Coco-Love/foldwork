@@ -16,13 +16,13 @@
 | Action | Mouse | Touch | Keyboard |
 |---|---|---|---|
 | Move / bump | Click adjacent tile | Tap adjacent tile or swipe | Arrow keys / WASD |
-| Fold | Drag across board, release to confirm | Drag, release to confirm | F to enter fold mode, arrows move crease, Enter confirms, Esc cancels |
+| Fold | Drag across board, release to confirm | Drag, release to confirm | F to enter fold mode, arrows move crease, F flips the folding side, Enter confirms, Esc cancels |
 | Cancel fold | Drag outside board / right click | Drag off board or tap Cancel | Esc |
 | Undo fold | Button / U | Button | U / Z |
 | Wait | Button / Space | Button | Space |
 
 - All inputs use Pointer Events so mouse, touch, and pen share one code path.
-- Drag-to-fold: on pointer down, record the start cell (this defines the folding side). While dragging, snap the crease to the nearest valid grid line and show a live preview. On release, confirm if valid, otherwise show a brief invalid shake and cancel.
+- Drag-to-fold: on pointer down, record the start cell (this defines the folding side). The crease sits at the midpoint of the drag, like pulling a paper edge over. While dragging, snap the crease to the nearest valid grid line and show a live preview. On release, confirm if valid, otherwise show a brief invalid shake and cancel.
 - Invalid previews (stack over 3, off-board) render in red with a small icon, never color alone.
 - Input is ignored during animations, with a short input buffer for one queued action.
 

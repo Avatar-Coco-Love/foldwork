@@ -20,4 +20,8 @@ to "Resolved" with the answer once decided.
   flip. (Tech doc: "preserving internal order".)
 - Clipped tiles (mirror lands off-board) stay on their own source cell,
   unfolded and still active.
-- Cells emptied by a fold (`layers: []`) behave as void.
+- Cells emptied by a fold (`layers: []`) behave as void, and are drawn as void.
+- Drag-to-fold: the crease is the midpoint of the drag (paper-like), snapped to
+  the nearest grid line. Keyboard fold mode: F again flips the folding side.
+- Free undo refunds the fold charge, since it restores the exact prior state.
+  This is implemented with charges in Phase 2a.
