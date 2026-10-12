@@ -25,6 +25,22 @@ These belong to later phases and get decided when that phase is built.
   endpoint is configured in `src/config.js`.
 
 ## Resolved
+- Run length while floors are missing (5c, user's choice): `runLength()`
+  stops at the **first gap** in templated floors, so F6/F7 built before F5
+  don't make a run reach an untemplated floor. Later floors stay reachable
+  via dev `?floor=`. 5c stays ahead of 5d.
+- Lockjaw key (5c, user's choice): on death the key drops on Lockjaw's
+  cell (top layer; if it died pinned, on the layer covering it). If it
+  **falls** into a void, the key lands on the **nearest free walkable
+  top-layer tile** (BFS from where it fell, ties in the fixed `board.js`
+  step order), so the floor stays winnable.
+- Spore Bloom strand (5c, user's choice): a Bloom counts as stranded when
+  there is **no walkable path from it to the player**; while stranded (or
+  pinned) its spawn counter doesn't fire. Spawning resumes once the path
+  reopens. (`fixed` still keeps it out of the walk-based strand event.)
+- Spore Bloom spawn tile (5c, user's choice): the free adjacent tile
+  **closest to the player**, ties broken in the fixed step order. No RNG,
+  so the preview and solver can predict it.
 - Creaseling slide (5b, chosen from options): on a turn the player
   folds, it slides **instead of** its step, in its normal enemy-phase
   slot. It moves in its own lane **parallel to the crease** (vertical

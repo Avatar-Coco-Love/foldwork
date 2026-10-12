@@ -8,16 +8,14 @@ small. At the end of each conversation, update this file in the same PR.
 (enemies table: Lockjaw, Spore Bloom; floor table: F6 "guarded keys", F7
 "time pressure from spawners") and docs/02 (enemies and folds). Lockjaw:
 2 HP, stationary guard, attacks adjacent tiles for 1, holds a key that
-drops on death (keys are items, so it can carry one; decide and log where
-it drops if it dies pinned or falls). Spore Bloom: 2 HP, stationary,
-spawns a Mite every 3 turns on an adjacent free tile; stranding or pinning
-stops it (the spawn counter is a new per-creature primitive: add it to
-`stateKey`; decide and log which adjacent tile wins, seeded or fixed
-order). Both are `fixed`. Add F6 and F7 templates (7x7). Watch out:
-`runLength()` is the highest templated floor, so F6/F7 without F5 makes
-the run 7 floors long with no F5 template (the floor screen would fall
-back to a dev floor). Either cap `runLength()` at the first gap, or
-build 5d (floors 5 and 8, mixes) first. Ask the user.
+drops on death. Spore Bloom: 2 HP, stationary, spawns a Mite every 3
+turns on an adjacent free tile (the spawn counter is a new per-creature
+primitive: add it to `stateKey`). Both are `fixed`. Add F6 and F7
+templates (7x7). Open questions are settled (docs/OPEN-QUESTIONS.md,
+"Resolved", 5c entries): cap `runLength()` at the first template gap;
+a Lockjaw that falls drops its key on the nearest free walkable tile;
+a Bloom with no walkable path to the player (or pinned) doesn't spawn;
+spawns go to the free neighbour closest to the player, fixed tie order.
 
 ## Phase checklist
 Larger phases are split into PR-sized chunks so each conversation stays small.
