@@ -43,6 +43,7 @@
 // `board`, a copy of the board right after it, for step-by-step playback):
 //   { type: 'move', id, from, to }
 //   { type: 'bump', id, target, from, to }       attacker stays put
+//   { type: 'shoot', id, target, from, to }      ranged hit (Paper Wasp)
 //   { type: 'damage', id, amount, hp, at }
 //   { type: 'death', id, creature, at }
 //   { type: 'fall', id, creature, at }           into a void or empty cell,
@@ -62,7 +63,7 @@
 //                                                earned it: 'pin' | 'strand'
 //                                                | 'fall')
 //   { type: 'block', id, by, at }                a hit was negated (by: 'guard'
-//                                                | 'ward')
+//                                                | 'ward' | 'wax')
 //   { type: 'catch', id, at, from }              a fall into `at` was survived
 //                                                (uses.landings); the
 //                                                creature stays at `from`
@@ -70,7 +71,7 @@
 import { DIRS, inBounds, getCell, topLayer, findCreature, cloneBoard, isFooting } from './board.js';
 import { tileDef, itemDef, ITEM } from './tiles.js';
 import { validateFold, applyFold, isDiagonal } from './fold.js';
-import { createCreature, creatureDef } from './creatures.js';
+import { createCreature, creatureDef, isHeavy } from './creatures.js';
 import { actingEnemies, reachField, planEnemy, enemiesInReach } from './enemies.js';
 import { syncGates, tickPlates, isLocked, unlockLayer, keyMeetsLock } from './environment.js';
 
@@ -99,10 +100,11 @@ export const BUMP_DAMAGE = 1;
  *               (Heavy Stamp; core/environment.js)
  *   diagonal    diagonal creases can be played (Frog, Diagonal Crease;
  *               core/fold.js AXES)
+ *   waxCoat     ranged hits on the player do nothing (Wax Coat)
  */
 export const DEFAULT_RULES = Object.freeze({
   undoDepth: 1, foldRefund: 0, wards: 0, foldGuard: false, freeLocks: 0, stackBump: 0, plateHold: 0,
-  diagonal: false,
+  diagonal: false, waxCoat: false,
 });
 
 /**
@@ -185,14 +187,16 @@ export function foldCheck(state, fold) {
 /**
  * What a landing stack does to the creature on the destination's top layer
  * (docs/02): 'drop' when the new top layer is a hole (void drop: it falls),
- * 'pin' otherwise (it is covered: can't act, can't be attacked), or null
+ * 'pin' otherwise (it is covered: can't act, can't be attacked), 'heavy'
+ * when it can't be pinned (the fold is invalid: core/fold.js), or null
  * when nobody stands there. Pure; used by resolveFold and the fold preview.
  */
 export function coverEffect(board, from, to) {
   const dest = topLayer(board, to.col, to.row);
   const src = topLayer(board, from.col, from.row);
   if (!dest || !dest.creature || !src) return null;
-  return tileDef(src.tile).hole ? 'drop' : 'pin';
+  if (tileDef(src.tile).hole) return 'drop';
+  return isHeavy(dest.creature) ? 'heavy' : 'pin';
 }
 
 /**
@@ -382,20 +386,33 @@ function runUndo(state, snapshots) {
 
 // Enemies act once each, in actingEnemies() order (docs/02). The player
 // doesn't move during this phase and creatures don't block the reach field,
-// so one field serves the whole phase.
+// so one field serves the whole phase. Slow enemies (def `pace`) sit out
+// while their `rest` counts down.
 function runEnemies(s, emit) {
   const player = findCreature(s.board, PLAYER_ID);
   if (!player) return;
   const ctx = { field: reachField(s.board, player), player };
   for (const id of actingEnemies(s.board)) {
     if (s.status !== 'playing') break;
+    const me = findCreature(s.board, id);
+    const def = creatureDef(me.creature.kind);
+    if (def.pace > 1) {
+      if (me.creature.rest > 0) {
+        me.creature.rest -= 1;
+        continue;
+      }
+      me.creature.rest = def.pace - 1;
+    }
     const plan = planEnemy(s.board, id, ctx);
     if (plan.type === 'wait') continue;
-    const me = findCreature(s.board, id);
-    if (plan.type === 'bump') {
+    if (plan.type === 'bump' || plan.type === 'shoot') {
       const target = topLayer(s.board, plan.to.col, plan.to.row).creature;
-      emit({ type: 'bump', id, target: target.id, from: { col: me.col, row: me.row }, to: { ...plan.to } });
-      damageAt(s, plan.to, creatureDef(me.creature.kind).attack ?? BUMP_DAMAGE, emit);
+      emit({ type: plan.type, id, target: target.id, from: { col: me.col, row: me.row }, to: { ...plan.to } });
+      if (plan.type === 'shoot' && target.id === PLAYER_ID && s.rules.waxCoat) {
+        emit({ type: 'block', id: target.id, by: 'wax', at: { ...plan.to } });
+        continue;
+      }
+      damageAt(s, plan.to, def.attack ?? BUMP_DAMAGE, emit);
     } else {
       stepCreature(s, me, plan.to, emit);
     }

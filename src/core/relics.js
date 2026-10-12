@@ -139,6 +139,15 @@ export const RELIC_DEFS = Object.freeze({
       cleared: (run) => (run.cleared % 2 === 0 ? { ...run, hp: Math.min(run.maxHp, run.hp + 1) } : run),
     },
   },
+  'wax-coat': {
+    id: 'wax-coat',
+    name: 'Wax Coat',
+    text: 'Ranged attacks (Paper Wasp stings) deal you no damage.',
+    group: 'defense',
+    rarity: 'common',
+    glyph: '◍',
+    hooks: { rules: (rules) => ({ ...rules, waxCoat: true }) },
+  },
 
   // --- Utility ---
   'master-key': {

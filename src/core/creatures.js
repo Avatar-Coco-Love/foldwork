@@ -7,12 +7,26 @@
 // It rides its layer, so folds move it for free.
 //
 // Def fields: kind, name, team ('player' | 'enemy'), hp, and for enemies
-// attack (bump damage) and ai (a key of ENEMY_AI in enemies.js).
+// attack (damage per hit), ai (a key of ENEMY_AI in enemies.js), and
+// optionally:
+//   pace   acts once every `pace` turns (default 1). Instances count down
+//          in `rest` (turns left to sit out; it starts at pace - 1, so a
+//          slow enemy sits out its first turn). The counter ticks every
+//          enemy phase, stranded or not.
+//   heavy  can't be pinned: no fold may land on it, unless the landing
+//          sheet's top is a hole, which drops it (core/fold.js validateFold)
+//   range  how far a ranged attacker sees along its row and column
+//   fixed  never moves on its own, so a fold can't strand it (it still
+//          rides its layer)
 
 export const CREATURE_DEFS = Object.freeze({
   player: { kind: 'player', name: 'You', team: 'player', hp: 3 },
   // docs/03: moves 1 tile toward the player each turn; bumps for 1.
   mite: { kind: 'mite', name: 'Scrap Mite', team: 'enemy', hp: 1, attack: 1, ai: 'chase' },
+  // Stationary; stings the player in a clear line (row or column) within 4.
+  wasp: { kind: 'wasp', name: 'Paper Wasp', team: 'enemy', hp: 1, attack: 1, ai: 'sting', range: 4, fixed: true },
+  // Moves every other turn toward the player; hits for 1. Too heavy to pin.
+  brute: { kind: 'brute', name: 'Card Brute', team: 'enemy', hp: 3, attack: 1, ai: 'chase', pace: 2, heavy: true },
 });
 
 export function creatureDef(kind) {
@@ -29,7 +43,16 @@ export function creatureDef(kind) {
 export function createCreature(kind, { id = kind, hp, maxHp } = {}) {
   const def = creatureDef(kind);
   const max = maxHp ?? hp ?? def.hp;
-  return { id, kind, hp: Math.min(hp ?? max, max), maxHp: max };
+  const creature = { id, kind, hp: Math.min(hp ?? max, max), maxHp: max };
+  if (def.pace > 1) creature.rest = def.pace - 1;
+  return creature;
+}
+
+/** Whether a creature can't be pinned (CREATURE_DEFS `heavy`). */
+export function isHeavy(creature) {
+  if (!creature) return false;
+  const def = CREATURE_DEFS[creature.kind];
+  return !!def && !!def.heavy;
 }
 
 /** Whether a creature is on the enemy team (unknown kinds are not). */

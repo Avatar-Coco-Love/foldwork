@@ -26,7 +26,7 @@ export const FLASH_MS = 300;
  * Creature clip durations at speed 1 (render/playback.js). Kept short so a
  * turn reads instantly; the fold is the showpiece.
  */
-export const ACTOR_MS = Object.freeze({ move: 130, bump: 170, hit: 220, death: 260, fall: 380 });
+export const ACTOR_MS = Object.freeze({ move: 130, bump: 170, shoot: 200, hit: 220, death: 260, fall: 380 });
 
 /**
  * A clip's duration in ms. `speed` is a multiplier (2 = twice as fast).
@@ -154,7 +154,7 @@ export function createFxPlayer({ onChange, now = () => performance.now() }) {
       onChange();
       schedule();
     },
-    /** Play a creature clip (move, bump, hit, death, fall). Same contract. */
+    /** Play a creature clip (move, bump, shoot, hit, death, fall). Same contract. */
     playActor(actor, { duration, done = null }) {
       finishClip();
       if (!(duration > 0)) {

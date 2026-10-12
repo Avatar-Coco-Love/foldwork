@@ -11,7 +11,7 @@
 // Clip = { board, duration, fold?, reverse?, actor? }
 //   fold    buildFoldAnim() result (fold / unfold events)
 //   actor   { kind, id, creature, from, to, fromLevel, toLevel, skip }
-//           kind: 'move' | 'bump' | 'hit' | 'death' | 'fall'
+//           kind: 'move' | 'bump' | 'shoot' | 'hit' | 'death' | 'fall'
 //           from/to are cells (equal for in-place clips); levels are the
 //           stack level the creature stands on (0 = one layer).
 //           skip: the board pass leaves this creature out, because the actor
@@ -50,6 +50,10 @@ function clipFor(ev, before, after, motion) {
     case 'bump':
       return actorClip(before, 'bump', ev.id, creatureIn(before, ev.id), ev.from, ev.to,
         level(before, ev.from), level(before, ev.to), true, motion);
+    case 'shoot':
+      // A dart flies from the shooter to its target; the shooter stays drawn.
+      return actorClip(before, 'shoot', ev.id, creatureIn(before, ev.id), ev.from, ev.to,
+        level(before, ev.from), level(before, ev.to), false, motion);
     case 'catch':
       // Soft Landing: a lunge toward the void and back.
       return actorClip(before, 'bump', ev.id, creatureIn(before, ev.id), ev.from, ev.at,

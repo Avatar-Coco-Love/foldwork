@@ -8,9 +8,9 @@ These belong to later phases and get decided when that phase is built.
 - Exact scrap costs and earn rates (Phase 7; tune in Phase 9).
 - Relic rarities and offer weights (provisional since 4b; tune in Phase 9
   playtests). Weights common 6 / uncommon 3 / rare 1. Common: Extra Crease,
-  Spring Crease, Paper Heart, Laminate, Mender, Master Key, Paper Cut.
-  Uncommon: Thick Paper, Recycled Crease, Soft Landing, Folded Shield,
-  Heavy Stamp. Rare: Origami Luck. The 11 relics not built yet get theirs
+  Spring Crease, Paper Heart, Laminate, Mender, Master Key, Paper Cut,
+  Wax Coat. Uncommon: Thick Paper, Recycled Crease, Soft Landing, Folded
+  Shield, Heavy Stamp. Rare: Origami Luck. The 10 relics not built yet get theirs
   when they arrive (aim: ~12/8/4 overall, docs/03).
 - Telemetry start: collection is off (`TELEMETRY.collect: false`) until the
   first playtests have been watched; then deploy the Sheets collector and
@@ -25,6 +25,33 @@ These belong to later phases and get decided when that phase is built.
   endpoint is configured in `src/config.js`.
 
 ## Resolved
+- Card Brute vs folds (5a): **Heavy.** A fold may not land anything on
+  the Brute's cell; the fold is refused (no turn, no charge), and the
+  preview marks the cell with a cross and a "!" badge ("Too heavy"). The
+  one exception is a landing stack whose top is a hole: that drops it, as
+  docs/03 says. A Brute riding a sheet lands on top as usual and pins what
+  it covers (the player too). It can still be stranded. Pin effects
+  (Recycled Crease; later Sharp Edge, Sticky Tape) never apply to it.
+  Chosen over "climbs on top", "shoved aside" and "brief pin", which all
+  need new placement rules. If playtests find it too strong, relax it
+  then.
+- Card Brute pace (5a): it sits out its first enemy phase, then acts every
+  other turn (a per-creature `rest` counter, shown as a "z"). The counter
+  ticks every enemy phase, stranded or not.
+- Paper Wasp line of fire (5a): it stings for 1 when the player stands on
+  a top layer in its row or column within 4 tiles. The shot is stopped by
+  a solid top tile (wall, lock, shut gate), by any creature (no friendly
+  fire), and by a stack taller than the Wasp's own (docs/03's "layer
+  stacked over its line of sight"). It flies over voids and empty cells.
+  It stings every turn it has a line. A pinned Wasp can't sting; a pinned
+  player can't be stung. A Wasp never moves, so it is never "stranded"
+  (no strand event, no Recycled Crease refund). Its lanes are drawn as
+  dashed lines ending in a bar.
+- Wax Coat (5a): a sting on the player is blocked before Folded Shield or
+  Laminate, so it doesn't use them up. Common (provisional).
+- Mixed enemy kinds in one template (5a): variants hand each group its
+  own anchor set, so which kind stands where is part of the variant and
+  every split is proven.
 - Relic offers (4b): after every floor won except the last, pick 1 of 3
   (4 with Origami Luck), weighted by rarity, never a relic you own, never
   a repeat in one offer; seeded per floor (`offers-<n>`). There is no skip:
@@ -49,7 +76,7 @@ These belong to later phases and get decided when that phase is built.
 - Heavy Stamp (4b): the plate stays pressed the turn you step off and the
   next 2 (3 turns in all). A creature standing on it keeps it topped up.
 - Not built yet (need later systems): Echo Fold, Crease Trap, Pocket
-  Fold, Sticky Tape, Sharp Edge (fold relics; timed effects), Wax Coat (needs the Wasp, Phase 5), Scout's Eye and
+  Fold, Sticky Tape, Sharp Edge (fold relics; timed effects), Scout's Eye and
   Compass (render-side), Lucky Scrap (scraps, Phase 7), Rewind Charm.
 - Telemetry hosting (4a): Google Sheets via an Apps Script web app for
   playtests (`tools/telemetry-sheets/`); a real database before launch.

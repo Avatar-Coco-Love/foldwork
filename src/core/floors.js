@@ -91,6 +91,33 @@ export const FLOOR_TEMPLATES = Object.freeze([
     needs: ['fold', 'plate'],
     hints: ['plate-gate', 'thick-stack', 'pin', 'pinned-self'],
   },
+  // Floor 2 (alternate): plates plus the Paper Wasp. The same thick exit
+  // and gate, but a Wasp watches the way up. Walking straight in takes a
+  // sting; a second fold that stacks paper across its line of fire (or
+  // pins it) gets you through clean.
+  {
+    id: 'f2-wasp',
+    floor: 2,
+    charges: 2,
+    rows: [
+      'E a 1 . .',
+      '# # . . ?',
+      '. . . ? ?',
+      'o o o o o',
+      '. . @ . .',
+    ],
+    under: thick([
+      'X X _ _ _',
+      'X X _ _ _',
+      '_ _ _ _ _',
+      '_ _ _ _ _',
+      '_ _ _ _ _',
+    ]),
+    transforms: ['id', 'flipH'],
+    enemies: [{ kind: 'wasp', count: 1 }],
+    needs: ['fold', 'plate'],
+    hints: ['wasp-sting', 'plate-gate', 'thick-stack'],
+  },
   // Floor 3: keys and locks. A thick wall with one lock splits the board.
   // Bridge the void to reach the key, then walk it to the lock.
   {
@@ -145,6 +172,35 @@ export const FLOOR_TEMPLATES = Object.freeze([
     enemies: [{ kind: 'mite', count: 1 }],
     needs: ['fold', 'key'],
     hints: ['key-lock', 'key-fold', 'thick-stack'],
+  },
+  // Floor 3 (alternate): the Card Brute waits by the lock across the void.
+  // The quick bridge (fold the bottom two rows up) would land on it, and
+  // it's too heavy to pin, so the bridge takes two folds; then slip past
+  // it while it rests.
+  {
+    id: 'f3-brute',
+    floor: 3,
+    charges: 2,
+    rows: [
+      '. . . E . .',
+      '# # L # # #',
+      '. ? . . ? .',
+      'o o o o o o',
+      '. . k . . .',
+      '. . . @ . .',
+    ],
+    under: thick([
+      '_ _ _ _ _ _',
+      'X X _ X X X',
+      '_ _ _ _ _ _',
+      '_ _ _ _ _ _',
+      '_ _ _ _ _ _',
+      '_ _ _ _ _ _',
+    ]),
+    transforms: ['id', 'flipH'],
+    enemies: [{ kind: 'brute', count: 1 }],
+    needs: ['fold', 'key'],
+    hints: ['brute-heavy', 'key-lock', 'thick-stack'],
   },
 ]);
 
@@ -222,13 +278,19 @@ export function baseVariant(template) {
   };
 }
 
-/** A seeded variant of a template. */
+/**
+ * A seeded variant of a template. Anchors are listed group by group
+ * (template.enemies order), ascending within a group, so every roll is one
+ * of allVariants().
+ */
 export function rollVariant(template, rng) {
   const transform = pick(rng, template.transforms || ['id']);
   const picks = varyCounts(template, transform).map((n) => nextInt(rng, 0, n));
   const total = countAnchors(template);
   const order = shuffle(rng, Array.from({ length: total }, (_, i) => i));
-  return { transform, picks, anchors: order.slice(0, Math.min(enemyCount(template), total)) };
+  const anchors = [];
+  for (const size of groupSizes(template)) anchors.push(...order.splice(0, size).sort((a, b) => a - b));
+  return { transform, picks, anchors };
 }
 
 /**
@@ -238,7 +300,7 @@ export function rollVariant(template, rng) {
  */
 export function allVariants(template) {
   const out = [];
-  const anchorSets = combinations(countAnchors(template), enemyCount(template));
+  const anchorSets = anchorAssignments(countAnchors(template), groupSizes(template));
   for (const transform of template.transforms || ['id']) {
     for (const picks of product(varyCounts(template, transform))) {
       for (const anchors of anchorSets) out.push({ transform, picks, anchors });
@@ -316,6 +378,36 @@ function countAnchors(template) {
 
 function enemyCount(template) {
   return (template.enemies || []).reduce((n, g) => n + g.count, 0);
+}
+
+/**
+ * How many anchors each enemy group takes, in template.enemies order;
+ * groups past the last free anchor get fewer (or none).
+ */
+function groupSizes(template) {
+  let left = countAnchors(template);
+  return (template.enemies || []).map((g) => {
+    const n = Math.min(g.count, left);
+    left -= n;
+    return n;
+  });
+}
+
+/**
+ * Every way to hand anchors to the groups: each group gets a set (listed
+ * ascending) of the anchors earlier groups didn't take. With one group
+ * this is just its combinations; with kinds mixed, which kind stands where
+ * matters, so each split is its own variant.
+ */
+function anchorAssignments(n, sizes) {
+  let out = [[]];
+  for (const size of sizes) {
+    out = out.flatMap((taken) => {
+      const free = Array.from({ length: n }, (_, i) => i).filter((i) => !taken.includes(i));
+      return combinations(free.length, size).map((c) => [...taken, ...c.map((i) => free[i])]);
+    });
+  }
+  return out;
 }
 
 function product(counts) {

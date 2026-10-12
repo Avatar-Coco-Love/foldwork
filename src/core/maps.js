@@ -6,6 +6,7 @@
 //   L  lock         k  key on floor E  exit
 //   1-3 plate (link 1-3)            a-c gate (link 1-3, a opens with 1)
 //   @  player start (on floor)      m  Scrap Mite (on floor)
+//   W  Paper Wasp (on floor)        B  Card Brute (on floor)
 //   ?  enemy anchor (on floor): a spot a floor template may place an enemy
 //
 // parseMap(rows, { under }) → { board, player, enemies, anchors }, ready
@@ -31,6 +32,8 @@ export const MAP_LEGEND = Object.freeze({
   k: { tile: TILE.FLOOR, item: ITEM.KEY },
   '@': { tile: TILE.FLOOR, player: true },
   m: { tile: TILE.FLOOR, enemy: 'mite' },
+  W: { tile: TILE.FLOOR, enemy: 'wasp' },
+  B: { tile: TILE.FLOOR, enemy: 'brute' },
   '?': { tile: TILE.FLOOR, anchor: true },
   ...Object.fromEntries(Object.entries(PLATES).map(([ch, link]) => [ch, { tile: TILE.PLATE, link }])),
   ...Object.fromEntries(Object.entries(GATES).map(([ch, link]) => [ch, { tile: TILE.GATE, link }])),
