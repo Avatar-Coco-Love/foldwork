@@ -6,6 +6,7 @@
 //        | { type: 'move', to }   step onto `to`'s top layer
 //        | { type: 'bump', to }   attack the player standing on `to`
 //        | { type: 'shoot', to }  ranged hit on the player standing on `to`
+//        | { type: 'slide', to, path }  glide along `path` (Creaseling)
 //
 // Pathing works on a reach field: BFS distance from the player over cells
 // whose top layer is footing (walkable, not a hole). Creatures don't block
@@ -19,6 +20,7 @@
 import { DIRS, inBounds, cellIndex, topLayer, findCreature, isFooting, stackHeight } from './board.js';
 import { creatureDef, isEnemy } from './creatures.js';
 import { tileDef } from './tiles.js';
+import { AXES } from './fold.js';
 import { shuffle } from './rng.js';
 
 const WAIT = Object.freeze({ type: 'wait' });
@@ -26,6 +28,7 @@ const WAIT = Object.freeze({ type: 'wait' });
 export const ENEMY_AI = {
   chase: planChase,
   sting: planSting,
+  creep: planCreep,
 };
 
 /**
@@ -86,8 +89,9 @@ export function enemiesInReach(board, playerId) {
 }
 
 /**
- * What enemy `id` does this turn. ctx = { field, player }: the reach field
- * toward the player and findCreature()'s result for the player (or null).
+ * What enemy `id` does this turn. ctx = { field, player, fold }: the reach
+ * field toward the player, findCreature()'s result for the player (or
+ * null), and the crease the player folded this turn (or null).
  */
 export function planEnemy(board, id, ctx) {
   const me = findCreature(board, id);
@@ -115,6 +119,51 @@ function planChase(board, me, { field, player }) {
     return { type: 'move', to };
   }
   return WAIT;
+}
+
+// Creaseling (docs/03): on a turn the player folded, it slides along the
+// crease (slidePath) instead of stepping; otherwise, or when it can't
+// slide even one tile, it moves like a Mite. The slide is only movement:
+// it never hits.
+function planCreep(board, me, ctx) {
+  if (ctx.fold && ctx.player) {
+    const max = creatureDef(me.creature.kind).slide || 0;
+    const path = slidePath(board, me, ctx.fold, ctx.player, max);
+    if (path.length) return { type: 'slide', to: { ...path[path.length - 1] }, path };
+  }
+  return planChase(board, me, ctx);
+}
+
+/**
+ * The cells a creature at `from` slides through after `fold`, toward
+ * `target`, up to `max` tiles, nearest first (docs/OPEN-QUESTIONS.md):
+ *   - it moves in its own lane, parallel to the crease (a vertical crease
+ *     slides it up or down, a diagonal one diagonally), the way that gets
+ *     closer to the target; level with the target, it doesn't slide
+ *   - it stops before the board edge, any creature (the target too) and
+ *     any cell whose top layer isn't footing (wall, lock, shut gate, void,
+ *     empty cell); stacks are climbed freely
+ * Geometry only: it needs no path to the target, so a stranded slider
+ * still slides. Pure; the fold preview shows the same path.
+ */
+export function slidePath(board, from, fold, target, max) {
+  const geo = AXES[fold.axis];
+  if (!geo || !target || !(max > 0)) return [];
+  const [nx, ny] = geo.normal;
+  const dc = Math.sign(-ny);
+  const dr = Math.sign(nx);
+  const toward = Math.sign((target.col - from.col) * dc + (target.row - from.row) * dr);
+  if (!toward) return [];
+  const path = [];
+  for (let k = 1; k <= max; k++) {
+    const col = from.col + dc * toward * k;
+    const row = from.row + dr * toward * k;
+    if (!inBounds(board, col, row) || (col === target.col && row === target.row)) break;
+    const top = topLayer(board, col, row);
+    if (!isFooting(top) || top.creature) break;
+    path.push({ col, row });
+  }
+  return path;
 }
 
 // Paper Wasp (docs/03): stationary; stings the player when it stands in a

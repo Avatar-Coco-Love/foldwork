@@ -305,7 +305,54 @@ function drawFoldPreview(r, ctx) {
       }
     }
   }
+  drawSlides(ctx, p, L, pv, lineW);
   drawCrease(ctx, p, L, pv, lineW);
+}
+
+// Creaseling slides the fold would cause (pv.slides): a dashed arrow from
+// where it ends up after the fold to where it will glide, at the stack
+// heights after the fold, plus a dashed ring on the landing cell. Read by
+// shape, not color.
+function drawSlides(ctx, p, L, pv, lineW) {
+  if (!pv.slides || !pv.slides.length) return;
+  const size = L.cellSize;
+  const lift = layerLift(size);
+  const centre = (c) => {
+    const o = cellOrigin(L, c.col, c.row);
+    const level = Math.max(0, pv.heights[c.row * L.cols + c.col] - 1);
+    return { x: o.x + size / 2, y: o.y + size / 2 - level * lift };
+  };
+  ctx.save();
+  ctx.strokeStyle = p.danger;
+  ctx.fillStyle = p.danger;
+  ctx.lineWidth = lineW;
+  ctx.lineCap = 'round';
+  for (const s of pv.slides) {
+    const a = centre(s.from);
+    const b = centre(s.to);
+    const len = Math.hypot(b.x - a.x, b.y - a.y) || 1;
+    const ux = (b.x - a.x) / len;
+    const uy = (b.y - a.y) / len;
+    const head = size * 0.22;
+    ctx.setLineDash([size * 0.1, size * 0.08]);
+    ctx.beginPath();
+    ctx.moveTo(a.x + ux * size * 0.3, a.y + uy * size * 0.3);
+    ctx.lineTo(b.x - ux * head, b.y - uy * head);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.beginPath(); // arrowhead
+    ctx.moveTo(b.x, b.y);
+    ctx.lineTo(b.x - ux * head - uy * head * 0.6, b.y - uy * head + ux * head * 0.6);
+    ctx.lineTo(b.x - ux * head + uy * head * 0.6, b.y - uy * head - ux * head * 0.6);
+    ctx.closePath();
+    ctx.fill();
+    ctx.setLineDash([size * 0.06, size * 0.06]);
+    ctx.beginPath();
+    ctx.arc(b.x, b.y, size * 0.36, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.setLineDash([]);
+  }
+  ctx.restore();
 }
 
 // Fold animation (render/fx.js). Each moving stack scales by cos(angle)
@@ -399,6 +446,10 @@ function drawActor(r, ctx) {
     const t = easeInOut(u);
     x = from.x + (to.x - from.x) * t;
     y = fromY + (toY - fromY) * t - Math.sin(Math.PI * u) * size * 0.12; // a little hop
+  } else if (a.kind === 'slide') {
+    const t = easeInOut(u); // a flat glide: no hop
+    x = from.x + (to.x - from.x) * t;
+    y = fromY + (toY - fromY) * t;
   } else if (a.kind === 'bump') {
     const k = Math.sin(Math.PI * u) * 0.32; // lunge toward the target and back
     x = from.x + (to.x - from.x) * k;

@@ -202,6 +202,64 @@ export const FLOOR_TEMPLATES = Object.freeze([
     needs: ['fold', 'key'],
     hints: ['brute-heavy', 'key-lock', 'thick-stack'],
   },
+  // Floor 4: plate + key, with the Creaseling. The exit row is thick card:
+  // exit, lock and gate in a line with the plate beside the gate. Cross
+  // the void for the key, then hold the plate, slip through the gate and
+  // unlock the exit. Every fold makes the Creaseling slide along the
+  // crease toward you, so pick creases that leave it behind.
+  {
+    id: 'f4-relay',
+    floor: 4,
+    charges: 2,
+    rows: [
+      '? . . k . ?',
+      '. . . . . .',
+      'o o o o o o',
+      '. . ? . . .',
+      '# # # . . .',
+      'E L a 1 @ .',
+    ],
+    under: thick([
+      '_ _ _ _ _ _',
+      '_ _ _ _ _ _',
+      '_ _ _ _ _ _',
+      '_ _ _ _ _ _',
+      'X X X _ _ _',
+      'X X X _ _ _',
+    ]),
+    transforms: ['id', 'flipH'],
+    enemies: [{ kind: 'creaseling', count: 1 }],
+    needs: ['fold', 'key', 'plate'],
+    hints: ['creaseling-slide', 'plate-gate', 'key-lock', 'thick-stack'],
+  },
+  // Floor 4 (alternate): the order flips. The plate sits behind the lock,
+  // so the key comes first: fetch it from the far corner, open the lock,
+  // then stand on the plate and step through the gate to the exit.
+  {
+    id: 'f4-gatehouse',
+    floor: 4,
+    charges: 2,
+    rows: [
+      'k . . ? . .',
+      '. . . . . ?',
+      'o o o o o o',
+      '. . ? . . .',
+      '# # # # . .',
+      'E a 1 L . @',
+    ],
+    under: thick([
+      '_ _ _ _ _ _',
+      '_ _ _ _ _ _',
+      '_ _ _ _ _ _',
+      '_ _ _ _ _ _',
+      'X X X X _ _',
+      'X X X X _ _',
+    ]),
+    transforms: ['id', 'flipH'],
+    enemies: [{ kind: 'creaseling', count: 1 }],
+    needs: ['fold', 'key', 'plate'],
+    hints: ['creaseling-slide', 'key-lock', 'plate-gate', 'thick-stack'],
+  },
 ]);
 
 /**

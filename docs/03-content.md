@@ -28,7 +28,7 @@ All content is data-driven (plain JS objects). Numbers are starting values for t
 | Scrap Mite | 1 | Moves 1 tile toward the player each turn; bumps to attack for 1. | Standard. Easily pinned or stranded. |
 | Paper Wasp | 1 | Stationary. Hits the player for 1 if in clear line (row/column) within 4 tiles. | A layer stacked over its line of sight (taller than its own stack), a wall or another creature blocks the shot. Fold it away from line, or pin it, to disarm. |
 | Card Brute | 3 | Moves every other turn toward the player (rests first); hits for 1. | **Cannot be pinned** (too heavy): a fold can't land on it, except a void sheet, which drops it. It can still be stranded. |
-| Creaseling | 2 | After any fold, it slides along the crease line toward the player (up to 3 tiles). Otherwise moves like a Mite. | Fold-aware. Counter it by choosing creases that move it away from you. |
+| Creaseling | 2 | After any fold, it slides along the crease line toward the player (up to 3 tiles): in its own lane, parallel to the crease, stopping before anything it can't stand on, any creature or you. The slide replaces its step and never hits. Otherwise moves like a Mite. | Fold-aware. Counter it by choosing creases that move it away from you; the fold preview shows each slide as a dashed arrow. Pinned, it can't slide. |
 | Lockjaw | 2 | Stationary guard. Attacks adjacent tiles for 1. Holds a key (dropped on death). | Fold it away from its key spot, or deliver the key via a fold without fighting it. |
 | Spore Bloom | 2 | Stationary. Spawns a Scrap Mite every 3 turns on an adjacent free tile. | Stranding or pinning stops its spawns. Pressure to solve quickly. |
 

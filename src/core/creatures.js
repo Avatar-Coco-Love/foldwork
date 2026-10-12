@@ -18,6 +18,8 @@
 //   range  how far a ranged attacker sees along its row and column
 //   fixed  never moves on its own, so a fold can't strand it (it still
 //          rides its layer)
+//   slide  after the player folds, slides up to this many tiles along the
+//          crease toward the player instead of stepping (ai 'creep')
 
 export const CREATURE_DEFS = Object.freeze({
   player: { kind: 'player', name: 'You', team: 'player', hp: 3 },
@@ -27,6 +29,9 @@ export const CREATURE_DEFS = Object.freeze({
   wasp: { kind: 'wasp', name: 'Paper Wasp', team: 'enemy', hp: 1, attack: 1, ai: 'sting', range: 4, fixed: true },
   // Moves every other turn toward the player; hits for 1. Too heavy to pin.
   brute: { kind: 'brute', name: 'Card Brute', team: 'enemy', hp: 3, attack: 1, ai: 'chase', pace: 2, heavy: true },
+  // After a fold, slides up to 3 tiles along the crease toward the player;
+  // otherwise moves like a Mite.
+  creaseling: { kind: 'creaseling', name: 'Creaseling', team: 'enemy', hp: 2, attack: 1, ai: 'creep', slide: 3 },
 });
 
 export function creatureDef(kind) {
