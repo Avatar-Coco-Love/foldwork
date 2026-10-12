@@ -26,3 +26,9 @@ Foldwork is a browser-based, turn-based roguelike puzzle game. The player folds 
 - After each phase, summarize what works and what's next.
 - If a spec is ambiguous, ask before inventing mechanics. Log open questions in `docs/OPEN-QUESTIONS.md`.
 - Keep commits small and descriptive.
+
+## Session workflow (context management)
+- **One PR per conversation.** Phases are split into PR-sized chunks in `docs/PROGRESS.md`.
+- At the start of a conversation, read `docs/PROGRESS.md` and do the "Next up" item. Read only the spec docs that item needs.
+- Before opening the PR, update `docs/PROGRESS.md`: tick the checklist, add a short log entry, and set "Next up".
+- Write code so later phases extend it rather than rewrite it: data-driven tables, pure functions over plain data, small modules with clear seams.

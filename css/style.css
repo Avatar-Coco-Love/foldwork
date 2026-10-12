@@ -1,0 +1,190 @@
+/* Foldwork base styles. Colors come from palette tokens (--c-*) set by JS;
+   the defaults below match the Paper palette so first paint is correct. */
+
+:root {
+  --c-background: #e9e2d3;
+  --c-ink: #3a3229;
+  --c-ink-soft: #6d6253;
+  --c-accent: #d9734e;
+  --c-ui-surface: rgba(251, 248, 241, 0.92);
+  --c-ui-border: #cfc4ae;
+
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
+
+  /* Overwritten from HUD_METRICS in layout.js at startup. */
+  --hud-top: 56px;
+  --hud-bottom: 76px;
+  --hud-side: 168px;
+
+  --touch: 44px;
+  --radius: 10px;
+  --font: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  overscroll-behavior: none;
+  background: var(--c-background);
+  color: var(--c-ink);
+  font-family: var(--font);
+  -webkit-text-size-adjust: 100%;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+
+#board {
+  position: fixed;
+  inset: 0;
+  display: block;
+  touch-action: none; /* Pointer Events own all gestures on the board */
+}
+
+/* The overlay never blocks the canvas except where real UI sits. */
+#ui {
+  position: fixed;
+  inset: 0;
+  padding: var(--safe-top) var(--safe-right) var(--safe-bottom) var(--safe-left);
+  pointer-events: none;
+}
+#ui button,
+#ui .menu {
+  pointer-events: auto;
+}
+
+/* --- Buttons ------------------------------------------------------------ */
+
+.btn {
+  min-width: var(--touch);
+  min-height: var(--touch);
+  padding: 0 18px;
+  border: 2px solid var(--c-ui-border);
+  border-radius: var(--radius);
+  background: var(--c-ui-surface);
+  color: var(--c-ink);
+  font: 600 16px/1 var(--font);
+  cursor: pointer;
+  touch-action: manipulation;
+}
+.btn:hover {
+  border-color: var(--c-ink-soft);
+}
+.btn:focus-visible {
+  outline: 3px solid var(--c-accent);
+  outline-offset: 2px;
+}
+.btn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.btn-primary {
+  background: var(--c-accent);
+  border-color: var(--c-accent);
+  color: #fff;
+}
+
+/* --- Menus -------------------------------------------------------------- */
+
+.menu {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 24px;
+  text-align: center;
+}
+.title {
+  margin: 0;
+  font-size: clamp(40px, 12vmin, 88px);
+  font-weight: 800;
+  letter-spacing: 0.02em;
+}
+.subtitle {
+  margin: 0 0 24px;
+  color: var(--c-ink-soft);
+  font-size: 18px;
+}
+.menu-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: min(280px, 100%);
+}
+
+/* --- HUD ---------------------------------------------------------------- */
+/* Portrait: status bar on top, action bar on bottom. */
+
+.hud {
+  position: absolute;
+  inset: var(--safe-top) var(--safe-right) var(--safe-bottom) var(--safe-left);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+.hud-status,
+.hud-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 12px;
+}
+.hud-status {
+  height: var(--hud-top);
+  font-weight: 700;
+  font-size: 18px;
+}
+.hud-actions {
+  height: var(--hud-bottom);
+  justify-content: center;
+}
+
+/* Landscape: one side panel holding both regions. */
+@media (orientation: landscape) {
+  .hud {
+    left: auto;
+    width: var(--hud-side);
+    flex-direction: column;
+    justify-content: flex-start;
+    padding: 12px 0;
+    gap: 16px;
+  }
+  [data-left-handed] .hud {
+    left: var(--safe-left);
+    right: auto;
+  }
+  .hud-status,
+  .hud-actions {
+    height: auto;
+    flex-direction: column;
+    align-items: stretch;
+  }
+}
+
+.noscript {
+  padding: 24px;
+  font-size: 18px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    transition: none !important;
+    animation: none !important;
+  }
+}
