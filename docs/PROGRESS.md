@@ -4,14 +4,17 @@
 small. At the end of each conversation, update this file in the same PR.
 
 ## Next up
-**Phase 5a: Paper Wasp + Card Brute, F2/F3 templates that use them.** Read
-docs/03 (enemies table, floor table) and docs/02 (enemies and folds). Each
-enemy is a `CREATURE_DEFS` entry + an `ENEMY_AI` plan + a shape in
-`CREATURE_SHAPES`. Wasp: stationary, ranged line-of-sight hit (a stacked
-layer blocks the shot; Wax Coat relic can come with it). Brute: 3 HP,
-moves every other turn, can't be pinned (decide what a fold that lands on
-it does: log in OPEN-QUESTIONS first). Keep the template proofs fast.
-Later 5 chunks: Creaseling, Lockjaw, Spore Bloom; floors 4–8.
+**Phase 5b: Creaseling + floor 4 templates.** Read docs/03 (enemies table:
+Creaseling; floor table: F4 "combined plate + key puzzles") and docs/02
+(enemies and folds). Creaseling: 2 HP, after any fold it slides along the
+crease line toward the player (up to 3 tiles), otherwise moves like a
+Mite. It needs a hook after the fold resolves (it reacts to the crease, so
+the AI gets the fold; decide and log in OPEN-QUESTIONS what "slides along
+the crease line" means for a diagonal crease and for blocked cells). Add
+F4 templates (6x6) and raise `runLength()` once floor 4 exists (it follows
+the templated floors). Later 5 chunks: 5c Lockjaw (F6, drops its key) +
+Spore Bloom (F7, spawner); 5d floors 5 and 8 (mixes; template variants
+already prove mixed-kind anchor splits).
 
 ## Phase checklist
 Larger phases are split into PR-sized chunks so each conversation stays small.
@@ -32,6 +35,10 @@ Larger phases are split into PR-sized chunks so each conversation stays small.
   - [x] 4b Relic offers screen, defense + utility relics (PR 10)
   - [x] 4c Spirits (Fox, Frog, Turtle) + spirit select, diagonal creases (PR 11)
 - [ ] **Phase 5** — Full enemy roster, floors 4–8
+  - [x] 5a Paper Wasp + Card Brute, Wax Coat, F2/F3 templates (PR 12)
+  - [ ] 5b Creaseling + F4 templates
+  - [ ] 5c Lockjaw + Spore Bloom, F6/F7 templates
+  - [ ] 5d Floors 5 and 8 (mixes)
 - [ ] **Phase 6** — Great Crane boss, run summary
 - [ ] **Phase 7** — Meta-progression, daily seed, persistence
 - [ ] **Phase 8** — Audio and polish
@@ -386,6 +393,43 @@ Larger phases are split into PR-sized chunks so each conversation stays small.
   portrait spirit select tap → Turtle (4 hearts, tray chip). No console
   errors.
 
+### PR 12: Phase 5a Paper Wasp, Card Brute, Wax Coat
+- Decided (OPEN-QUESTIONS): the Brute is **Heavy**. A fold can't land on
+  its cell (refused, no turn or charge) unless the landing stack's top is
+  a hole, which drops it. Also logged: Brute pace, Wasp line of fire,
+  Wax Coat order, mixed-kind template variants. docs/02 and docs/03
+  updated to match.
+- `core/creatures.js`: `wasp` (1 HP, ai `sting`, `range` 4, `fixed`) and
+  `brute` (3 HP, ai `chase`, `pace` 2, `heavy`). New def flags: `pace`
+  (instances count down `rest`; starts at pace - 1, so a Brute rests
+  first), `heavy`, `range`, `fixed` (never stranded). `isHeavy`.
+- `core/fold.js`: `validateFold` adds `{ code: 'heavy', col, row, kind }`,
+  so the preview, `act()` and the solver all refuse it.
+  `coverEffect` returns `'heavy'` there (no pin cue).
+- `core/enemies.js`: `sightLanes(board, from, range)` (pure, shared with
+  the renderer) and the `sting` AI (plan `shoot`). `enemiesInReach` skips
+  fixed enemies.
+- `core/turn.js`: the enemy phase handles `pace` / `rest` and `shoot`
+  (event `shoot`, then damage through `damageAt`). New rule `waxCoat`:
+  a sting on the player emits `block` with `by: 'wax'` before guard or
+  ward. The solver's `stateKey` includes `rest`.
+- Relic Wax Coat (defense, common; 15 relics). Map symbols `W` and `B`.
+- Templates: `f2-wasp` (the F2 plate shell with a Wasp on 3 anchors:
+  shortest line 6 turns with 1 sting; a 2-fold line takes none) and
+  `f3-brute` (the one-fold bridge would land on the Brute, so it takes
+  two folds; 9 turns). Tests prove every variant has a no-damage line.
+  Variants with several enemy groups now split anchors per group
+  (`anchorAssignments`); rolls are listed per group, ascending.
+- Hints `wasp-sting`, `brute-heavy`. HUD: "Too heavy: a Card Brute can't
+  be pinned", Wax Coat note.
+- Render: Wasp (swept wings, striped stinger) and Brute (boxy golem, full
+  height) shapes; a "z" on a resting creature; `drawSightLanes` pass
+  (dashed lane plus end bar, cached per board); `CELL.HEAVY` preview
+  (cross plus "!" badge); `shoot` clip (a dart flies to the target).
+- 16 new tests (235 total, ~17 s). Verified in headless Chromium: phone
+  portrait F2 Wasp with lanes and hint card, desktop F3 Brute with the
+  rest marker and the Heavy preview refusal. No console errors.
+
 ## Conventions worth remembering
 - Dev URL params: `?screen=offer&cleared=4`, `?spirit=frog`, `?screen=floor&floor=2&map=courier&size=7&seed=abc&palette=night-ink&demo=1&speed=slow&motion=on&charges=3&mites=2&relics=all&telemetry=console`.
 - New draw layers → add a pass to `PASSES` in `renderer.js`.
@@ -434,6 +478,9 @@ Larger phases are split into PR-sized chunks so each conversation stays small.
   `CREATURE_SHAPES` (`render/creatures.js`). Damage goes through `damageAt`,
   falls through `fall`, steps through `stepCreature`.
 - Enemy behaviors → `ENEMY_AI` in `core/enemies.js` (plans only, never
-  mutates); name the key in the def's `ai`.
+  mutates); name the key in the def's `ai`. Def flags: `pace` (slow,
+  counts `rest`), `heavy` (can't be pinned), `range` (ranged lanes via
+  `sightLanes`, drawn by `drawSightLanes`), `fixed` (never stranded).
+  New per-creature counters must be primitives and go in `stateKey`.
 - Fold-time creature rules (pin, void drop) → `resolveFold` in `turn.js`;
   the per-cell rule is `coverEffect` (shared with the preview).

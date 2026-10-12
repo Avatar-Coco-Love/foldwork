@@ -16,6 +16,9 @@ import { getPalette, DEFAULT_PALETTE_ID } from './palette.js';
 import { TILE, ITEM } from '../core/tiles.js';
 import { CELL, EFFECT } from './preview.js';
 import { drawCreature } from './creatures.js';
+import { findCreature } from '../core/board.js';
+import { creatureDef } from '../core/creatures.js';
+import { actingEnemies, sightLanes } from '../core/enemies.js';
 
 const MAX_DPR = 2;
 
@@ -109,7 +112,7 @@ export function createRenderer(canvas, { paletteId = DEFAULT_PALETTE_ID } = {}) 
 // ---------------------------------------------------------------------------
 // Draw passes
 
-const PASSES = [drawBackground, drawBoardBase, drawTiles, drawFoldPreview, drawFoldAnim, drawActor, drawFlash];
+const PASSES = [drawBackground, drawBoardBase, drawTiles, drawSightLanes, drawFoldPreview, drawFoldAnim, drawActor, drawFlash];
 
 function draw(r) {
   const { ctx } = r;
@@ -169,10 +172,69 @@ function drawTiles(r, ctx) {
   }
 }
 
+// Ranged enemies' lines of fire (core/enemies.js sightLanes): a dashed line
+// from the shooter through every cell it can hit, ending in a short bar,
+// so the threat reads by shape. Lanes are cached per board object (the
+// renderer redraws every frame during animations).
+function drawSightLanes(r, ctx) {
+  const L = r.layout;
+  if (!L || (r.fx && r.fx.foldAnim)) return;
+  const board = r.scene.board;
+  if (!r.lanes || r.lanes.board !== board) r.lanes = { board, list: shooterLanes(board) };
+  const list = r.lanes.list;
+  if (!list.length) return;
+  const p = r.palette;
+  const size = L.cellSize;
+  const lift = layerLift(size);
+  ctx.save();
+  ctx.strokeStyle = p.danger;
+  ctx.lineWidth = Math.max(1.5, size * 0.04);
+  ctx.lineCap = 'round';
+  ctx.globalAlpha = 0.75;
+  for (const { from, end, level } of list) {
+    const a = cellOrigin(L, from.col, from.row);
+    const b = cellOrigin(L, end.col, end.row);
+    const ax = a.x + size / 2;
+    const ay = a.y + size / 2 - level * lift;
+    const bx = b.x + size / 2;
+    const by = b.y + size / 2 - level * lift;
+    const len = Math.hypot(bx - ax, by - ay);
+    const ux = (bx - ax) / len;
+    const uy = (by - ay) / len;
+    ctx.setLineDash([size * 0.08, size * 0.12]);
+    ctx.beginPath();
+    ctx.moveTo(ax + ux * size * 0.4, ay + uy * size * 0.4);
+    ctx.lineTo(bx, by);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.beginPath(); // end bar across the lane
+    ctx.moveTo(bx - uy * size * 0.15, by + ux * size * 0.15);
+    ctx.lineTo(bx + uy * size * 0.15, by - ux * size * 0.15);
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+// Every non-empty lane of every unpinned ranged enemy: { from, end, level }.
+function shooterLanes(board) {
+  const out = [];
+  for (const id of actingEnemies(board)) {
+    const me = findCreature(board, id);
+    const range = creatureDef(me.creature.kind).range;
+    if (!range) continue;
+    const level = board.cells[me.row * board.w + me.col].layers.length - 1;
+    for (const lane of sightLanes(board, me, range)) {
+      if (lane.length) out.push({ from: { col: me.col, row: me.row }, end: lane[lane.length - 1], level });
+    }
+  }
+  return out;
+}
+
 // Fold preview (scene.preview from render/preview.js). Each state has a
 // non-color cue too: leaving cells are dimmed with a dashed outline, landing
 // cells show a ghost of the incoming sheet and the new stack height, overflow
-// cells get a "!" badge and a cross, clipped cells a dotted outline. A
+// cells get a "!" badge and a cross, clipped cells a dotted outline. A cell
+// holding a creature too heavy to pin gets the cross and a "!" badge. A
 // landing that pins a creature shows a paper clip; one that void-drops it a
 // dashed red outline and a "↓" badge; one that opens a lock a key badge.
 function drawFoldPreview(r, ctx) {
@@ -208,7 +270,8 @@ function drawFoldPreview(r, ctx) {
         drawLayer(ctx, p, src[src.length - 1], o.x, o.y - (base + src.length - 1) * lift, size, true);
         ctx.globalAlpha = 1;
       }
-      const over = st === CELL.OVERFLOW;
+      const heavy = st === CELL.HEAVY;
+      const over = st === CELL.OVERFLOW || heavy;
       if (over) {
         outline(ctx, o.x, o.y, size, p.danger, lineW, null);
         ctx.strokeStyle = p.danger;
@@ -221,7 +284,7 @@ function drawFoldPreview(r, ctx) {
         ctx.stroke();
       }
       badge(ctx, p, o.x + size * 0.78, o.y + size * 0.22, size * 0.2,
-        over ? `!${pv.heights[i]}` : String(pv.heights[i]), over);
+        heavy ? '!' : over ? `!${pv.heights[i]}` : String(pv.heights[i]), over);
       if (pv.unlock && pv.unlock[i]) {
         // The fold stacks a key and a lock: the lock opens. Key badge.
         const bx = o.x + size * 0.78;
@@ -343,6 +406,9 @@ function drawActor(r, ctx) {
   } else if (a.kind === 'hit') {
     drawHit(ctx, p, to.x, toY, size, u);
     return;
+  } else if (a.kind === 'shoot') {
+    drawDart(ctx, p, from.x + size / 2, fromY + size / 2, to.x + size / 2, toY + size / 2, size, easeInOut(u));
+    return;
   } else if (a.kind === 'death') {
     opts.alpha = 1 - u;
     opts.scale = 1 - 0.5 * u;
@@ -357,6 +423,24 @@ function drawActor(r, ctx) {
   drawCreature(ctx, p, a.creature, x + gap, y + gap, size - gap * 2, opts);
 }
 const ACTOR_OPTS = { alpha: 1, scale: 1, rot: 0 };
+
+// A sting dart: a slim ink triangle flying from (x0, y0) to (x1, y1).
+function drawDart(ctx, p, x0, y0, x1, y1, size, t) {
+  const len = Math.hypot(x1 - x0, y1 - y0) || 1;
+  const ux = (x1 - x0) / len;
+  const uy = (y1 - y0) / len;
+  const x = x0 + (x1 - x0) * t;
+  const y = y0 + (y1 - y0) * t;
+  const l = size * 0.22;
+  const w = size * 0.06;
+  ctx.fillStyle = p.ink;
+  ctx.beginPath();
+  ctx.moveTo(x + ux * l * 0.5, y + uy * l * 0.5);
+  ctx.lineTo(x - ux * l * 0.5 - uy * w, y - uy * l * 0.5 + ux * w);
+  ctx.lineTo(x - ux * l * 0.5 + uy * w, y - uy * l * 0.5 - ux * w);
+  ctx.closePath();
+  ctx.fill();
+}
 
 // Hit burst: an expanding ring plus four spikes (shape cue, not just color).
 function drawHit(ctx, p, x, y, size, u) {

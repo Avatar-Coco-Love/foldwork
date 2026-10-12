@@ -5,6 +5,7 @@
 //   Plan = { type: 'wait' }
 //        | { type: 'move', to }   step onto `to`'s top layer
 //        | { type: 'bump', to }   attack the player standing on `to`
+//        | { type: 'shoot', to }  ranged hit on the player standing on `to`
 //
 // Pathing works on a reach field: BFS distance from the player over cells
 // whose top layer is footing (walkable, not a hole). Creatures don't block
@@ -15,14 +16,16 @@
 // New behaviors: add an entry to ENEMY_AI and name it in the creature's def
 // (`ai` in core/creatures.js).
 
-import { DIRS, inBounds, cellIndex, topLayer, findCreature, isFooting } from './board.js';
+import { DIRS, inBounds, cellIndex, topLayer, findCreature, isFooting, stackHeight } from './board.js';
 import { creatureDef, isEnemy } from './creatures.js';
+import { tileDef } from './tiles.js';
 import { shuffle } from './rng.js';
 
 const WAIT = Object.freeze({ type: 'wait' });
 
 export const ENEMY_AI = {
   chase: planChase,
+  sting: planSting,
 };
 
 /**
@@ -67,7 +70,8 @@ export function reachField(board, target) {
 
 /**
  * Ids of enemies on a top layer that have a path to the player (`playerId`).
- * A fold that removes an id from this set strands that enemy.
+ * A fold that removes an id from this set strands that enemy. Fixed enemies
+ * (they never walk) are left out: there's nothing to strand.
  */
 export function enemiesInReach(board, playerId) {
   const player = findCreature(board, playerId);
@@ -76,7 +80,7 @@ export function enemiesInReach(board, playerId) {
   const field = reachField(board, player);
   board.cells.forEach((cell, i) => {
     const top = cell.layers[cell.layers.length - 1];
-    if (top && isEnemy(top.creature) && field[i] > 0) reach.add(top.creature.id);
+    if (top && isEnemy(top.creature) && field[i] > 0 && !creatureDef(top.creature.kind).fixed) reach.add(top.creature.id);
   });
   return reach;
 }
@@ -111,6 +115,50 @@ function planChase(board, me, { field, player }) {
     return { type: 'move', to };
   }
   return WAIT;
+}
+
+// Paper Wasp (docs/03): stationary; stings the player when it stands in a
+// clear line (sightLanes). A pinned player can't be attacked.
+function planSting(board, me, { player }) {
+  if (!player || !player.top) return WAIT;
+  const range = creatureDef(me.creature.kind).range || 1;
+  for (const lane of sightLanes(board, me, range)) {
+    const end = lane[lane.length - 1];
+    if (end && end.col === player.col && end.row === player.row) return { type: 'shoot', to: { ...end } };
+  }
+  return WAIT;
+}
+
+/**
+ * The cells a ranged attacker at `from` ({col, row}) can see, as one list
+ * per direction (DIRS order), nearest first, up to `range` steps. A lane
+ * stops before a blocker and at the first creature (that cell included):
+ *   - a solid top tile (not walkable, not a hole: wall, lock, shut gate)
+ *   - a stack taller than the attacker's own: a layer stacked over the
+ *     line of sight (docs/03)
+ * Holes and empty cells don't block: the shot flies over them. Pure; the
+ * renderer draws the same lanes.
+ */
+export function sightLanes(board, from, range) {
+  const own = stackHeight(board, from.col, from.row);
+  const lanes = [];
+  for (const name in DIRS) {
+    const lane = [];
+    for (let k = 1; k <= range; k++) {
+      const col = from.col + DIRS[name].dc * k;
+      const row = from.row + DIRS[name].dr * k;
+      if (!inBounds(board, col, row)) break;
+      const top = topLayer(board, col, row);
+      if (top) {
+        const def = tileDef(top.tile);
+        if ((!def.walkable && !def.hole) || stackHeight(board, col, row) > own) break;
+      }
+      lane.push({ col, row });
+      if (top && top.creature) break;
+    }
+    lanes.push(lane);
+  }
+  return lanes;
 }
 
 function stepOrder(dc, dr) {

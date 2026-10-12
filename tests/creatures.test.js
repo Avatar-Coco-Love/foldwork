@@ -22,7 +22,7 @@ test('creature art: inside the art bounds, centred, on the foot line, sized by c
       assert.ok(v >= ART_BOUNDS.min && v <= ART_BOUNDS.max, `${kind} stays in bounds (${v})`);
     }
     assert.ok(Math.abs((b.x0 + b.x1) / 2 - 0.5) <= 0.02, `${kind} centred (${(b.x0 + b.x1) / 2})`);
-    assert.ok(Math.abs(b.y1 - FOOT_LINE) <= 0.04, `${kind} feet on the foot line (${b.y1})`);
+    assert.ok(Math.abs(b.y1 - FOOT_LINE) <= 0.04 + 1e-9, `${kind} feet on the foot line (${b.y1})`);
     const [lo, hi] = SIZE_CLASSES[shape.size] || [];
     const h = b.y1 - b.y0;
     assert.ok(h >= lo - 1e-9 && h <= hi + 1e-9, `${kind} height ${h.toFixed(2)} fits '${shape.size}'`);

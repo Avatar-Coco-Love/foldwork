@@ -53,6 +53,34 @@ export const CREATURE_SHAPES = Object.freeze({
       { fill: 'shadow', points: [[0.5, 0.44], [0.68, 0.44], [0.82, 0.63], [0.68, 0.82], [0.5, 0.82]] },
     ],
   },
+  // Paper Wasp: two pale triangle wings swept up and out, a striped
+  // abdomen pointing down into a stinger. Small, with a wide V outline.
+  wasp: {
+    size: 'small',
+    parts: [
+      { fill: 'tileFace', stroke: 'ink', points: [[0.5, 0.5], [0.14, 0.31], [0.3, 0.6]] },
+      { fill: 'tileFace', stroke: 'ink', points: [[0.5, 0.5], [0.86, 0.31], [0.7, 0.6]] },
+      { fill: 'danger', stroke: 'ink', points: [[0.32, 0.5], [0.68, 0.5], [0.5, 0.86]] },
+      { fill: 'shadow', points: [[0.5, 0.5], [0.68, 0.5], [0.5, 0.86]] },
+      { fill: 'ink', points: [[0.37, 0.59], [0.63, 0.59], [0.59, 0.65], [0.41, 0.65]] },
+      { fill: 'ink', points: [[0.5, 0.34], [0.58, 0.42], [0.5, 0.5], [0.42, 0.42]] },
+    ],
+  },
+  // Card Brute: a boxy golem, the full tile tall. Square trunk with a
+  // shaded facet, stub arms, a block head with an eye slit, thick legs.
+  brute: {
+    size: 'large',
+    parts: [
+      { fill: 'ink', points: [[0.28, 0.72], [0.44, 0.72], [0.44, 0.9], [0.26, 0.9]] },
+      { fill: 'ink', points: [[0.56, 0.72], [0.72, 0.72], [0.74, 0.9], [0.56, 0.9]] },
+      { fill: 'ink', points: [[0.2, 0.32], [0.08, 0.62], [0.22, 0.66]] },
+      { fill: 'ink', points: [[0.8, 0.32], [0.92, 0.62], [0.78, 0.66]] },
+      { fill: 'danger', stroke: 'ink', points: [[0.18, 0.3], [0.82, 0.3], [0.76, 0.76], [0.24, 0.76]] },
+      { fill: 'shadow', points: [[0.5, 0.3], [0.82, 0.3], [0.76, 0.76], [0.5, 0.76]] },
+      { fill: 'tileFace', stroke: 'ink', points: [[0.38, 0.05], [0.62, 0.05], [0.64, 0.3], [0.36, 0.3]] },
+      { fill: 'ink', points: [[0.42, 0.15], [0.58, 0.15], [0.58, 0.19], [0.42, 0.19]] },
+    ],
+  },
 });
 
 // Unknown kinds: a plain token with the kind's initial, so tests and new
@@ -121,6 +149,20 @@ export function drawCreature(ctx, p, creature, x, y, s, opts) {
   ctx.restore();
 
   if (creature.kind !== 'player' && creature.maxHp > 1) drawHpPips(ctx, p, creature, x, y, s, alpha);
+  if (creature.rest > 0) drawRest(ctx, p, x, y, s, alpha);
+}
+
+// A slow creature sitting out its next turn (core/creatures.js `rest`):
+// a small "z" in the tile's top-left corner, so its rhythm can be read.
+function drawRest(ctx, p, x, y, s, alpha) {
+  ctx.save();
+  ctx.globalAlpha *= alpha;
+  ctx.fillStyle = p.ink;
+  ctx.font = `700 ${Math.round(s * 0.22)}px system-ui, sans-serif`;
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'top';
+  ctx.fillText('z', x + s * 0.06, y + s * 0.02);
+  ctx.restore();
 }
 
 // Small HP pips along the tile's top edge: filled = HP left, hollow = lost

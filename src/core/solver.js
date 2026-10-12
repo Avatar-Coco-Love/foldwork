@@ -46,7 +46,7 @@ export function candidateActions(board, { noFolds = false, diagonal = false } = 
 
 /**
  * Identity of a floor state for the search: the board (tiles, items,
- * links, plate holds, creatures with their HP) plus keys, charges and
+ * links, plate holds, creatures with their HP and rest) plus keys, charges and
  * limited uses left (wards, free locks, landings). Turn number and
  * the undo snapshot don't change what can happen next.
  */
@@ -55,7 +55,7 @@ export function stateKey(state) {
   const parts = [state.keys, state.charges, u.wards, u.freeLocks, u.landings];
   for (const cell of state.board.cells) {
     for (const l of cell.layers) {
-      parts.push(l.tile, l.item || '', l.link || '', l.hold || '', l.creature ? `${l.creature.id}:${l.creature.hp}` : '');
+      parts.push(l.tile, l.item || '', l.link || '', l.hold || '', l.creature ? `${l.creature.id}:${l.creature.hp}:${l.creature.rest ?? ''}` : '');
     }
     parts.push('|');
   }

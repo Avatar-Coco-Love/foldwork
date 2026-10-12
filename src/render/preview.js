@@ -13,6 +13,7 @@ export const CELL = Object.freeze({
   LANDING: 2, // receives a stack
   OVERFLOW: 3, // receives a stack and exceeds max stack
   CLIPPED: 4, // on the folding side but mirrors off-board; stays put
+  HEAVY: 5, // receives a stack but holds a creature too heavy to pin
 });
 
 /** What a landing does to the creature it covers (core/turn.js coverEffect). */
@@ -59,11 +60,13 @@ export function buildFoldPreview(board, fold) {
     }
     const fx = coverEffect(board, m.from, m.to);
     if (!fx) continue;
+    if (fx === 'heavy') continue; // the fold is refused (reason 'heavy')
     effect[to] = fx === 'drop' ? EFFECT.DROP : EFFECT.PIN;
     if (topLayer(board, m.to.col, m.to.row).creature.id === PLAYER_ID) player = fx;
   }
   for (const r of check.reasons) {
     if (r.code === 'stack-overflow') state[cellIndex(board, r.col, r.row)] = CELL.OVERFLOW;
+    else if (r.code === 'heavy') state[cellIndex(board, r.col, r.row)] = CELL.HEAVY;
   }
   return {
     fold, ok: check.ok, reasons: check.reasons, heights: check.perCellHeights, state, source, effect, unlock, unlocks, player,

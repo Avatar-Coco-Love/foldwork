@@ -25,9 +25,14 @@
 //   own cell, unfolded and still active.
 // - Vacated cells keep `layers: []`. Gameplay treats an empty cell as a void.
 // - A fold is invalid if any resulting stack exceeds board.maxStack.
+// - A fold is invalid if a stack would land on a heavy creature (Card
+//   Brute: can't be pinned), unless the landing stack's top is a hole, which
+//   drops it (docs/OPEN-QUESTIONS.md).
 // - Fold charges are the caller's concern.
 
-import { DEFAULT_MAX_STACK, inBounds, cellIndex, cloneBoard } from './board.js';
+import { DEFAULT_MAX_STACK, inBounds, cellIndex, cloneBoard, topLayer } from './board.js';
+import { tileDef } from './tiles.js';
+import { isHeavy } from './creatures.js';
 
 export const SIDES = Object.freeze(['before', 'after']);
 
@@ -145,7 +150,8 @@ export function foldMapping(board, fold) {
  * Check a fold without applying it.
  * Returns { ok, reasons, perCellHeights, moves }:
  *   reasons         [{ code, ... }]; per-cell problems carry col/row
- *                   ('stack-overflow' with height and max)
+ *                   ('stack-overflow' with height and max; 'heavy' with
+ *                   the creature's kind)
  *   perCellHeights  resulting stack height per cell (row-major), or null if
  *                   the crease is malformed
  *   moves           foldMapping() result, or null if malformed
@@ -170,6 +176,13 @@ export function validateFold(board, fold) {
       const height = perCellHeights[cellIndex(board, col, row)];
       if (height > max) reasons.push({ code: 'stack-overflow', col, row, height, max });
     }
+  }
+  for (const m of moves) {
+    if (m.clipped) continue;
+    const dest = topLayer(board, m.to.col, m.to.row);
+    const src = topLayer(board, m.from.col, m.from.row);
+    if (!src || !dest || !isHeavy(dest.creature) || tileDef(src.tile).hole) continue;
+    reasons.push({ code: 'heavy', col: m.to.col, row: m.to.row, kind: dest.creature.kind });
   }
   return { ok: reasons.length === 0, reasons, perCellHeights, moves };
 }

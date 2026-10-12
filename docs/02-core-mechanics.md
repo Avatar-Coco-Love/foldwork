@@ -55,7 +55,7 @@ Later (not v1): Ink hazards, Mirror tiles.
 
 ## Enemies and folds
 - Enemies are creatures on tiles, so they fold with their tiles.
-- **Crush:** if a fold lands a creature on a cell where another creature is on the top layer, the one moving in is placed on top; the one beneath is "pinned" (can't act, can't be attacked) until unfolded or until the top layer moves away. Relics can upgrade pinning into a true crush (see content doc).
+- **Crush:** if a fold lands a creature on a cell where another creature is on the top layer, the one moving in is placed on top; the one beneath is "pinned" (can't act, can't be attacked) until unfolded or until the top layer moves away. Relics can upgrade pinning into a true crush (see content doc). Heavy creatures (Card Brute) can't be pinned: a fold that would land on one is invalid, unless the landing sheet's top is a void, which drops it.
 - **Strand:** an enemy folded onto a layer that's then stacked over a void or sealed area is cut off from the player.
 - **Void drop:** an enemy left on a void cell falls and dies.
 - Enemy roster and AI go in the content doc (next).

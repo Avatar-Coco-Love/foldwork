@@ -472,8 +472,14 @@ const NOTICES = {
   unlock: (ev) => (ev.by === 'fold' ? 'The key opens the lock.' : ev.by === 'master-key' ? 'Master Key: the lock opens.' : 'Unlocked.'),
   gate: (ev) => (ev.open ? 'A gate opens.' : 'A gate closes.'),
   refund: () => 'Recycled Crease: charge refunded.',
-  block: (ev) => (ev.id !== PLAYER_ID ? null : ev.by === 'guard' ? 'Folded Shield: hit negated.' : 'Laminate: hit ignored.'),
+  block: (ev) => (ev.id !== PLAYER_ID ? null : BLOCK_NOTES[ev.by] || null),
   catch: () => 'Soft Landing: you catch yourself at the edge.',
+};
+
+const BLOCK_NOTES = {
+  guard: 'Folded Shield: hit negated.',
+  ward: 'Laminate: hit ignored.',
+  wax: 'Wax Coat: the sting slides off.',
 };
 
 /** Fold preview for the HUD and board, including the charge check. */
@@ -487,6 +493,7 @@ function foldPreview(state, crease) {
 function foldStatusText(pv) {
   if (!pv.ok) {
     if (pv.reasons[0]?.code === 'no-charges') return 'No fold charges left';
+    if (pv.reasons.some((r) => r.code === 'heavy')) return 'Too heavy: a Card Brute can\'t be pinned';
     const n = pv.reasons.filter((r) => r.code === 'stack-overflow').length;
     return `Too tall: ${n} stack${n === 1 ? '' : 's'} over ${pv.reasons[0]?.max ?? 3}`;
   }

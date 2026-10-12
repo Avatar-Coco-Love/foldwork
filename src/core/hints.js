@@ -60,6 +60,16 @@ export const HINTS = Object.freeze({
     text: 'Walk onto a key to pick it up, then walk into a lock to open it.',
     on: 'start',
   },
+  'wasp-sting': {
+    title: 'Paper Wasps',
+    text: 'A Wasp never moves, but stings you from up to 4 tiles away along its row or column (the dashed line). Walls, other creatures and taller stacks block the shot.',
+    on: 'start',
+  },
+  'brute-heavy': {
+    title: 'Card Brutes',
+    text: 'Brutes have 3 HP and move every other turn (a "z" means it rests next turn). Too heavy to pin: no fold can land on one, except a void sheet that drops it.',
+    on: 'start',
+  },
   'key-fold': {
     title: 'Fold a key in',
     text: 'A fold that stacks a key straight onto a lock opens it too, no walking needed.',

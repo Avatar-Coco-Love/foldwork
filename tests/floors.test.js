@@ -3,13 +3,14 @@ import { test } from './harness.js';
 import { parseMap, transformRows } from '../src/core/maps.js';
 import { topLayer, stackHeight } from '../src/core/board.js';
 import { TILE } from '../src/core/tiles.js';
-import { createFloorState } from '../src/core/turn.js';
+import { createFloorState, act } from '../src/core/turn.js';
+import { validateFold } from '../src/core/fold.js';
 import { solve } from '../src/core/solver.js';
 import { replay } from '../src/core/replay.js';
 import { HINTS } from '../src/core/hints.js';
 import {
   FLOOR_TEMPLATES, NEEDS, templateFloors, templatesFor, buildFloor, baseVariant, rollVariant,
-  allVariants, checkFloor, generateFloor,
+  allVariants, checkFloor, generateFloor, templateById,
 } from '../src/core/floors.js';
 import { createRng } from '../src/core/rng.js';
 
@@ -72,9 +73,7 @@ test('variants: rolls are seeded and always among allVariants', () => {
     for (let i = 0; i < 20; i++) {
       const a = rollVariant(t, createRng(`v${i}`));
       assert.deepEqual(a, rollVariant(t, createRng(`v${i}`)));
-      // allVariants lists anchor sets in ascending order; rolls are shuffled
-      const norm = { ...a, anchors: [...a.anchors].sort((x, y) => x - y) };
-      assert.ok(all.includes(JSON.stringify(norm)), `${t.id}: ${JSON.stringify(a)}`);
+      assert.ok(all.includes(JSON.stringify(a)), `${t.id}: ${JSON.stringify(a)}`);
     }
   }
 });
@@ -132,4 +131,32 @@ test('checkFloor: a floor that does not need its tool is flagged', () => {
   assert.equal(check.ok, false);
   assert.equal(check.reason, 'needless:fold');
   assert.equal(solve(createFloorState(buildFloor(t))).solvable, true);
+});
+
+test('variants: mixed enemy kinds get every split of the anchors, and rolls match', () => {
+  const t = { id: 'mix', rows: ['? ? ?', '. @ .'], enemies: [{ kind: 'wasp', count: 1 }, { kind: 'mite', count: 1 }] };
+  const all = allVariants(t).map((v) => v.anchors);
+  assert.deepEqual(all, [[0, 1], [0, 2], [1, 0], [1, 2], [2, 0], [2, 1]]);
+  for (let i = 0; i < 20; i++) {
+    const a = rollVariant(t, createRng(`m${i}`)).anchors;
+    assert.ok(all.some((b) => b[0] === a[0] && b[1] === a[1]), JSON.stringify(a));
+  }
+});
+
+// Phase 5a floors: the new enemy can always be handled without taking a
+// hit (solvable at 1 HP), though the shortest line may take one.
+for (const id of ['f2-wasp', 'f3-brute']) {
+  test(`template ${id}: every variant has a no-damage line`, () => {
+    for (const v of allVariants(templateById(id))) {
+      const built = buildFloor(templateById(id), v);
+      assert.ok(solve(createFloorState({ ...built, hp: 1 }), PROOF).solvable, JSON.stringify(v));
+    }
+  });
+}
+
+test('template f3-brute: the one-fold bridge would land on the Brute, so it is refused', () => {
+  const s = createFloorState(buildFloor(templateById('f3-brute')));
+  const fold = { axis: 'h', index: 4, side: 'after' };
+  assert.equal(act(s, { type: 'fold', fold }).ok, false);
+  assert.deepEqual(validateFold(s.board, fold).reasons.map((x) => x.code), ['heavy']);
 });
