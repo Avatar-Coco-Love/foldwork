@@ -7,6 +7,8 @@
 //        | { type: 'bump', to }   attack the player standing on `to`
 //        | { type: 'shoot', to }  ranged hit on the player standing on `to`
 //        | { type: 'slide', to, path }  glide along `path` (Creaseling)
+//        | { type: 'spawn', to, kind }  a new `kind` appears on `to`
+//                                       (Spore Bloom; turn.js decides when)
 //
 // Pathing works on a reach field: BFS distance from the player over cells
 // whose top layer is footing (walkable, not a hole). Creatures don't block
@@ -29,6 +31,8 @@ export const ENEMY_AI = {
   chase: planChase,
   sting: planSting,
   creep: planCreep,
+  guard: planGuard,
+  spore: planSpore,
 };
 
 /**
@@ -164,6 +168,66 @@ export function slidePath(board, from, fold, target, max) {
     path.push({ col, row });
   }
   return path;
+}
+
+// Lockjaw (docs/03): a stationary guard that bites the player on any
+// adjacent tile. A pinned player can't be attacked.
+function planGuard(board, me, { player }) {
+  if (!player || !player.top) return WAIT;
+  if (Math.abs(player.col - me.col) + Math.abs(player.row - me.row) !== 1) return WAIT;
+  return { type: 'bump', to: { col: player.col, row: player.row } };
+}
+
+// Spore Bloom (docs/03): stationary. turn.js counts down its `sprout` and
+// only asks for a plan on the turn it spawns; this picks the spot.
+function planSpore(board, me, { field }) {
+  const to = spawnSpot(board, me, field);
+  return to ? { type: 'spawn', to, kind: creatureDef(me.creature.kind).spawn.kind } : WAIT;
+}
+
+/**
+ * Where a spawner at `from` puts its spawn (docs/OPEN-QUESTIONS.md): the
+ * free neighbour (top layer is footing, no creature) closest to the player
+ * by the reach field, ties in DIRS order. Null when none is free or none
+ * reaches the player. Pure; the renderer marks the same cell.
+ */
+export function spawnSpot(board, from, field) {
+  let best = null;
+  let bestD = Infinity;
+  for (const name in DIRS) {
+    const col = from.col + DIRS[name].dc;
+    const row = from.row + DIRS[name].dr;
+    if (!inBounds(board, col, row)) continue;
+    const top = topLayer(board, col, row);
+    if (!isFooting(top) || top.creature) continue;
+    const d = field ? field[cellIndex(board, col, row)] : 0;
+    if (d < 0 || d >= bestD) continue;
+    best = { col, row };
+    bestD = d;
+  }
+  return best;
+}
+
+/**
+ * Cells spawners fill at the end of this turn, as the enemy phase would
+ * pick them (core/turn.js runEnemies): each unpinned spawner whose
+ * `sprout` reads 1 and that has a path to the player, judged before the
+ * player acts. A move or fold this turn can change the pick (or stop the
+ * spawn), so the renderer shows it as a cue, not a promise.
+ */
+export function pendingSpawns(board, playerId) {
+  const out = [];
+  const player = findCreature(board, playerId);
+  if (!player) return out;
+  const field = reachField(board, player);
+  for (const id of actingEnemies(board)) {
+    const me = findCreature(board, id);
+    if (!creatureDef(me.creature.kind).spawn || me.creature.sprout !== 1) continue;
+    if (field[cellIndex(board, me.col, me.row)] <= 0) continue; // stranded: the count waits
+    const at = spawnSpot(board, me, field);
+    if (at) out.push(at);
+  }
+  return out;
 }
 
 // Paper Wasp (docs/03): stationary; stings the player when it stands in a

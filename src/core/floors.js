@@ -32,6 +32,7 @@
 
 import { parseMap, transformRows, toGrid } from './maps.js';
 import { createFloorState } from './turn.js';
+import { creatureDef } from './creatures.js';
 import { solve } from './solver.js';
 import { TILE, ITEM } from './tiles.js';
 import { createRng, fork, pick, pickWeighted, nextInt, shuffle } from './rng.js';
@@ -260,6 +261,103 @@ export const FLOOR_TEMPLATES = Object.freeze([
     needs: ['fold', 'key', 'plate'],
     hints: ['creaseling-slide', 'key-lock', 'plate-gate', 'thick-stack'],
   },
+  // Floor 6: guarded keys. The only key is the one the Lockjaw holds, and
+  // it guards the far edge of the void. Walk over and it bites twice
+  // before it dies; fold the void row up onto it instead and it drops
+  // through, its key landing on the nearest free tile. Line up under it
+  // before you fold and you land right by the key.
+  {
+    id: 'f6-drop',
+    floor: 6,
+    charges: 2,
+    rows: [
+      '. . . E . . .',
+      '# # # L # # #',
+      '? . . . . . ?',
+      '. . . . . . .',
+      '. J . . . . .',
+      'o o o o o o o',
+      '. . . . @ . .',
+    ],
+    under: thick([
+      '_ _ _ _ _ _ _',
+      'X X X _ X X X',
+      '_ _ _ _ _ _ _',
+      '_ _ _ _ _ _ _',
+      '_ _ _ _ _ _ _',
+      '_ _ _ _ _ _ _',
+      '_ _ _ _ _ _ _',
+    ]),
+    transforms: ['id', 'flipH'],
+    enemies: [{ kind: 'mite', count: 1 }],
+    needs: ['fold', 'key'],
+    hints: ['lockjaw-guard', 'key-lock', 'thick-stack'],
+  },
+  // Floor 6 (alternate): two locks in a row, two Lockjaws, two keys. Both
+  // guards stand on the void's far edge, so the right bridging fold drops
+  // them both; then collect both keys while dealing with the Mite.
+  {
+    id: 'f6-twin',
+    floor: 6,
+    charges: 2,
+    rows: [
+      '# # # L E # #',
+      '# # # L # # #',
+      '? . . . . . ?',
+      '. . . . . . .',
+      '. J . . . J .',
+      'o o o o o o o',
+      '. . . @ . . .',
+    ],
+    under: thick([
+      'X X X X X X X',
+      'X X X _ X X X',
+      '_ _ _ _ _ _ _',
+      '_ _ _ _ _ _ _',
+      '_ _ _ _ _ _ _',
+      '_ _ _ _ _ _ _',
+      '_ _ _ _ _ _ _',
+    ]),
+    transforms: ['id', 'flipH'],
+    enemies: [{ kind: 'mite', count: 1 }],
+    needs: ['fold', 'key'],
+    hints: ['lockjaw-guard', 'key-lock', 'thick-stack'],
+  },
+  // Floor 7: time pressure. You start in a pocket with a Spore Bloom, so
+  // it counts down from the first turn, and its Mites follow you over the
+  // bridge to the plate. The quick bridge (rows 5-6 up) takes a bite; fold
+  // row 6 onto row 5 first and the doubled paper carries you clear on the
+  // second fold. The Bloom stands still (no anchors): every extra Bloom
+  // spot multiplies the proof time. `needs` lists only 'fold':
+  // proving the plate essential means searching every line while Mites
+  // keep spawning, which doesn't finish within the caps. The thick exit,
+  // gate and wall keep the gate in place by construction.
+  {
+    id: 'f7-pocket',
+    floor: 7,
+    charges: 2,
+    rows: [
+      'E a 1 . . . .',
+      '# # . . . . .',
+      '. . . . . . .',
+      'o o o o o o o',
+      'o o o S . . .',
+      'o o o . . . .',
+      'o o o . . . @',
+    ],
+    under: thick([
+      'X X X _ _ _ _',
+      'X X _ _ _ _ _',
+      '_ _ _ _ _ _ _',
+      '_ _ _ _ _ _ _',
+      '_ _ _ _ _ _ _',
+      '_ _ _ _ _ _ _',
+      '_ _ _ _ _ _ _',
+    ]),
+    transforms: ['id', 'flipH'],
+    needs: ['fold'],
+    hints: ['bloom-spawn', 'plate-gate', 'thick-stack'],
+  },
 ]);
 
 /**
@@ -279,7 +377,12 @@ function thick(mask) {
  */
 export const NEEDS = Object.freeze({
   fold: (built) => ({ built, solveOpts: { noFolds: true } }),
-  key: (built) => ({ built: withLayers(built, (l) => (l.item === ITEM.KEY ? { ...l, item: null } : l)) }),
+  key: (built) => ({
+    built: {
+      ...withLayers(built, (l) => (l.item === ITEM.KEY ? { ...l, item: null } : l)),
+      enemies: built.enemies.map((e) => (creatureDef(e.kind).carry === ITEM.KEY ? { ...e, item: null } : e)),
+    },
+  }),
   plate: (built) => ({ built: withLayers(built, (l) => (l.tile === TILE.PLATE ? { ...l, tile: TILE.FLOOR } : l)) }),
 });
 

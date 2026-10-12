@@ -52,12 +52,17 @@
 //   { type: 'fall', id, creature, at }           into a void or empty cell,
 //                                                or void-dropped by a fold
 //   { type: 'pin', id, at }                      a fold covered it (docs/02)
+//   { type: 'spawn', id, creature, at }          spawner `id` put `creature`
+//                                                on `at` (Spore Bloom)
+//   { type: 'drop', id, item, from, at }         a carrier that died or fell
+//                                                on `from` left its item on `at`
 //   { type: 'strand', id, at }                   a fold cut it off from the player
 //   { type: 'wait', id }
 //   { type: 'fold', fold }
 //   { type: 'unfold', fold }
 //   { type: 'pickup', id, item, at }             the player took an item
-//   { type: 'unlock', at, by }                   by: 'walk' | 'fold'
+//   { type: 'unlock', at, by }                   by: 'walk' | 'fold' |
+//                                                'master-key'
 //   { type: 'gate', at, open, link }             environment phase
 //   { type: 'defeat', cause }
 //   { type: 'victory', cause }                   cause: 'exit'
@@ -71,12 +76,12 @@
 //                                                (uses.landings); the
 //                                                creature stays at `from`
 
-import { DIRS, inBounds, getCell, topLayer, findCreature, cloneBoard, isFooting } from './board.js';
+import { DIRS, inBounds, getCell, topLayer, findCreature, cloneBoard, isFooting, cellIndex } from './board.js';
 import { tileDef, itemDef, ITEM } from './tiles.js';
 import { validateFold, applyFold, isDiagonal } from './fold.js';
 import { createCreature, creatureDef, isHeavy } from './creatures.js';
 import { actingEnemies, reachField, planEnemy, enemiesInReach } from './enemies.js';
-import { syncGates, tickPlates, isLocked, unlockLayer, keyMeetsLock } from './environment.js';
+import { syncGates, tickPlates, isLocked, unlockLayer, keyMeetsLock, spendKey } from './environment.js';
 
 export { DIRS };
 
@@ -112,8 +117,9 @@ export const DEFAULT_RULES = Object.freeze({
 
 /**
  * Start a floor: places the player on the top layer of `player` ({col,row},
- * default: defaultStart), then each of `enemies` ([{ kind, col, row, id? }],
- * ids default to `${kind}-${n}`). The input board is not mutated.
+ * default: defaultStart), then each of `enemies` ([{ kind, col, row, id?,
+ * item? }], ids default to `${kind}-${n}`; `item` overrides what a carrier
+ * holds, null for nothing). The input board is not mutated.
  * `hp` / `maxHp` carry the player's HP between floors (default: full);
  * `rules` overrides DEFAULT_RULES fields. `landings` is how many falls
  * the player survives (Soft Landing; run-wide, so the run passes it in).
@@ -130,6 +136,10 @@ export function createFloorState({
     const spot = topLayer(next, e.col, e.row);
     if (!spot || !isFooting(spot) || spot.creature) throw new Error(`No room for ${e.kind} at ${e.col},${e.row}`);
     spot.creature = createCreature(e.kind, { id: e.id || `${e.kind}-${n}` });
+    if (e.item !== undefined) {
+      if (e.item) spot.creature.item = e.item;
+      else delete spot.creature.item;
+    }
   });
   syncGates(next); // a creature may start on a plate
   const floorRules = { ...DEFAULT_RULES, ...rules };
@@ -215,7 +225,7 @@ export function resolveFold(s, landings, emit) {
     const meet = keyMeetsLock(lower, cell.layers[cell.layers.length - 1]);
     if (meet) {
       unlockLayer(meet.lock);
-      meet.key.item = null;
+      spendKey(meet.key);
       emit({ type: 'unlock', at, by: 'fold' });
     }
     const covered = lower ? lower.creature : null;
@@ -228,12 +238,14 @@ export function resolveFold(s, landings, emit) {
 // ---------------------------------------------------------------------------
 // Actions. Each run(state, action, emit) mutates the working copy and
 // returns null on success or a rejection reason. A rejected action leaves
-// the state unchanged and takes no turn.
+// the state unchanged and takes no turn. An optional check(state, action)
+// rejects early, before the state is copied (the solver tries many folds
+// that can't be played).
 
 const ACTIONS = {
   move: { takesTurn: true, run: runMove },
   wait: { takesTurn: true, run: runWait },
-  fold: { takesTurn: true, run: runFold },
+  fold: { takesTurn: true, run: runFold, check: checkFold },
 };
 
 /**
@@ -255,6 +267,8 @@ export function act(state, action, { snapshots = false } = {}) {
 
   const handler = ACTIONS[action.type];
   if (!handler) return reject('bad-action');
+  const early = handler.check ? handler.check(state, action) : null;
+  if (early) return reject(early);
   const next = { ...state, board: cloneBoard(state.board), undo: null, uses: { ...state.uses } };
   const events = [];
   const emit = (ev) => {
@@ -321,12 +335,15 @@ function runWait(s, action, emit) {
   return null;
 }
 
-function runFold(s, action, outerEmit, before) {
+function checkFold(s, action) {
   const check = foldCheck(s, action.fold);
-  if (!check.ok) {
-    const code = check.reasons[0]?.code;
-    return code === 'no-charges' || code === 'no-diagonal' ? code : 'invalid-fold';
-  }
+  if (check.ok) return null;
+  const code = check.reasons[0]?.code;
+  return code === 'no-charges' || code === 'no-diagonal' ? code : 'invalid-fold';
+}
+
+// checkFold already passed (act runs it first).
+function runFold(s, action, outerEmit, before) {
   let landings = [];
   s.board = applyFold(s.board, action.fold, {
     resolve: (b, l) => {
@@ -391,7 +408,9 @@ function runUndo(state, snapshots) {
 // doesn't move during this phase and creatures don't block the reach field,
 // so one field serves the whole phase. Slow enemies (def `pace`) sit out
 // while their `rest` counts down. Fold-aware AI (Creaseling) gets the
-// crease the player folded this turn.
+// crease the player folded this turn. Spawners (def `spawn`) count down
+// `sprout` while they have a path to the player and spawn when it reaches
+// 1; with no free neighbour they stay ready. Spawns act from next turn.
 function runEnemies(s, emit, { action } = {}) {
   const player = findCreature(s.board, PLAYER_ID);
   if (!player) return;
@@ -408,6 +427,13 @@ function runEnemies(s, emit, { action } = {}) {
       }
       me.creature.rest = def.pace - 1;
     }
+    if (def.spawn) {
+      if (ctx.field[cellIndex(s.board, me.col, me.row)] <= 0) continue; // stranded: the count waits
+      if (me.creature.sprout > 1) {
+        me.creature.sprout -= 1;
+        continue;
+      }
+    }
     const plan = planEnemy(s.board, id, ctx);
     if (plan.type === 'wait') continue;
     if (plan.type === 'bump' || plan.type === 'shoot') {
@@ -423,6 +449,11 @@ function runEnemies(s, emit, { action } = {}) {
       getCell(s.board, me.col, me.row).layers[me.depth].creature = null;
       topLayer(s.board, plan.to.col, plan.to.row).creature = me.creature;
       emit({ type: 'slide', id, from: { col: me.col, row: me.row }, to: { ...plan.to }, path: plan.path.map((c) => ({ ...c })) });
+    } else if (plan.type === 'spawn') {
+      const spawn = createCreature(plan.kind, { id: `${id}-t${s.turn}` });
+      topLayer(s.board, plan.to.col, plan.to.row).creature = spawn;
+      me.creature.sprout = def.spawn.every;
+      emit({ type: 'spawn', id, creature: { ...spawn }, at: { ...plan.to } });
     } else {
       stepCreature(s, me, plan.to, emit);
     }
@@ -458,6 +489,42 @@ export function damageAt(s, at, amount, emit, { blockable = true } = {}) {
   layer.creature = null;
   emit({ type: 'death', id: creature.id, creature, at: { ...at } });
   if (creature.id === PLAYER_ID) lose(s, 'hp', emit);
+  else dropItem(s, creature, at, emit);
+}
+
+/**
+ * A carrier (def `carry`) that died or fell leaves its item on the nearest
+ * free footing to `at` (docs/OPEN-QUESTIONS.md): `at` itself when its top
+ * layer is free footing with no item, else the first such cell outward
+ * (grid distance, ties in DIRS order). No room anywhere: the item is lost.
+ */
+function dropItem(s, creature, at, emit) {
+  if (!creature.item) return;
+  const spot = nearestFreeFooting(s.board, at);
+  if (!spot) return;
+  topLayer(s.board, spot.col, spot.row).item = creature.item;
+  emit({ type: 'drop', id: creature.id, item: creature.item, from: { col: at.col, row: at.row }, at: spot });
+}
+
+/** Breadth-first over the grid from `at` (walls and holes don't block the search). */
+export function nearestFreeFooting(board, at) {
+  if (!inBounds(board, at.col, at.row)) return null;
+  const seen = new Uint8Array(board.w * board.h);
+  const queue = [{ col: at.col, row: at.row }];
+  seen[cellIndex(board, at.col, at.row)] = 1;
+  for (let q = 0; q < queue.length; q++) {
+    const c = queue[q];
+    const top = topLayer(board, c.col, c.row);
+    if (isFooting(top) && !top.item && !top.creature) return c;
+    for (const name in DIRS) {
+      const col = c.col + DIRS[name].dc;
+      const row = c.row + DIRS[name].dr;
+      if (!inBounds(board, col, row) || seen[cellIndex(board, col, row)]) continue;
+      seen[cellIndex(board, col, row)] = 1;
+      queue.push({ col, row });
+    }
+  }
+  return null;
 }
 
 // A hit on the player is negated by Folded Shield's guard (this turn only)
@@ -507,6 +574,7 @@ export function fall(s, creature, at, emit) {
   }
   emit({ type: 'fall', id: creature.id, creature, at: { ...at } });
   if (creature.id === PLAYER_ID) lose(s, 'fall', emit);
+  else dropItem(s, creature, at, emit);
 }
 
 function win(s, cause, emit) {

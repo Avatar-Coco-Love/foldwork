@@ -95,6 +95,38 @@ export const CREATURE_SHAPES = Object.freeze({
       { fill: 'tileFace', stroke: 'ink', points: [[0.5, 0.12], [0.61, 0.28], [0.39, 0.28]] },
     ],
   },
+  // Lockjaw: a folded-paper jaw. A wide lower jaw and a peaked upper jaw
+  // with a pale zigzag of teeth between them, one eye, two stub feet.
+  // Medium and wide: a squat guard that doesn't go anywhere.
+  lockjaw: {
+    size: 'medium',
+    parts: [
+      { fill: 'ink', points: [[0.3, 0.74], [0.42, 0.74], [0.36, 0.86]] },
+      { fill: 'ink', points: [[0.58, 0.74], [0.7, 0.74], [0.64, 0.86]] },
+      { fill: 'danger', stroke: 'ink', points: [[0.16, 0.5], [0.84, 0.5], [0.74, 0.78], [0.26, 0.78]] },
+      { fill: 'shadow', points: [[0.5, 0.5], [0.84, 0.5], [0.74, 0.78], [0.5, 0.78]] },
+      { fill: 'danger', stroke: 'ink', points: [[0.2, 0.46], [0.32, 0.18], [0.68, 0.18], [0.8, 0.46]] },
+      { fill: 'shadow', points: [[0.5, 0.18], [0.68, 0.18], [0.8, 0.46], [0.5, 0.46]] },
+      { fill: 'tileFace', stroke: 'ink', points: [[0.22, 0.44], [0.78, 0.44], [0.72, 0.56], [0.64, 0.47], [0.57, 0.56], [0.5, 0.47], [0.43, 0.56], [0.36, 0.47], [0.28, 0.56]] },
+      { fill: 'ink', points: [[0.5, 0.24], [0.55, 0.3], [0.5, 0.36], [0.45, 0.3]] },
+    ],
+  },
+  // Spore Bloom: a four-petal paper flower on a short stem, with two
+  // leaves, standing in a folded cup. The pale centre is where spores show.
+  bloom: {
+    size: 'medium',
+    parts: [
+      { fill: 'ink', points: [[0.48, 0.42], [0.52, 0.42], [0.52, 0.7], [0.48, 0.7]] },
+      { fill: 'shadow', stroke: 'ink', points: [[0.48, 0.62], [0.3, 0.52], [0.36, 0.64]] },
+      { fill: 'shadow', stroke: 'ink', points: [[0.52, 0.62], [0.7, 0.52], [0.64, 0.64]] },
+      { fill: 'danger', stroke: 'ink', points: [[0.5, 0.14], [0.6, 0.28], [0.5, 0.36], [0.4, 0.28]] },
+      { fill: 'danger', stroke: 'ink', points: [[0.24, 0.36], [0.38, 0.28], [0.46, 0.36], [0.38, 0.46]] },
+      { fill: 'danger', stroke: 'ink', points: [[0.76, 0.36], [0.62, 0.28], [0.54, 0.36], [0.62, 0.46]] },
+      { fill: 'tileFace', stroke: 'ink', points: polygon(8, 0.5, 0.36, 0.08) },
+      { fill: 'danger', stroke: 'ink', points: [[0.32, 0.68], [0.68, 0.68], [0.62, 0.86], [0.38, 0.86]] },
+      { fill: 'shadow', points: [[0.5, 0.68], [0.68, 0.68], [0.62, 0.86], [0.5, 0.86]] },
+    ],
+  },
 });
 
 // Unknown kinds: a plain token with the kind's initial, so tests and new
@@ -164,18 +196,31 @@ export function drawCreature(ctx, p, creature, x, y, s, opts) {
 
   if (creature.kind !== 'player' && creature.maxHp > 1) drawHpPips(ctx, p, creature, x, y, s, alpha);
   if (creature.rest > 0) drawRest(ctx, p, x, y, s, alpha);
+  if (creature.sprout > 0) drawSprout(ctx, p, creature.sprout, x, y, s, alpha);
 }
 
-// A slow creature sitting out its next turn (core/creatures.js `rest`):
-// a small "z" in the tile's top-left corner, so its rhythm can be read.
-function drawRest(ctx, p, x, y, s, alpha) {
+// A spawner's countdown (core/creatures.js `sprout`): turns until its next
+// spawn, as a number in a ring in the tile's top-left corner. At 1 the
+// ring is solid: it spawns at the end of this turn.
+function drawSprout(ctx, p, n, x, y, s, alpha) {
+  const r = s * 0.13;
+  const cx = x + s * 0.15;
+  const cy = y + s * 0.15;
+  const ready = n <= 1;
   ctx.save();
   ctx.globalAlpha *= alpha;
-  ctx.fillStyle = p.ink;
-  ctx.font = `700 ${Math.round(s * 0.22)}px system-ui, sans-serif`;
-  ctx.textAlign = 'left';
-  ctx.textBaseline = 'top';
-  ctx.fillText('z', x + s * 0.06, y + s * 0.02);
+  ctx.lineWidth = Math.max(1, s * 0.03);
+  ctx.beginPath();
+  ctx.arc(cx, cy, r, 0, Math.PI * 2);
+  ctx.fillStyle = ready ? p.glyph : p.tileFace;
+  ctx.fill();
+  ctx.strokeStyle = p.glyph;
+  ctx.stroke();
+  ctx.fillStyle = ready ? p.tileFace : p.glyph;
+  ctx.font = `700 ${Math.round(s * 0.18)}px system-ui, sans-serif`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(String(n), cx, cy + s * 0.01);
   ctx.restore();
 }
 

@@ -11,7 +11,8 @@
 // Clip = { board, duration, fold?, reverse?, actor? }
 //   fold    buildFoldAnim() result (fold / unfold events)
 //   actor   { kind, id, creature, from, to, fromLevel, toLevel, skip }
-//           kind: 'move' | 'bump' | 'shoot' | 'hit' | 'death' | 'fall'
+//           kind: 'move' | 'slide' | 'bump' | 'shoot' | 'hit' | 'death'
+//           | 'fall' | 'spawn' | 'drop' (drop: `item` instead of a creature)
 //           from/to are cells (equal for in-place clips); levels are the
 //           stack level the creature stands on (0 = one layer).
 //           skip: the board pass leaves this creature out, because the actor
@@ -67,12 +68,31 @@ function clipFor(ev, before, after, motion) {
       const creature = layer && layer.creature;
       return actorClip(before, 'hit', ev.id, creature, ev.at, ev.at, level(before, ev.at), level(before, ev.at), false, motion);
     }
+    case 'spawn':
+      // The new creature pops out of its spawner onto its cell.
+      return actorClip(before, 'spawn', ev.creature.id, ev.creature, spawnerAt(before, ev.id, ev.at), ev.at,
+        level(before, ev.at), level(after, ev.at), false, motion);
+    case 'drop': {
+      // The carried item hops from where its carrier went down.
+      const duration = clipDurationMs(ACTOR_MS.drop, motion);
+      return {
+        board: before,
+        duration,
+        actor: { kind: 'drop', id: null, item: ev.item, from: { ...ev.from }, to: { ...ev.at },
+          fromLevel: level(before, ev.from), toLevel: level(after, ev.at), skip: false },
+      };
+    }
     case 'death':
     case 'fall':
       return actorClip(before, ev.type, ev.id, ev.creature, ev.at, ev.at, level(before, ev.at), level(before, ev.at), true, motion);
     default:
       return null;
   }
+}
+
+function spawnerAt(board, id, fallback) {
+  const found = findCreature(board, id);
+  return found ? { col: found.col, row: found.row } : fallback;
 }
 
 function creatureIn(board, id) {

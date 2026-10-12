@@ -16,9 +16,9 @@ import { getPalette, DEFAULT_PALETTE_ID } from './palette.js';
 import { TILE, ITEM } from '../core/tiles.js';
 import { CELL, EFFECT } from './preview.js';
 import { drawCreature } from './creatures.js';
-import { findCreature } from '../core/board.js';
+import { findCreature, stackHeight } from '../core/board.js';
 import { creatureDef } from '../core/creatures.js';
-import { actingEnemies, sightLanes } from '../core/enemies.js';
+import { actingEnemies, sightLanes, pendingSpawns } from '../core/enemies.js';
 
 const MAX_DPR = 2;
 
@@ -112,7 +112,7 @@ export function createRenderer(canvas, { paletteId = DEFAULT_PALETTE_ID } = {}) 
 // ---------------------------------------------------------------------------
 // Draw passes
 
-const PASSES = [drawBackground, drawBoardBase, drawTiles, drawSightLanes, drawFoldPreview, drawFoldAnim, drawActor, drawFlash];
+const PASSES = [drawBackground, drawBoardBase, drawTiles, drawSightLanes, drawSpawnMarks, drawFoldPreview, drawFoldAnim, drawActor, drawFlash];
 
 function draw(r) {
   const { ctx } = r;
@@ -210,6 +210,43 @@ function drawSightLanes(r, ctx) {
     ctx.beginPath(); // end bar across the lane
     ctx.moveTo(bx - uy * size * 0.15, by + ux * size * 0.15);
     ctx.lineTo(bx + uy * size * 0.15, by - ux * size * 0.15);
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+// Where spawners spawn at the end of this turn (core/enemies.js
+// spawnSpot): a dashed ring with a small sprout cross on each cell where a
+// Spore Bloom whose count reads 1 will put its Mite. Cached per board.
+function drawSpawnMarks(r, ctx) {
+  const L = r.layout;
+  if (!L || (r.fx && r.fx.foldAnim)) return;
+  const board = r.scene.board;
+  if (!r.spawns || r.spawns.board !== board) r.spawns = { board, list: pendingSpawns(board, 'player') };
+  const list = r.spawns.list;
+  if (!list.length) return;
+  const p = r.palette;
+  const size = L.cellSize;
+  const lift = layerLift(size);
+  ctx.save();
+  ctx.strokeStyle = p.danger;
+  ctx.lineWidth = Math.max(1.5, size * 0.04);
+  ctx.lineCap = 'round';
+  for (const at of list) {
+    const level = Math.max(0, stackHeight(board, at.col, at.row) - 1);
+    const o = cellOrigin(L, at.col, at.row);
+    const cx = o.x + size / 2;
+    const cy = o.y + size / 2 - level * lift;
+    ctx.setLineDash([size * 0.07, size * 0.07]);
+    ctx.beginPath();
+    ctx.arc(cx, cy, size * 0.3, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.beginPath();
+    ctx.moveTo(cx - size * 0.1, cy);
+    ctx.lineTo(cx + size * 0.1, cy);
+    ctx.moveTo(cx, cy - size * 0.1);
+    ctx.lineTo(cx, cy + size * 0.1);
     ctx.stroke();
   }
   ctx.restore();
@@ -460,6 +497,18 @@ function drawActor(r, ctx) {
   } else if (a.kind === 'shoot') {
     drawDart(ctx, p, from.x + size / 2, fromY + size / 2, to.x + size / 2, toY + size / 2, size, easeInOut(u));
     return;
+  } else if (a.kind === 'drop') {
+    const t = easeInOut(u);
+    const kx = from.x + (to.x - from.x) * t + size / 2;
+    const ky = fromY + (toY - fromY) * t + size / 2 - Math.sin(Math.PI * u) * size * 0.25;
+    drawKey(ctx, kx, ky, size * 0.5, p.accent, p.glyph);
+    return;
+  } else if (a.kind === 'spawn') {
+    const t = easeInOut(u);
+    x = from.x + (to.x - from.x) * t;
+    y = fromY + (toY - fromY) * t - Math.sin(Math.PI * u) * size * 0.2;
+    opts.alpha = Math.min(1, u * 2);
+    opts.scale = 0.3 + 0.7 * t;
   } else if (a.kind === 'death') {
     opts.alpha = 1 - u;
     opts.scale = 1 - 0.5 * u;
@@ -613,6 +662,7 @@ function drawPinned(ctx, p, creature, x, y, size) {
   ctx.globalAlpha = 0.4;
   drawCreature(ctx, p, creature, x + gap, y + gap, size - gap * 2, PINNED_OPTS);
   ctx.restore();
+  drawCarried(ctx, p, creature, x + gap, y + gap, size - gap * 2);
   drawClip(ctx, p, x + size * 0.76, y + size * 0.08, size);
 }
 const PINNED_OPTS = { alpha: 1, scale: 0.8, rot: 0, shadow: false };
@@ -655,7 +705,16 @@ function drawLayer(ctx, p, layer, x, y, size, isTop, skip) {
   const item = layer.item && ITEM_PAINTERS[layer.item];
   if (item) item(ctx, p, x + gap, y + gap, s, !!layer.creature);
   const c = layer.creature;
-  if (c && c.id !== skip) drawCreature(ctx, p, c, x + gap, y + gap, s, null);
+  if (c && c.id !== skip) {
+    drawCreature(ctx, p, c, x + gap, y + gap, s, null);
+    drawCarried(ctx, p, c, x + gap, y + gap, s);
+  }
+}
+
+// An item a creature holds (Lockjaw's key, core/creatures.js `carry`): a
+// small copy of the item in the tile's bottom-left corner.
+function drawCarried(ctx, p, creature, x, y, s) {
+  if (creature.item === ITEM.KEY) drawKey(ctx, x + s * 0.2, y + s * 0.8, s * 0.32, p.accent, p.glyph);
 }
 
 function paintFloor(ctx, p, x, y, s) {

@@ -41,6 +41,22 @@ These belong to later phases and get decided when that phase is built.
 - Spore Bloom spawn tile (5c, user's choice): the free adjacent tile
   **closest to the player**, ties broken in the fixed step order. No RNG,
   so the preview and solver can predict it.
+- Lockjaw and Spore Bloom details (5c, decided while building): the
+  Lockjaw bites only orthogonal neighbours, like every bump. Its key is a
+  creature field (`item`, from the def's `carry`), so a fold that stacks
+  the Lockjaw's sheet and a lock directly (either on top) delivers it like
+  a key on paper. Nothing in the game damages a pinned creature yet, so
+  "dies pinned" can't happen; if it does later, the key goes to the top
+  layer of its cell. The Bloom's `sprout` starts at 3 and ticks in the
+  enemy phase, so its first Mite comes at the end of turn 3; with no free
+  neighbour it stays ready and spawns as soon as one frees up. A spawned
+  Mite acts from the next turn. The Bloom never attacks. Stranding a
+  Bloom is not a `strand` event (no Recycled Crease refund): `fixed`
+  enemies still never strand.
+- F7 `needs` (5c): only `fold` is proven. Proving the plate essential
+  means searching every line while Mites keep spawning, which doesn't
+  finish within the solver caps; the 3-high exit, gate and wall keep the
+  gate in place by construction.
 - Creaseling slide (5b, chosen from options): on a turn the player
   folds, it slides **instead of** its step, in its normal enemy-phase
   slot. It moves in its own lane **parallel to the crease** (vertical
