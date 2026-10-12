@@ -7,3 +7,5 @@ npm test    # run core logic tests (plain Node, no dependencies)
 ```
 
 Specs live in [`docs/`](docs/); progress in [`docs/PROGRESS.md`](docs/PROGRESS.md).
+Telemetry (anonymous play data) and its backend contract:
+[`docs/07-telemetry.md`](docs/07-telemetry.md).

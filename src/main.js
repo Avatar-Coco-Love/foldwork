@@ -10,14 +10,19 @@
 //   ?motion=on      reduced motion for this session (system|on|off)
 //   ?charges=1      fold charges for the floor (default 3)
 //   ?mites=0        Scrap Mites on the floor (default: the map's, or 2 scattered)
-//   ?map=sandbox    hand-made dev floor (core/maps.js DEV_MAPS); the default
-//                   unless ?size= or ?demo=1 asks for an open dev board
+//   ?map=sandbox    hand-made dev floor (core/maps.js DEV_MAPS) instead of
+//                   the floor's seeded template; ?size= or ?demo=1 gives an
+//                   open dev board
+//   ?floor=2        start the floor screen on this floor (with ?screen=floor)
+//   ?telemetry=console   log telemetry events (also: off, or a localhost
+//                   collector URL, see tools/telemetry-collector.js)
 
 import { createRenderer } from './render/renderer.js';
 import { HUD_METRICS } from './render/layout.js';
 import { getPalette, cssVarName } from './render/palette.js';
 import { createRouter } from './ui/router.js';
-import { titleScreen, floorScreen } from './ui/screens.js';
+import { titleScreen, floorScreen, howToScreen } from './ui/screens.js';
+import { setupTelemetry } from './telemetry/browser.js';
 import { loadSettings, saveSettings, normalizeSettings, resolveMotion } from './ui/settings.js';
 
 const params = Object.fromEntries(new URLSearchParams(location.search));
@@ -41,15 +46,34 @@ const settingsOverride = normalizeSettings({
   reducedMotion: params.motion || saved.reducedMotion,
 });
 
+const tele = setupTelemetry({ enabled: settingsOverride.telemetry === 'on', override: params.telemetry || '' });
+const newSeed = () => params.seed || String(Math.floor(Math.random() * 2 ** 32));
+
 const ctx = {
-  seed: params.seed || String(Math.floor(Math.random() * 2 ** 32)),
+  seed: newSeed(),
+  telemetry: tele.telemetry,
+  /** How the latest input was made: 'key', 'mouse', 'touch', 'pen'. */
+  inputSource: tele.inputSource,
+  /**
+   * Start a new run: a fresh seed (unless ?seed= pins one) and run id.
+   * Phase 4 grows this into the run state.
+   */
+  startRun() {
+    ctx.seed = newSeed();
+    ctx.telemetry.setRun(`r_${Date.now().toString(36)}${Math.floor(Math.random() * 1e6).toString(36)}`);
+    ctx.telemetry.track('run.start', { seed: ctx.seed, daily: false });
+  },
   renderer,
   router: null,
   settings: settingsOverride,
   updateSettings(patch) {
+    const before = ctx.settings;
     ctx.settings = normalizeSettings({ ...ctx.settings, ...patch });
     saveSettings(ctx.settings);
     applyMotionClass();
+    // Opting out drops anything unsent and records nothing more.
+    if (before.telemetry !== ctx.settings.telemetry) ctx.telemetry.setEnabled(ctx.settings.telemetry === 'on');
+    ctx.telemetry.track('settings.change', { patch, settings: ctx.settings });
   },
   /** Effective { speed, reducedMotion } for render/fx.js. */
   motion() {
@@ -65,7 +89,9 @@ const ctx = {
     document.querySelector('meta[name="theme-color"]')?.setAttribute('content', palette.background);
   },
 };
-ctx.router = createRouter(uiRoot, ctx);
+ctx.router = createRouter(uiRoot, ctx, {
+  onGo: (name, p) => ctx.telemetry.track('screen.view', { name, floor: p.floor ?? null }),
+});
 
 // CSS honors the in-game reduced-motion setting too, not just the OS query.
 function applyMotionClass() {
@@ -74,7 +100,7 @@ function applyMotionClass() {
 reducedMotionQuery.addEventListener?.('change', applyMotionClass);
 applyMotionClass();
 
-ctx.router.register('title', titleScreen).register('floor', floorScreen);
+ctx.router.register('title', titleScreen).register('floor', floorScreen).register('howto', howToScreen);
 
 // --- Viewport tracking -----------------------------------------------------
 
@@ -117,9 +143,17 @@ document.addEventListener('dblclick', (e) => e.preventDefault());
 
 ctx.setPalette(params.palette);
 onResize();
+ctx.telemetry.track('session.start', {
+  device: tele.deviceInfo(),
+  settings: ctx.settings,
+  palette: renderer.palette.id,
+  entry: { screen: params.screen || 'title', dev: Object.keys(params).filter((k) => k !== 'telemetry') },
+});
+ctx.telemetry.flush(); // anything left from an offline session
+if (params.screen === 'floor') ctx.startRun();
 const startScreen = ctx.router.has(params.screen) ? params.screen : 'title';
 ctx.router.go(startScreen, {
-  floor: 1,
+  floor: Number(params.floor) || 1,
   size: params.size,
   map: params.map,
   demo: params.demo === '1',

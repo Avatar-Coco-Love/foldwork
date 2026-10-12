@@ -103,6 +103,7 @@ export function createHud(root, { floor, onMenu, onUndo, onCancel, onWait }) {
   let note = null; // transient { text, invalid }, e.g. why a move was refused
   let noteTimer = 0;
   let overlay = null;
+  let hintCard = null;
 
   function syncMessage() {
     const shown = foldText || note;
@@ -159,9 +160,29 @@ export function createHud(root, { floor, onMenu, onUndo, onCancel, onWait }) {
       root.append(overlay);
       btns[0]?.focus();
     },
+    /**
+     * Tutorial hint card (docs/04): non-blocking, so play continues while
+     * it shows. "Got it" calls onDismiss. Replaces any card shown.
+     */
+    showHint({ title, text, onDismiss }) {
+      hintCard?.remove();
+      hintCard = el('aside', { class: 'hud-hint', role: 'note', 'aria-live': 'polite', 'aria-label': `Hint: ${title}` },
+        el('div', { class: 'hud-hint-body' },
+          el('strong', { class: 'hud-hint-title', text: title }),
+          el('span', { text }),
+        ),
+        el('button', { class: 'btn', type: 'button', onclick: onDismiss }, 'Got it'),
+      );
+      hud.insertBefore(hintCard, actions);
+    },
+    hideHint() {
+      hintCard?.remove();
+      hintCard = null;
+    },
     destroy() {
       clearTimeout(noteTimer);
       overlay?.remove();
+      hintCard?.remove();
       hud.remove();
     },
   };

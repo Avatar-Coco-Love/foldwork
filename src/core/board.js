@@ -73,9 +73,25 @@ export function stackHeight(board, col, row) {
   return cell ? cell.layers.length : 0;
 }
 
-/** Deep copy. Boards hold only plain data, so structuredClone is exact. */
+/**
+ * Deep copy. A hand-written copy instead of structuredClone, which is ~20x
+ * slower on these tiny objects and dominated solver time. It relies on the
+ * data model: layer fields are primitives except `creature`, whose fields
+ * are primitives too. Keep it that way (or extend this copy) when adding
+ * fields.
+ */
 export function cloneBoard(board) {
-  return structuredClone(board);
+  const cells = new Array(board.cells.length);
+  for (let i = 0; i < cells.length; i++) {
+    const src = board.cells[i].layers;
+    const layers = new Array(src.length);
+    for (let d = 0; d < src.length; d++) {
+      const l = src[d];
+      layers[d] = l.creature ? { ...l, creature: { ...l.creature } } : { ...l };
+    }
+    cells[i] = { layers };
+  }
+  return { ...board, cells };
 }
 
 /**

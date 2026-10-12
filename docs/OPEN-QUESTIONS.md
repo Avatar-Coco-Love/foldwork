@@ -10,10 +10,33 @@ These belong to later phases and get decided when that phase is built.
 - Great Crane balance and arena templates (Phase 6).
 - Names and mechanics for the two later spirits (post-launch; ideas: Rabbit,
   Koi).
-- Mite tuning: 2 Mites deal 2 damage a turn against 3 HP, so waiting next to
-  them is lethal fast. Revisit with the 3b floor templates.
+- Telemetry consent before a public launch: is "on by default, with an
+  off switch and a short notice" right for the target regions, or should it
+  be opt-in (a first-run prompt)? Where is the notice shown? The repo ships
+  with no endpoint, so nothing is sent until this is decided and an
+  endpoint is configured in `src/config.js`.
+- Telemetry hosting: which backend and region (any store that keeps JSON
+  rows works; see `docs/07-telemetry.md`).
 
 ## Resolved
+- Mite tuning (decided in 3b): stats unchanged (1 HP, bites for 1). Floors
+  control the pressure instead: 1 Mite on F1, 2 on F2, 1–2 on F3, on
+  template anchors (mostly across the void, so they reach you only after a
+  fold). The solver proves every variant winnable with its Mites.
+- Template "thick card" (3b): a 3-high stack is a full stack, so nothing
+  can land on it and it can only fold onto an empty cell. Templates use it
+  to keep an exit, gate or wall row in place so the floor teaches what it
+  is meant to (e.g. F2's gate can't be folded over). It follows from the
+  existing stack limit; no new rule.
+- Tutorial hints (3b): one card at a time, shown once per player (saved),
+  never blocking play. A hint from a newer event replaces the card on
+  screen. How to Play lists all of them and can re-arm them.
+- Floor progression before Phase 4: clearing a floor offers the next one;
+  after floor 3 the run ends with a "Run complete" panel. Defeat offers a
+  retry of the same floor (same seed) until Phase 4 adds run loss.
+- Telemetry design (3b): fixed envelope with opaque `data`, and floors
+  record their full action log so new questions are answered by replay,
+  not by new events or backend changes (`docs/07-telemetry.md`).
 - Void drop (confirmed in 3a): a fold that lands a stack whose top layer is
   a void on a creature's cell drops it (it falls; the player too, which is
   defeat). Any other landing pins. This is the docs/02 "enemy left on a void

@@ -22,10 +22,12 @@ Build one phase at a time. Finish, test, and summarize before moving on. Each ph
 - Keys, locks, pressure plates, exits.
 - Floor templates for floors 1–3 and the guided tutorial hints.
 - Solver v1 and floor validation.
+- Telemetry foundation (`07-telemetry.md`): fixed envelope, offline queue, action-log replay, reference collector. Later phases only add `track()` calls.
 - **Done when:** floors 1–3 are playable, validated solvable, and teach the mechanics.
 
 ## Phase 4 — Run structure
 - Run state, floor progression, relic offers, relic hooks, spirits.
+- Telemetry: relic offers and picks, spirit chosen, run end (won / lost, floor reached).
 - Relic implementation in groups: fold relics first, then defense, then utility.
 - **Done when:** a full run through floors 1–8 works end to end with at least 12 relics.
 
@@ -43,6 +45,7 @@ Build one phase at a time. Finish, test, and summarize before moving on. Each ph
 - Paper scraps, unlocks shop, remaining relics (24 total), spirit unlocks, palettes.
 - Daily seed mode.
 - Persistence for meta, settings, and in-progress runs.
+- Settings screen includes the "Share play data" toggle; telemetry for unlocks and daily runs.
 - **Done when:** progress persists across sessions and the daily seed is identical across devices.
 
 ## Phase 8 — Audio and polish
@@ -51,7 +54,7 @@ Build one phase at a time. Finish, test, and summarize before moving on. Each ph
 - **Done when:** the game feels cohesive and passes the accessibility checklist in `CLAUDE.md`.
 
 ## Phase 9 — Playtesting and balance
-- Tune fold charges, enemy stats, boss, and relic power.
+- Tune fold charges, enemy stats, boss, and relic power, using replayed telemetry (`tools/replay-check.js` as the base).
 - Cross-device testing and performance pass.
 - Home-screen manifest and optional offline caching.
 - **Done when:** runs are consistently completable but not trivial, and framerate is stable on a mid-range phone.

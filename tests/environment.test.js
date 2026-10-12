@@ -33,7 +33,7 @@ test('parseMap: tiles, links, key items, player and enemy spots', () => {
   assert.deepEqual(player, { col: 2, row: 2 });
   assert.deepEqual(enemies, [{ kind: 'mite', col: 4, row: 2 }]);
   assert.throws(() => parseMap(['..', '.']));
-  assert.throws(() => parseMap(['.?']));
+  assert.throws(() => parseMap(['.Z']));
 });
 
 test('key: walking onto it picks it up', () => {

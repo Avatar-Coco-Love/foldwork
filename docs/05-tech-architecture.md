@@ -22,6 +22,8 @@
     spirits.js
     floors.js        // floor templates + variation
     solver.js        // solvability validator for generated floors
+    replay.js        // action codes + replay (saves, telemetry analysis)
+    hints.js         // tutorial hint data + triggers
     run.js           // run state, relic offers, floor progression
     meta.js          // paper scraps, unlocks, persistence
   render/
@@ -33,6 +35,9 @@
     hud.js, screens.js, input.js
   audio/
     sfx.js, ambient.js
+  telemetry/         // event client, browser wiring, floor recorder
+  config.js          // APP_VERSION, LOGIC_VERSION, telemetry endpoint
+/tools/              // telemetry collector (reference backend), replay check
 /tests/              // plain-node tests for core logic
 /docs/               // these spec files
 ```
@@ -59,10 +64,15 @@
 - Floors are built from handcrafted templates: board layout, key/door/plate relationships, and anchor spots for enemies and relics.
 - Seeded variation: mirror/rotate the template, jitter enemy placement among allowed anchors, vary void and wall positions within template-defined options.
 - **Solver:** a BFS/IDDFS search over (board state, player position, charges) that confirms at least one solution exists within fold charges. Reject and reroll variations that fail. Cap search depth for performance, and precompute validated variants if needed.
+  - Built (3b): BFS over `act()` (`core/solver.js`), deduped by a state key. Variants are finite, so the test suite enumerates every variant of every template and proves it solvable, and that it needs what it teaches (`needs`: fold, key, plate). Runtime then picks any variant instantly. Templates with too many variants to enumerate set `checkAtRuntime` and are solved (capped) and rerolled at floor start.
+  - Layout anchors: a 3-high stack can't take a landing and can only fold onto an empty cell, so templates use "thick" stacks to pin parts of a puzzle in place.
 - Daily seed: seed derived from the UTC date (`YYYY-MM-DD`), so everyone gets the same run.
 
+## Telemetry
+- Anonymous play data with one fixed envelope and opaque `data`, so the backend never changes for new events. Floors record their action log, so analysis replays them instead of needing new events. Full contract: `07-telemetry.md`.
+
 ## Persistence
-- `localStorage` keys: `foldwork.meta` (scraps, unlocks), `foldwork.settings`, `foldwork.run` (in-progress run snapshot, saved after each floor and each turn).
+- `localStorage` keys: `foldwork.meta` (scraps, unlocks), `foldwork.settings`, `foldwork.run` (in-progress run snapshot, saved after each floor and each turn), `foldwork.hints` (tutorial hints seen), `foldwork.install` and `foldwork.telemetry` (anonymous id, unsent events).
 - Version the save format and migrate or reset gracefully on mismatch.
 - All reads and writes wrapped in try/catch with in-memory fallback.
 

@@ -12,10 +12,14 @@ import {
 } from '../core/turn.js';
 import { scatterEnemies } from '../core/enemies.js';
 import { CREATURE_DEFS } from '../core/creatures.js';
-import { ANIM_SPEEDS, MOTION_MODES, cycleOption, optionName } from './settings.js';
+import { ANIM_SPEEDS, MOTION_MODES, TELEMETRY_MODES, cycleOption, optionName } from './settings.js';
 import { createBoard, findCreature } from '../core/board.js';
 import { TILE } from '../core/tiles.js';
 import { parseMap, DEV_MAPS } from '../core/maps.js';
+import { generateFloor, templateFloors } from '../core/floors.js';
+import { HINTS, hintDef, hintsFor } from '../core/hints.js';
+import { loadSeenHints, saveSeenHints } from './hintStore.js';
+import { createFloorRecorder } from '../telemetry/floorRecorder.js';
 import { createRng, fork, nextInt, chance } from '../core/rng.js';
 import { PALETTES } from '../render/palette.js';
 
@@ -51,27 +55,101 @@ export const titleScreen = {
     });
     syncMotionLabels();
 
+    const shareBtn = el('button', { class: 'btn btn-secondary', type: 'button' });
+    const syncShareLabel = () => {
+      shareBtn.textContent = `Share play data: ${optionName(TELEMETRY_MODES, ctx.settings.telemetry)}`;
+    };
+    shareBtn.addEventListener('click', () => {
+      ctx.updateSettings({ telemetry: cycleOption(TELEMETRY_MODES, ctx.settings.telemetry) });
+      syncShareLabel();
+    });
+    syncShareLabel();
+
     root.append(
       el('div', { class: 'menu' },
         el('h1', { class: 'title', text: 'Foldwork' }),
         el('p', { class: 'subtitle', text: 'Fold the paper dungeon.' }),
         el('div', { class: 'menu-buttons' },
-          el('button', { class: 'btn btn-primary', type: 'button', onclick: () => ctx.router.go('floor', { floor: 1 }) }, 'New Run'),
+          el('button', {
+            class: 'btn btn-primary',
+            type: 'button',
+            onclick: () => {
+              ctx.startRun();
+              ctx.router.go('floor', { floor: 1 });
+            },
+          }, 'New Run'),
+          el('button', { class: 'btn btn-secondary', type: 'button', onclick: () => ctx.router.go('howto') }, 'How to Play'),
           paletteBtn,
           speedBtn,
           motionBtn,
+          shareBtn,
         ),
       ),
     );
   },
 };
 
+/** How to Play (docs/04): every tutorial hint, re-viewable any time. */
+export const howToScreen = {
+  mount(root, ctx) {
+    ctx.renderer.setScene(null);
+    const items = Object.values(HINTS).map((h) => el('li', {}, el('strong', { text: h.title }), h.text));
+    const reset = el('button', { class: 'btn btn-secondary', type: 'button' }, 'Show hints again in play');
+    reset.addEventListener('click', () => {
+      saveSeenHints(new Set());
+      reset.textContent = 'Hints will show again';
+      reset.disabled = true;
+    });
+    root.append(
+      el('div', { class: 'menu howto' },
+        el('h2', { class: 'outcome-title', text: 'How to Play' }),
+        el('p', { class: 'subtitle', text: 'Reach the stairs on each floor. Folds cost charges; moves are free.' }),
+        el('ul', { class: 'howto-list' }, items),
+        el('div', { class: 'menu-buttons' },
+          reset,
+          el('button', { class: 'btn btn-primary', type: 'button', onclick: () => ctx.router.go('title') }, 'Back'),
+        ),
+      ),
+    );
+    root.querySelector('.btn-primary')?.focus({ preventScroll: true });
+  },
+};
+
 export const floorScreen = {
   mount(root, ctx, params) {
-    let state = createFloorState(devFloor(params, ctx.seed));
+    const floorNo = params.floor || 1;
+    const { setup, info } = floorSetup(floorNo, params, ctx.seed);
+    let state = createFloorState(setup);
     let shownBoard = state.board; // what the renderer shows (lags during playback)
     let preview = null;
     let queued = null; // one action pressed during playback (docs/04 input buffer)
+
+    // Telemetry: the action log replays this floor exactly (core/replay.js),
+    // given the seed and the floor description in floor.start.
+    const recorder = createFloorRecorder();
+    const floorTag = {
+      floor: floorNo,
+      seed: ctx.seed,
+      source: info.source,
+      templateId: info.templateId || null,
+      variant: info.variant || null,
+      ...(info.overrides ? { overrides: info.overrides } : {}),
+    };
+    let reported = false;
+    ctx.telemetry.track('floor.start', {
+      ...floorTag,
+      map: info.map || null,
+      attempt: info.attempt ?? null,
+      checked: info.checked || null,
+      size: state.board.w,
+      charges: state.maxCharges,
+      enemies: setup.enemies.map((e) => ({ kind: e.kind, col: e.col, row: e.row })),
+    });
+
+    // Tutorial hints: one card at a time, each shown once per player.
+    const seenHints = loadSeenHints();
+    const hintQueue = [];
+    let hintShown = null;
 
     const canvas = ctx.renderer.canvas;
     const fx = createFxPlayer({ onChange: () => ctx.renderer.invalidate() });
@@ -95,7 +173,7 @@ export const floorScreen = {
     };
 
     const hud = createHud(root, {
-      floor: params.floor || 1,
+      floor: floorNo,
       onMenu: () => ctx.router.go('title'),
       onUndo: () => dispatch({ type: 'undo' }),
       onWait: () => dispatch({ type: 'wait' }),
@@ -113,13 +191,17 @@ export const floorScreen = {
       }
       const before = state;
       const result = act(state, action, { snapshots: true });
+      const src = ctx.inputSource();
       if (!result.ok) {
+        recorder.action(action, src, { ok: false, reason: result.reason });
         refuse(result.reason);
         return;
       }
+      recorder.action(action, src, { ok: true, tookTurn: action.type !== 'undo' });
       state = result.state;
       preview = null;
       announce(result.events);
+      queueHints({ type: 'events', events: result.events });
       input.setBusy(true);
       playback.play(buildClips(before.board, result.events, ctx.motion()), state.board, settle);
     }
@@ -138,6 +220,7 @@ export const floorScreen = {
     }
 
     function refuse(reason) {
+      queueHints({ type: 'refuse', reason });
       const text = REFUSALS[reason];
       if (text) hud.notify(text);
       if (reason === 'no-charges' || reason === 'invalid-fold') {
@@ -153,18 +236,69 @@ export const floorScreen = {
       }
     }
 
+    // Hints from a newer trigger replace the card on screen (and anything
+    // still queued): the latest one is about what just happened.
+    function queueHints(trigger) {
+      const ids = hintsFor(info.hints, trigger, seenHints, PLAYER_ID).filter((id) => id !== hintShown);
+      if (!ids.length) return;
+      if (hintShown && trigger.type !== 'start') dismissHint('replaced');
+      hintQueue.length = 0;
+      hintQueue.push(...ids);
+      showNextHint();
+    }
+
+    let hintShownAt = 0;
+    function dismissHint(by) {
+      ctx.telemetry.track('hint.dismiss', { ...floorTag, id: hintShown, by, ms: recorder.elapsed() - hintShownAt });
+      hud.hideHint();
+      hintShown = null;
+    }
+
+    function showNextHint() {
+      if (hintShown || !hintQueue.length) return;
+      const id = hintQueue.shift();
+      const def = hintDef(id);
+      hintShown = id;
+      seenHints.add(id); // shown once, even if never dismissed
+      saveSeenHints(seenHints);
+      recorder.hintShown();
+      hintShownAt = recorder.elapsed();
+      ctx.telemetry.track('hint.show', { ...floorTag, id, turn: state.turn });
+      hud.showHint({
+        title: def.title,
+        text: def.text,
+        onDismiss() {
+          dismissHint('player');
+          showNextHint();
+        },
+      });
+    }
+
+    /** floor.end, once per floor: won, lost, or abandoned (left mid-floor). */
+    function report(outcome) {
+      if (reported) return;
+      reported = true;
+      const me = playerOf(state);
+      ctx.telemetry.track('floor.end', {
+        ...floorTag,
+        outcome,
+        cause: (state.outcome && state.outcome.cause) || null,
+        turn: state.turn,
+        chargesLeft: state.charges,
+        keys: state.keys,
+        hp: me ? me.hp : 0,
+        ...recorder.summary(),
+      });
+      ctx.telemetry.flush(); // a floor is a natural checkpoint
+    }
+
     function endFloor() {
       input.setEnabled(false);
+      hud.hideHint();
       const cause = state.outcome && state.outcome.cause;
+      report(state.status === 'won' ? 'won' : 'lost');
       if (state.status === 'won') {
-        hud.showOutcome({
-          title: 'Floor cleared',
-          text: 'You found the way out.',
-          actions: [
-            { label: 'Play again', primary: true, onclick: () => ctx.router.go('floor', params) },
-            { label: 'Menu', onclick: () => ctx.router.go('title') },
-          ],
-        });
+        hud.showOutcome(victoryPanel(ctx, floorNo, info, params));
         return;
       }
       hud.showOutcome({
@@ -182,12 +316,16 @@ export const floorScreen = {
       getLayout: () => ctx.renderer.layout,
       getBoard: () => state.board,
       onPreview(crease) {
+        recorder.preview(crease);
         preview = crease ? foldPreview(state, crease) : null;
         sync();
       },
       onConfirm(crease) {
         const pv = foldPreview(state, crease);
+        recorder.foldAttempt();
         if (!pv || !pv.ok) {
+          const reason = pv ? pv.reasons[0]?.code || 'invalid-fold' : 'invalid-fold';
+          recorder.action({ type: 'fold', fold: crease }, ctx.inputSource(), { ok: false, reason });
           if (pv && pv.reasons[0]?.code === 'no-charges') hud.notify(REFUSALS['no-charges']);
           return false;
         }
@@ -211,7 +349,9 @@ export const floorScreen = {
     });
 
     sync();
+    queueHints({ type: 'start' });
     return () => {
+      report('abandoned');
       playback.finish();
       fx.destroy();
       ctx.renderer.setFx(null);
@@ -263,7 +403,61 @@ function foldStatusText(pv) {
 const DEV_MITES = 2;
 
 /**
- * createFloorState() options for a dev floor (Phase 3b swaps in templates).
+ * The floor to play: a seeded template floor (core/floors.js), unless a dev
+ * param (`?map=`, `?size=`, `?demo=1`) asks for a dev floor. Returns
+ * { setup, info }: createFloorState() options and a plain description
+ * (info.source is 'template' or 'dev').
+ */
+function floorSetup(floorNo, params, seed) {
+  if (params.map || params.size || params.demo || !templateFloors().includes(floorNo)) {
+    return { setup: devFloor(params, seed), info: { source: 'dev', map: params.map || (params.size || params.demo ? 'open' : 'sandbox'), hints: [] } };
+  }
+  const { setup, info } = generateFloor(floorNo, seed);
+  // Dev overrides change the floor, so telemetry flags them (replays skip).
+  const overrides = {};
+  if (Number.isInteger(params.charges)) overrides.charges = params.charges;
+  if (Number.isInteger(params.mites)) overrides.mites = params.mites;
+  const charges = overrides.charges ?? setup.charges;
+  const enemies = overrides.mites != null ? setup.enemies.slice(0, overrides.mites) : setup.enemies;
+  const tagged = Object.keys(overrides).length ? { overrides } : {};
+  return { setup: { ...setup, charges, enemies }, info: { ...info, ...tagged, source: 'template' } };
+}
+
+/** End-of-floor panel after a win: on to the next floor, or the run is done. */
+function victoryPanel(ctx, floorNo, info, params) {
+  const menu = { label: 'Menu', onclick: () => ctx.router.go('title') };
+  if (info.source !== 'template') {
+    return {
+      title: 'Floor cleared',
+      text: 'You found the way out.',
+      actions: [{ label: 'Play again', primary: true, onclick: () => ctx.router.go('floor', params) }, menu],
+    };
+  }
+  const next = templateFloors().find((n) => n > floorNo);
+  if (next) {
+    return {
+      title: `Floor ${floorNo} cleared`,
+      text: 'The stairs fold down to the next floor.',
+      actions: [{ label: 'Next floor', primary: true, onclick: () => ctx.router.go('floor', { ...params, floor: next }) }, menu],
+    };
+  }
+  ctx.telemetry.track('run.end', { outcome: 'won', floor: floorNo, seed: ctx.seed });
+  return {
+    title: 'Run complete',
+    text: 'You reached the bottom of the paper, for now. Deeper floors are still being folded.',
+    actions: [{
+      label: 'New run',
+      primary: true,
+      onclick: () => {
+        ctx.startRun();
+        ctx.router.go('floor', { floor: 1 });
+      },
+    }, menu],
+  };
+}
+
+/**
+ * createFloorState() options for a dev floor.
  * `?size=` or `?demo=1` gives the old open board with scattered Mites (no
  * exit); otherwise a hand-made map from DEV_MAPS (`?map=`, default sandbox).
  * `?charges=` and `?mites=` override either.
