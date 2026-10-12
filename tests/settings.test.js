@@ -16,6 +16,9 @@ test('settings normalize: defaults, unknown values reset per field', () => {
   assert.equal(s.animSpeed, 'fast');
   assert.equal(s.reducedMotion, 'system');
   assert.equal(s.extra, undefined);
+  assert.equal(s.telemetry, 'on');
+  assert.equal(normalizeSettings({ telemetry: 'off' }).telemetry, 'off');
+  assert.equal(normalizeSettings({ telemetry: 'maybe' }).telemetry, 'on');
 });
 
 test('resolveMotion follows the system only in system mode', () => {

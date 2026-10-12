@@ -6,12 +6,17 @@
 //   L  lock         k  key on floor E  exit
 //   1-3 plate (link 1-3)            a-c gate (link 1-3, a opens with 1)
 //   @  player start (on floor)      m  Scrap Mite (on floor)
+//   ?  enemy anchor (on floor): a spot a floor template may place an enemy
 //
-// parseMap(rows) → { board, player, enemies }, ready for createFloorState.
-// Templates in Phase 3b extend the legend (or add stacked layers) instead
-// of growing this parser.
+// parseMap(rows, { under }) → { board, player, enemies, anchors }, ready
+// for createFloorState (anchors is extra data for core/floors.js).
+// `rows` is the top layer, the one you see. `under` lists extra layer
+// grids (same size), bottom first, laid beneath it: `_` adds nothing to
+// that cell, any other symbol adds a layer, so a map can start with
+// stacked paper. A 3-high stack can't take a landing or move onto a
+// non-empty cell, which anchors a piece of the puzzle in place.
 
-import { createBoard, getCell } from './board.js';
+import { createBoard, createLayer, getCell } from './board.js';
 import { TILE, ITEM } from './tiles.js';
 
 const PLATES = { 1: 1, 2: 2, 3: 3 };
@@ -26,33 +31,71 @@ export const MAP_LEGEND = Object.freeze({
   k: { tile: TILE.FLOOR, item: ITEM.KEY },
   '@': { tile: TILE.FLOOR, player: true },
   m: { tile: TILE.FLOOR, enemy: 'mite' },
+  '?': { tile: TILE.FLOOR, anchor: true },
   ...Object.fromEntries(Object.entries(PLATES).map(([ch, link]) => [ch, { tile: TILE.PLATE, link }])),
   ...Object.fromEntries(Object.entries(GATES).map(([ch, link]) => [ch, { tile: TILE.GATE, link }])),
 });
 
-export function parseMap(rows, legend = MAP_LEGEND) {
-  const grid = rows.map((r) => r.replace(/\s+/g, ''));
+export function parseMap(rows, { under = [], legend = MAP_LEGEND } = {}) {
+  const grid = toGrid(rows);
   const h = grid.length;
   const w = h ? grid[0].length : 0;
   if (!h || grid.some((r) => r.length !== w)) throw new Error('Map rows must be non-empty and equal length');
-  const board = createBoard(w, h, (col, row) => {
-    const entry = legend[grid[row][col]];
-    if (!entry) throw new Error(`Unknown map symbol "${grid[row][col]}" at ${col},${row}`);
-    return entry.tile;
-  });
+  const lookup = (ch, col, row) => {
+    const entry = legend[ch];
+    if (!entry) throw new Error(`Unknown map symbol "${ch}" at ${col},${row}`);
+    return entry;
+  };
+  const lower = under.map(toGrid);
+  if (lower.some((g) => g.length !== h || g.some((r) => r.length !== w))) {
+    throw new Error('Under grids must match the map size');
+  }
+  const board = createBoard(w, h);
   let player = null;
   const enemies = [];
+  const anchors = [];
   for (let row = 0; row < h; row++) {
     for (let col = 0; col < w; col++) {
-      const entry = legend[grid[row][col]];
-      const layer = getCell(board, col, row).layers[0];
-      if (entry.item) layer.item = entry.item;
-      if (entry.link != null) layer.link = entry.link;
-      if (entry.player) player = { col, row };
-      if (entry.enemy) enemies.push({ kind: entry.enemy, col, row });
+      const below = lower.map((g) => g[row][col]).filter((ch) => ch !== '_');
+      const top = lookup(grid[row][col], col, row);
+      getCell(board, col, row).layers = [...below, grid[row][col]].map((ch) => {
+        const entry = lookup(ch, col, row);
+        const layer = createLayer(entry.tile);
+        if (entry.item) layer.item = entry.item;
+        if (entry.link != null) layer.link = entry.link;
+        return layer;
+      });
+      if (top.player) player = { col, row };
+      if (top.enemy) enemies.push({ kind: top.enemy, col, row });
+      if (top.anchor) anchors.push({ col, row });
     }
   }
-  return { board, player, enemies };
+  return { board, player, enemies, anchors };
+}
+
+/** Rows as arrays of symbols (whitespace dropped). */
+export function toGrid(rows) {
+  return rows.map((r) => Array.from(r.replace(/\s+/g, '')));
+}
+
+/**
+ * Map transforms for seeded variation (core/floors.js). Each maps a symbol
+ * grid to a new one. Only mirrors and rotations, so the puzzle keeps its
+ * shape; the solver re-checks every variant anyway (enemy tie-breaks are
+ * not symmetric).
+ */
+export const MAP_TRANSFORMS = Object.freeze({
+  id: (g) => g.map((r) => r.slice()),
+  flipH: (g) => g.map((r) => r.slice().reverse()),
+  flipV: (g) => g.slice().reverse().map((r) => r.slice()),
+  rot180: (g) => g.slice().reverse().map((r) => r.slice().reverse()),
+});
+
+/** Apply a MAP_TRANSFORMS entry to map rows; returns rows (strings). */
+export function transformRows(rows, transform) {
+  const fn = MAP_TRANSFORMS[transform];
+  if (!fn) throw new Error(`Unknown map transform: ${transform}`);
+  return fn(toGrid(rows)).map((r) => r.join(' '));
 }
 
 /**

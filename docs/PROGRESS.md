@@ -4,13 +4,14 @@
 small. At the end of each conversation, update this file in the same PR.
 
 ## Next up
-**Phase 3b: solver v1 + floor templates F1–3 + tutorial hints.** Read
-docs/03 (floor progression), docs/04 (tutorial) and docs/05 (solver). Build
-the solver over `act()` (states are values, so a BFS/IDDFS over actions
-works as is). Templates can start from `parseMap` rows (`core/maps.js`) and
-extend the legend for stacked layers and enemy anchors. Replace `devFloor`
-in `ui/screens.js` with seeded template floors, validate each with the
-solver, and revisit Mite tuning (see `docs/OPEN-QUESTIONS.md`).
+**Phase 4a: run state + floor progression + relic hooks.** Read docs/03
+(run structure, relics, spirits) and docs/05 (`run.js`, `relics.js`).
+Add a plain-data run state (`core/run.js`: seed, floor, HP carried over,
+relics, spirit) that replaces `ctx.startRun()` / the 3b next-floor panel,
+and a hook table for relics (fold relics first: Extra Crease, Thick Paper,
+Recycled Crease, Spring Crease). Floors 4–8 have no templates yet: the
+run can end after floor 3 until Phase 5. Add the Phase 4 telemetry events
+listed in docs/06 (`ctx.telemetry.track`, no backend change).
 
 ## Phase checklist
 Larger phases are split into PR-sized chunks so each conversation stays small.
@@ -23,10 +24,13 @@ Larger phases are split into PR-sized chunks so each conversation stays small.
 - [x] **Phase 2** — Player, turns, combat
   - [x] 2a Turn engine + event list, player move/bump/wait/HP (PR 5)
   - [x] 2b Scrap Mite AI, pin/strand/void-drop, event playback (PR 6)
-- [ ] **Phase 3** — Puzzle tiles, floors 1–3, tutorial hints, solver v1
+- [x] **Phase 3** — Puzzle tiles, floors 1–3, tutorial hints, solver v1
   - [x] 3a Keys, locks, plates, exit tiles (PR 7)
-  - [ ] 3b Solver v1 + floor templates F1–3 + hints
+  - [x] 3b Solver v1 + floor templates F1–3 + hints + telemetry (PR 8)
 - [ ] **Phase 4** — Run structure, relics (12+), spirits
+  - [ ] 4a Run state, floor progression, relic hooks + fold relics
+  - [ ] 4b Relic offers screen, defense + utility relics
+  - [ ] 4c Spirits (Fox, Frog, Turtle) + spirit select
 - [ ] **Phase 5** — Full enemy roster, floors 4–8
 - [ ] **Phase 6** — Great Crane boss, run summary
 - [ ] **Phase 7** — Meta-progression, daily seed, persistence
@@ -234,8 +238,53 @@ Larger phases are split into PR-sized chunks so each conversation stays small.
   gate, mouse drag fold delivering the key on `?map=courier`. No console
   errors.
 
+### PR 8: Phase 3b solver, floor templates, hints, telemetry
+- `core/solver.js`: BFS over `act()` (states are values), deduped by
+  `stateKey` (board, keys, charges; not turn or undo). Returns the
+  shortest line plus `explored` / `capped`. `noFolds` checks a floor needs
+  folding. `cloneBoard` is now a hand copy instead of structuredClone
+  (~6× faster; it was 80% of solver time). Layer fields must stay
+  primitives, plus a flat `creature`.
+- `core/replay.js`: compact action codes (`u d l r w z`, folds `fh3a`) and
+  `replay()`. The basis for telemetry analysis now and saves in Phase 7.
+- `core/maps.js`: `?` enemy anchors, `under` grids (layers beneath the
+  visible row, so maps can start stacked), `MAP_TRANSFORMS` (id, flipH,
+  flipV, rot180).
+- `core/floors.js`: data templates (`rows`, `under`, `transforms`, `vary`,
+  `enemies` on anchors, `charges`, `needs`, `hints`). F1 `f1-bridge`
+  (bridge the void), F2 `f2-plate` (thick exit + gate: hold the plate), F3
+  `f3-vault` (bridge, key, lock in a thick wall) and `f3-ferry` (fold the
+  key across the void). `generateFloor(n, seed)` is seeded per floor.
+  Validation: tests enumerate every variant (18 now) and prove each
+  solvable and each `needs` essential (the "precomputed" route, so floor
+  start is instant); `checkAtRuntime` templates solve + reroll + fall back.
+  Par lines today: F1 2 turns, F2 6, F3 8 or 16–17, 1–2 folds.
+- Mite tuning settled (no stat change; see OPEN-QUESTIONS). docs/03 also
+  introduces the Paper Wasp (F2) and Card Brute (F3); they arrive with the
+  Phase 5 roster, and their templates get added then.
+- `core/hints.js` + `ui/hintStore.js`: 10 hints with triggers (`start`,
+  `event:<type>` with `who`, `refuse:<reason>`), shown once per player as a
+  non-blocking HUD card ("Got it"); newer triggers replace the card. New
+  How to Play screen lists them all and can re-arm them.
+- Floor screen: plays template floors (dev `?map=`, `?size=`, `?demo=1`
+  still work; `?floor=` picks the floor). Win → Next floor; after F3 a
+  Run complete panel. New Run picks a fresh seed (unless `?seed=`).
+- Telemetry (`docs/07-telemetry.md`): fixed envelope + opaque `data`, so
+  the backend never changes for new events. Persisted offline queue,
+  batches, `sendBeacon` on page hide, error capture, input source per
+  action. `floor.end` carries the full action log, so any later question
+  is a replay (`tools/replay-check.js` verifies logs replay identically).
+  `tools/telemetry-collector.js` is a zero-dependency reference backend.
+  `src/config.js` holds the endpoint (empty: nothing is sent), versions.
+  Title screen toggle "Share play data" (setting `telemetry`).
+- 32 new tests (168 total; ~14 s, mostly the template proofs). Verified in
+  headless Chromium: floors 1→3 won by keyboard on desktop via the solver
+  lines, events landing in the local collector and all 6 logged floors
+  replaying identically; phone portrait touch fold on F2 with hint cards;
+  How to Play. No console errors.
+
 ## Conventions worth remembering
-- Dev URL params: `?screen=floor&map=courier&size=7&seed=abc&palette=night-ink&demo=1&speed=slow&motion=on&charges=3&mites=2`.
+- Dev URL params: `?screen=floor&floor=2&map=courier&size=7&seed=abc&palette=night-ink&demo=1&speed=slow&motion=on&charges=3&mites=2&telemetry=console`.
 - New draw layers → add a pass to `PASSES` in `renderer.js`.
 - New tile types → `TILE`/`TILE_DEFS` in `tiles.js` + a painter in
   `TILE_PAINTERS` (`renderer.js`; painters get the layer). Items →
@@ -245,6 +294,15 @@ Larger phases are split into PR-sized chunks so each conversation stays small.
   `resolveFold` next to the creature rules.
 - Hand-made layouts → `parseMap` rows (`core/maps.js`); new symbols go in
   `MAP_LEGEND`.
+- Floors → a template in `FLOOR_TEMPLATES` (`core/floors.js`). `npm test`
+  proves every variant; keep `vary` cells and anchors few. List what it
+  teaches in `needs` (add a check to `NEEDS` for a new tool). Use thick
+  (3-high) stacks to stop folds from bypassing the lesson.
+- Tutorial hints → `HINTS` (`core/hints.js`) + the template's `hints`.
+- Telemetry → `ctx.telemetry.track(type, data)`; never change the backend.
+  Changed `data` shape → bump `dv`. Rule change that alters replays →
+  bump `LOGIC_VERSION` (`src/config.js`). New actions → a code in
+  `core/replay.js`.
 - New screens → `ui/screens.js`, register in `main.js`.
 - New random streams → `fork(runRng, 'label')`; never use `Math.random` in logic.
 - Fold geometry → add an entry to `AXES` in `fold.js`; creature effects of a

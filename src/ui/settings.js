@@ -22,10 +22,17 @@ export const MOTION_MODES = Object.freeze([
   { id: 'off', name: 'Off' },
 ]);
 
+/** Share anonymous play data (src/telemetry, docs/07-telemetry.md). */
+export const TELEMETRY_MODES = Object.freeze([
+  { id: 'on', name: 'On' },
+  { id: 'off', name: 'Off' },
+]);
+
 export const DEFAULT_SETTINGS = Object.freeze({
   version: SETTINGS_VERSION,
   animSpeed: 'normal',
   reducedMotion: 'system',
+  telemetry: 'on',
 });
 
 /** Fill defaults and drop unknown values (bad or old saves reset per field). */
@@ -34,6 +41,7 @@ export function normalizeSettings(raw) {
   if (!raw || typeof raw !== 'object') return s;
   if (ANIM_SPEEDS.some((o) => o.id === raw.animSpeed)) s.animSpeed = raw.animSpeed;
   if (MOTION_MODES.some((o) => o.id === raw.reducedMotion)) s.reducedMotion = raw.reducedMotion;
+  if (TELEMETRY_MODES.some((o) => o.id === raw.telemetry)) s.telemetry = raw.telemetry;
   return s;
 }
 

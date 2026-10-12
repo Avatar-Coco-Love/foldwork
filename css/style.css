@@ -215,6 +215,63 @@ body {
   display: none;
 }
 
+/* Tutorial hint card: just above the action bar in portrait, between the
+   two HUD regions in the landscape side panel. Never blocks the board. */
+.hud-hint {
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  bottom: calc(var(--hud-bottom) + 8px);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 0 auto;
+  max-width: 520px;
+  padding: 10px 12px;
+  border: 2px dashed var(--c-ink-soft);
+  border-radius: var(--radius);
+  background: var(--c-ui-surface);
+  font-size: 15px;
+  line-height: 1.35;
+  pointer-events: auto;
+}
+.hud-hint-body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+}
+.hud-hint-title {
+  font-size: 16px;
+}
+
+/* How to Play: a scrolling list of every hint. */
+.howto {
+  justify-content: flex-start;
+  overflow-y: auto;
+  pointer-events: auto;
+}
+.howto-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: min(520px, 100%);
+  margin: 0 0 16px;
+  padding: 0;
+  list-style: none;
+  text-align: left;
+}
+.howto-list li {
+  padding: 10px 12px;
+  border: 2px solid var(--c-ui-border);
+  border-radius: var(--radius);
+  background: var(--c-ui-surface);
+  line-height: 1.4;
+}
+.howto-list strong {
+  display: block;
+}
+
 /* End-of-floor panel, over the board. */
 .hud-outcome {
   background: rgba(0, 0, 0, 0.35);
@@ -254,6 +311,13 @@ body {
     height: auto;
     flex-direction: column;
     align-items: stretch;
+  }
+  .hud-hint {
+    position: static;
+    flex-direction: column;
+    align-items: stretch;
+    margin: 0 8px;
+    font-size: 14px;
   }
 }
 
