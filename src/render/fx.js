@@ -1,11 +1,11 @@
-// Presentational effects: fold animation and board shake.
+// Presentational effects: fold animation, creature clips and board shake.
 //
 // Two layers, like preview.js:
 //   - Pure model + timing (no DOM): buildFoldAnim, foldFrame, shakeOffset,
-//     foldDurationMs. Unit tested.
+//     clipDurationMs / foldDurationMs. Unit tested.
 //   - createFxPlayer: a tiny requestAnimationFrame driver that advances one
-//     effect at a time and asks the renderer to redraw. The renderer paints
-//     scene.foldAnim / scene.shake; it never times anything itself.
+//     clip at a time and asks the renderer to redraw. The renderer paints
+//     fx.foldAnim / fx.actor / fx.shake; it never times anything itself.
 //
 // Game logic never waits on this: the board is already folded when the
 // animation starts. The animation only shows how it got there.
@@ -22,12 +22,23 @@ export const SHAKE_MS = 320;
 export const FLASH_MS = 300;
 
 /**
- * Fold animation duration in ms. `speed` is a multiplier (2 = twice as fast).
+ * Creature clip durations at speed 1 (render/playback.js). Kept short so a
+ * turn reads instantly; the fold is the showpiece.
+ */
+export const ACTOR_MS = Object.freeze({ move: 130, bump: 170, hit: 220, death: 260, fall: 380 });
+
+/**
+ * A clip's duration in ms. `speed` is a multiplier (2 = twice as fast).
  * Reduced motion makes it instant (0).
  */
-export function foldDurationMs({ speed = 1, reducedMotion = false } = {}) {
+export function clipDurationMs(baseMs, { speed = 1, reducedMotion = false } = {}) {
   if (reducedMotion || !(speed > 0)) return 0;
-  return Math.round(FOLD_MS / speed);
+  return Math.round(baseMs / speed);
+}
+
+/** Fold animation duration in ms (see clipDurationMs). */
+export function foldDurationMs(motion) {
+  return clipDurationMs(FOLD_MS, motion);
 }
 
 /**
@@ -103,39 +114,53 @@ export function shakeOffset(t, amplitude = 6) {
 // Player (DOM: requestAnimationFrame + performance.now)
 
 /**
- * createFxPlayer({ invalidate, onChange })
- *   invalidate()        request a redraw (renderer.invalidate)
- *   onChange()          the scene's fx state changed (owner pushes it to the
- *                       renderer). Called every frame while something plays.
+ * createFxPlayer({ onChange })
+ *   onChange()   the fx state changed (owner asks the renderer to redraw).
+ *                Called every frame while something plays.
  *
- * State the renderer reads (via the owner's scene):
- *   player.foldAnim  { ...buildFoldAnim(), u } or null
+ * One clip plays at a time (a fold or a creature actor); the shake runs
+ * alongside. State the renderer reads:
+ *   player.foldAnim  { ...buildFoldAnim(), u, frame } or null
+ *   player.actor     { ...actor, u } or null (see render/playback.js)
  *   player.shake     { x, flash } or null
  */
 export function createFxPlayer({ onChange, now = () => performance.now() }) {
-  let fold = null; // { anim, start, duration, reverse, done }
+  let clip = null; // { start, duration, reverse, done }
   let shake = null; // { start, duration, flash }
   let rafId = 0;
   const frameOut = {};
 
   const player = {
     foldAnim: null,
+    actor: null,
     shake: null,
     get busy() {
-      return !!fold;
+      return !!clip;
     },
     /**
      * Play a fold. `reverse` plays it backwards (undo). Calls done() when it
      * finishes or is skipped; a duration of 0 finishes synchronously.
      */
     playFold(anim, { duration, reverse = false, done = null }) {
-      finishFold();
+      finishClip();
       if (!(duration > 0)) {
         if (done) done();
         return;
       }
-      fold = { anim, start: now(), duration, reverse, done };
+      clip = { start: now(), duration, reverse, done };
       player.foldAnim = { ...anim, u: reverse ? 1 : 0, frame: foldFrame(reverse ? 1 : 0, frameOut) };
+      onChange();
+      schedule();
+    },
+    /** Play a creature clip (move, bump, hit, death, fall). Same contract. */
+    playActor(actor, { duration, done = null }) {
+      finishClip();
+      if (!(duration > 0)) {
+        if (done) done();
+        return;
+      }
+      clip = { start: now(), duration, reverse: false, done };
+      player.actor = { ...actor, u: 0 };
       onChange();
       schedule();
     },
@@ -146,16 +171,17 @@ export function createFxPlayer({ onChange, now = () => performance.now() }) {
       onChange();
       schedule();
     },
-    /** Jump any running fold to its end (calls its done()). */
+    /** Jump the running clip to its end (calls its done()). */
     finish() {
-      finishFold();
+      finishClip();
     },
     destroy() {
       if (rafId) cancelAnimationFrame(rafId);
       rafId = 0;
-      fold = null;
+      clip = null;
       shake = null;
       player.foldAnim = null;
+      player.actor = null;
       player.shake = null;
     },
   };
@@ -164,11 +190,12 @@ export function createFxPlayer({ onChange, now = () => performance.now() }) {
     if (!rafId) rafId = requestAnimationFrame(tick);
   }
 
-  function finishFold() {
-    if (!fold) return;
-    const { done } = fold;
-    fold = null;
+  function finishClip() {
+    if (!clip) return;
+    const { done } = clip;
+    clip = null;
     player.foldAnim = null;
+    player.actor = null;
     onChange();
     if (done) done();
   }
@@ -176,14 +203,16 @@ export function createFxPlayer({ onChange, now = () => performance.now() }) {
   function tick() {
     rafId = 0;
     const t = now();
-    if (fold) {
-      const p = Math.min(1, (t - fold.start) / fold.duration);
+    if (clip) {
+      const p = Math.min(1, (t - clip.start) / clip.duration);
       if (p >= 1) {
-        finishFold();
-      } else {
-        const u = fold.reverse ? 1 - p : p;
+        finishClip();
+      } else if (player.foldAnim) {
+        const u = clip.reverse ? 1 - p : p;
         player.foldAnim.u = u;
         foldFrame(u, player.foldAnim.frame);
+      } else if (player.actor) {
+        player.actor.u = p;
       }
     }
     if (shake) {
@@ -196,7 +225,7 @@ export function createFxPlayer({ onChange, now = () => performance.now() }) {
       }
     }
     onChange();
-    if (fold || shake) schedule();
+    if (clip || shake) schedule();
   }
 
   return player;

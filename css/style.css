@@ -148,15 +148,51 @@ body {
 }
 .hud-status {
   height: var(--hud-top);
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 2px;
   font-weight: 700;
   font-size: 18px;
+}
+.hud-meters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 12px;
+}
+.hud-meter {
+  display: inline-flex;
+  gap: 2px;
+}
+.hud-icon {
+  width: 20px;
+  height: 20px;
+  stroke: var(--c-ink);
+  stroke-width: 1.6;
+  stroke-linejoin: round;
+}
+.hud-hp .hud-icon {
+  fill: var(--c-danger);
+}
+.hud-charges .hud-icon {
+  fill: var(--c-accent);
+  width: 18px;
+  height: 18px;
+}
+/* Spent: hollow and dashed, so it never relies on color alone. */
+.hud-meter .hud-icon-spent {
+  fill: none;
+  stroke: var(--c-ink-soft);
+  stroke-dasharray: 2.5 2;
 }
 .hud-actions {
   height: var(--hud-bottom);
   justify-content: center;
 }
 .hud-fold {
-  font-size: 15px;
+  min-height: 18px;
+  font-size: 14px;
   font-weight: 600;
   color: var(--c-ink-soft);
 }
@@ -165,6 +201,26 @@ body {
 }
 .btn[hidden] {
   display: none;
+}
+
+/* End-of-floor panel, over the board. */
+.hud-outcome {
+  background: rgba(0, 0, 0, 0.35);
+}
+.panel {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  width: min(340px, 100%);
+  padding: 24px;
+  border: 2px solid var(--c-ui-border);
+  border-radius: var(--radius);
+  background: var(--c-ui-surface);
+}
+.outcome-title {
+  margin: 0;
+  font-size: 28px;
 }
 
 /* Landscape: one side panel holding both regions. */

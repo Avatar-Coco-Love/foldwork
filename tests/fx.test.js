@@ -133,3 +133,33 @@ test('fx player shake: offset while running, static flash under reduced motion',
   delete globalThis.requestAnimationFrame;
   delete globalThis.cancelAnimationFrame;
 });
+
+test('fx player: actor clips expose u, share the single clip slot, finish calls done', () => {
+  let t = 0;
+  const frames = [];
+  globalThis.requestAnimationFrame = (fn) => frames.push(fn);
+  globalThis.cancelAnimationFrame = () => {};
+  try {
+    const fx = createFxPlayer({ onChange: () => {}, now: () => t });
+    let done = 0;
+    fx.playActor({ kind: 'move', id: 'player' }, { duration: 100, done: () => done++ });
+    assert.ok(fx.busy);
+    assert.equal(fx.actor.u, 0);
+    t = 50;
+    frames.shift()();
+    assert.equal(fx.actor.u, 0.5);
+    // Starting a fold finishes the running actor clip first.
+    fx.playFold(buildFoldAnim(createBoard(5, 5), { axis: 'v', index: 1, side: 'before' }), { duration: 100 });
+    assert.equal(done, 1);
+    assert.equal(fx.actor, null);
+    assert.ok(fx.foldAnim);
+    fx.finish();
+    assert.ok(!fx.busy);
+    fx.playActor({ kind: 'hit' }, { duration: 0, done: () => done++ });
+    assert.equal(done, 2);
+    assert.ok(!fx.busy);
+  } finally {
+    delete globalThis.requestAnimationFrame;
+    delete globalThis.cancelAnimationFrame;
+  }
+});

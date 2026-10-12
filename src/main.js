@@ -8,6 +8,7 @@
 //   ?demo=1         seeded demo board with walls, voids and stacks
 //   ?speed=slow     animation speed for this session (slow|normal|fast)
 //   ?motion=on      reduced motion for this session (system|on|off)
+//   ?charges=1      fold charges for the floor (default 3)
 
 import { createRenderer } from './render/renderer.js';
 import { HUD_METRICS } from './render/layout.js';
@@ -114,4 +115,9 @@ document.addEventListener('dblclick', (e) => e.preventDefault());
 ctx.setPalette(params.palette);
 onResize();
 const startScreen = ctx.router.has(params.screen) ? params.screen : 'title';
-ctx.router.go(startScreen, { floor: 1, size: params.size, demo: params.demo === '1' });
+ctx.router.go(startScreen, {
+  floor: 1,
+  size: params.size,
+  demo: params.demo === '1',
+  charges: params.charges != null ? Number(params.charges) : undefined,
+});

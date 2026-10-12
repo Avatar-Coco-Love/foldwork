@@ -3,11 +3,16 @@
 import { el } from './dom.js';
 import { createHud } from './hud.js';
 import { createFoldInput } from './input.js';
-import { foldWithUndo, unfold } from '../core/fold.js';
+import { dirToward } from './moveInput.js';
 import { buildFoldPreview } from '../render/preview.js';
-import { createFxPlayer, buildFoldAnim, foldDurationMs } from '../render/fx.js';
+import { createFxPlayer } from '../render/fx.js';
+import { createPlayback, buildClips } from '../render/playback.js';
+import {
+  createFloorState, act, canUndo, foldCheck, playerOf, PLAYER_ID, DEFAULT_FOLD_CHARGES,
+} from '../core/turn.js';
+import { CREATURE_DEFS } from '../core/creatures.js';
 import { ANIM_SPEEDS, MOTION_MODES, cycleOption, optionName } from './settings.js';
-import { createBoard } from '../core/board.js';
+import { createBoard, findCreature } from '../core/board.js';
 import { TILE } from '../core/tiles.js';
 import { createRng, fork, nextInt, chance } from '../core/rng.js';
 import { PALETTES } from '../render/palette.js';
@@ -62,55 +67,94 @@ export const titleScreen = {
 export const floorScreen = {
   mount(root, ctx, params) {
     const size = clampSize(Number(params.size) || 5);
-    // Floor session state. Phase 2a moves this into the turn engine (charges,
-    // and undo only until the player's next action).
-    const state = {
-      board: params.demo ? demoBoard(size, ctx.seed) : createBoard(size, size),
-      undo: null, // snapshot of the latest fold, if it can still be undone
-      preview: null,
-    };
+    const board = params.demo ? demoBoard(size, ctx.seed) : createBoard(size, size);
+    const charges = Number.isInteger(params.charges) ? params.charges : DEFAULT_FOLD_CHARGES;
+    let state = createFloorState({ board, charges });
+    let shownBoard = state.board; // what the renderer shows (lags during playback)
+    let preview = null;
+    let queued = null; // one action pressed during playback (docs/04 input buffer)
+
     const canvas = ctx.renderer.canvas;
     const fx = createFxPlayer({ onChange: () => ctx.renderer.invalidate() });
     ctx.renderer.setFx(fx);
+    const playback = createPlayback({
+      fx,
+      show(b) {
+        shownBoard = b;
+        sync();
+      },
+    });
 
     const sync = () => {
-      ctx.renderer.setScene({ board: state.board, preview: state.preview });
-      hud.setUndoEnabled(!!state.undo && !fx.busy);
-      const pv = state.preview;
-      hud.setFoldStatus(pv ? foldStatusText(pv) : null, pv && !pv.ok);
+      ctx.renderer.setScene({ board: shownBoard, preview });
+      const me = playerOf(state);
+      hud.setHp(me ? me.hp : 0, me ? me.maxHp : CREATURE_DEFS.player.hp);
+      hud.setCharges(state.charges, state.maxCharges);
+      hud.setUndoEnabled(canUndo(state));
+      hud.setFoldStatus(preview ? foldStatusText(preview) : null, preview && !preview.ok);
     };
 
     const hud = createHud(root, {
       floor: params.floor || 1,
       onMenu: () => ctx.router.go('title'),
-      onUndo: () => undo(),
+      onUndo: () => dispatch({ type: 'undo' }),
+      onWait: () => dispatch({ type: 'wait' }),
       onCancel: () => input.cancel(),
     });
 
-    // Plays a fold animation with input locked; the board is already in its
-    // final state, so skipping or interrupting the animation is always safe.
-    function animateFold(anim, reverse) {
-      const duration = foldDurationMs(ctx.motion());
-      if (!duration) return;
-      input.setEnabled(false);
-      fx.playFold(anim, {
-        duration,
-        reverse,
-        done: () => {
-          input.setEnabled(true);
-          sync();
-        },
-      });
+    // Runs one action through the turn engine, then plays its events back.
+    // Logic is final before playback starts; input pressed meanwhile is
+    // buffered (one action, the latest wins) and runs when playback ends.
+    function dispatch(action) {
+      if (state.status !== 'playing') return;
+      if (playback.busy) {
+        queued = action;
+        return;
+      }
+      const before = state;
+      const result = act(state, action, { snapshots: true });
+      if (!result.ok) {
+        refuse(result.reason);
+        return;
+      }
+      state = result.state;
+      preview = null;
+      input.setBusy(true);
+      playback.play(buildClips(before.board, result.events, ctx.motion()), state.board, settle);
     }
 
-    function undo() {
-      if (!state.undo || fx.busy) return;
-      const snapshot = state.undo;
-      state.board = unfold(snapshot);
-      state.undo = null;
-      // Reverse playback: the sheets lift off the stacks and unfold home.
-      animateFold(buildFoldAnim(snapshot.board, snapshot.fold), true);
+    function settle() {
+      input.setBusy(false);
       sync();
+      if (state.status !== 'playing') {
+        queued = null;
+        endFloor();
+        return;
+      }
+      const next = queued;
+      queued = null;
+      if (next) dispatch(next);
+    }
+
+    function refuse(reason) {
+      const text = REFUSALS[reason];
+      if (text) hud.notify(text);
+      if (reason === 'no-charges' || reason === 'invalid-fold') {
+        fx.playShake({ reducedMotion: ctx.motion().reducedMotion });
+      }
+    }
+
+    function endFloor() {
+      input.setEnabled(false);
+      const cause = state.outcome && state.outcome.cause;
+      hud.showOutcome({
+        title: 'Torn',
+        text: cause === 'fall' ? 'You fell through the paper.' : 'Out of HP.',
+        actions: [
+          { label: 'Retry', primary: true, onclick: () => ctx.router.go('floor', params) },
+          { label: 'Menu', onclick: () => ctx.router.go('title') },
+        ],
+      });
     }
 
     const input = createFoldInput({
@@ -118,29 +162,37 @@ export const floorScreen = {
       getLayout: () => ctx.renderer.layout,
       getBoard: () => state.board,
       onPreview(crease) {
-        state.preview = crease ? buildFoldPreview(state.board, crease) : null;
+        preview = crease ? foldPreview(state, crease) : null;
         sync();
       },
       onConfirm(crease) {
-        const pv = buildFoldPreview(state.board, crease);
-        if (!pv || !pv.ok) return false;
-        const before = state.board;
-        const result = foldWithUndo(before, crease);
-        state.board = result.board;
-        state.undo = result.undo;
-        state.preview = null;
-        animateFold(buildFoldAnim(before, crease), false);
-        sync();
+        const pv = foldPreview(state, crease);
+        if (!pv || !pv.ok) {
+          if (pv && pv.reasons[0]?.code === 'no-charges') hud.notify(REFUSALS['no-charges']);
+          return false;
+        }
+        preview = null;
+        dispatch({ type: 'fold', fold: crease });
         return true;
       },
       onInvalid() {
         fx.playShake({ reducedMotion: ctx.motion().reducedMotion });
       },
-      onUndo: undo,
+      onUndo: () => dispatch({ type: 'undo' }),
+      onWait: () => dispatch({ type: 'wait' }),
+      onMove: (dir) => dispatch({ type: 'move', dir }),
+      onTap(cell) {
+        // Tap an adjacent tile to step (or bump) there. Measured from where
+        // the player will be once any running playback is done.
+        const me = findCreature(state.board, PLAYER_ID);
+        const dir = me && dirToward(me, cell);
+        if (dir) dispatch({ type: 'move', dir });
+      },
     });
 
     sync();
     return () => {
+      playback.finish();
       fx.destroy();
       ctx.renderer.setFx(null);
       input.destroy();
@@ -149,8 +201,27 @@ export const floorScreen = {
   },
 };
 
+/** Why an action was refused, for the HUD (null = say nothing). */
+const REFUSALS = {
+  blocked: 'A wall blocks the way.',
+  edge: null,
+  pinned: 'Pinned under paper. Undo the fold to get free.',
+  'no-charges': 'No fold charges left.',
+  'no-undo': 'Nothing to undo.',
+  'invalid-fold': null,
+};
+
+/** Fold preview for the HUD and board, including the charge check. */
+function foldPreview(state, crease) {
+  const pv = buildFoldPreview(state.board, crease);
+  if (!pv) return null;
+  const check = foldCheck(state, crease);
+  return check.ok === pv.ok ? pv : { ...pv, ok: check.ok, reasons: check.reasons };
+}
+
 function foldStatusText(pv) {
   if (!pv.ok) {
+    if (pv.reasons[0]?.code === 'no-charges') return 'No fold charges left';
     const n = pv.reasons.filter((r) => r.code === 'stack-overflow').length;
     return `Too tall: ${n} stack${n === 1 ? '' : 's'} over ${pv.reasons[0]?.max ?? 3}`;
   }

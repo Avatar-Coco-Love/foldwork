@@ -5,13 +5,17 @@
 // later phases add passes (creatures, fold preview, fx) to PASSES instead of
 // growing one big draw function.
 //
-// Effects (fold animation, shake) are timed by render/fx.js; the renderer
-// only paints the player's current state (see setFx).
+// Effects (fold animation, creature clips, shake) are timed by render/fx.js;
+// the renderer only paints the player's current state (see setFx).
+// Creatures are painted on their layer by drawLayer (so they ride folds and
+// sit under any layer stacked over them); the actor pass draws the one
+// creature a clip is animating.
 
 import { computeLayout, cellOrigin } from './layout.js';
 import { getPalette, DEFAULT_PALETTE_ID } from './palette.js';
 import { TILE } from '../core/tiles.js';
 import { CELL } from './preview.js';
+import { drawCreature } from './creatures.js';
 
 const MAX_DPR = 2;
 
@@ -27,7 +31,7 @@ export function createRenderer(canvas, { paletteId = DEFAULT_PALETTE_ID } = {}) 
     leftHanded: false,
     palette: getPalette(paletteId),
     scene: null, // { board, preview? } — extended by later phases
-    fx: null, // fx player (render/fx.js): foldAnim, shake
+    fx: null, // fx player (render/fx.js): foldAnim, actor, shake
     layout: null,
     frameRequested: false,
   };
@@ -84,7 +88,7 @@ export function createRenderer(canvas, { paletteId = DEFAULT_PALETTE_ID } = {}) 
       relayout();
       api.invalidate();
     },
-    /** Attach an fx player; its foldAnim/shake are painted each frame. */
+    /** Attach an fx player; its foldAnim/actor/shake are painted each frame. */
     setFx(fx) {
       r.fx = fx;
       api.invalidate();
@@ -105,7 +109,7 @@ export function createRenderer(canvas, { paletteId = DEFAULT_PALETTE_ID } = {}) 
 // ---------------------------------------------------------------------------
 // Draw passes
 
-const PASSES = [drawBackground, drawBoardBase, drawTiles, drawFoldPreview, drawFoldAnim, drawFlash];
+const PASSES = [drawBackground, drawBoardBase, drawTiles, drawFoldPreview, drawFoldAnim, drawActor, drawFlash];
 
 function draw(r) {
   const { ctx } = r;
@@ -141,7 +145,8 @@ function drawTiles(r, ctx) {
   // Mid-fold, the moving stacks are drawn by drawFoldAnim, not here.
   const anim = r.fx && r.fx.foldAnim;
   const board = anim ? anim.base : r.scene.board;
-  const lift = Math.max(2, Math.round(L.cellSize * 0.06)); // per-layer offset
+  const lift = layerLift(L.cellSize);
+  const skip = skipId(r);
   for (let row = 0; row < board.h; row++) {
     for (let col = 0; col < board.w; col++) {
       const { layers } = board.cells[row * board.w + col];
@@ -152,7 +157,13 @@ function drawTiles(r, ctx) {
         continue;
       }
       for (let i = 0; i < layers.length; i++) {
-        drawLayer(ctx, r.palette, layers[i], o.x, o.y - i * lift, L.cellSize, i === layers.length - 1);
+        drawLayer(ctx, r.palette, layers[i], o.x, o.y - i * lift, L.cellSize, i === layers.length - 1, skip);
+      }
+      // Creatures under a stacked layer are pinned: show a ghost of them on
+      // top with a paper clip (docs/04), so they never just vanish.
+      for (let i = 0; i < layers.length - 1; i++) {
+        const c = layers[i].creature;
+        if (c && c.id !== skip) drawPinned(ctx, r.palette, c, o.x, o.y - (layers.length - 1) * lift, L.cellSize);
       }
     }
   }
@@ -169,7 +180,7 @@ function drawFoldPreview(r, ctx) {
   const board = r.scene.board;
   const p = r.palette;
   const size = L.cellSize;
-  const lift = Math.max(2, Math.round(size * 0.06));
+  const lift = layerLift(size);
   const lineW = Math.max(2, Math.round(size * 0.06));
   const dash = Math.max(3, Math.round(size * 0.1));
 
@@ -225,7 +236,7 @@ function drawFoldAnim(r, ctx) {
   const p = r.palette;
   const f = anim.frame;
   const size = L.cellSize;
-  const lift = Math.max(2, Math.round(size * 0.06));
+  const lift = layerLift(size);
   const c = f.cos;
   const vertical = anim.fold.axis === 'v';
   const crease = anim.fold.index * size + (vertical ? L.boardX : L.boardY);
@@ -252,7 +263,7 @@ function drawFoldAnim(r, ctx) {
   // passes upright, landing order after (h folds reverse the rows).
   const forward = c >= 0;
   const shade = (1 - Math.abs(c)) * 0.45;
-  const gap = Math.max(1, Math.round(size * 0.04)); // as drawLayer
+  const gap = layerGap(size);
   for (let n = 0; n < sheets.length; n++) {
     const s = sheets[forward ? n : sheets.length - 1 - n];
     const o = cellOrigin(L, s.col, s.row);
@@ -269,7 +280,7 @@ function drawFoldAnim(r, ctx) {
         ctx.scale(1, c);
         ctx.translate(0, -crease);
       }
-      drawLayer(ctx, p, s.layers[i], o.x, o.y, size, i === s.layers.length - 1);
+      drawLayer(ctx, p, s.layers[i], o.x, o.y, size, i === s.layers.length - 1, null);
       if (shade > 0.01) {
         ctx.globalAlpha = shade;
         ctx.fillStyle = p.shadow;
@@ -279,6 +290,77 @@ function drawFoldAnim(r, ctx) {
     }
   }
 }
+
+// Creature clip (render/playback.js): the animated creature is skipped by
+// drawTiles and drawn here, between cells or fading out.
+function drawActor(r, ctx) {
+  const L = r.layout;
+  const a = r.fx && r.fx.actor;
+  if (!L || !a) return;
+  const p = r.palette;
+  const size = L.cellSize;
+  const lift = layerLift(size);
+  const gap = layerGap(size);
+  const u = a.u;
+  const from = cellOrigin(L, a.from.col, a.from.row);
+  const to = cellOrigin(L, a.to.col, a.to.row);
+  const fromY = from.y - a.fromLevel * lift;
+  const toY = to.y - a.toLevel * lift;
+  let x = from.x;
+  let y = fromY;
+  const opts = ACTOR_OPTS;
+  opts.alpha = 1;
+  opts.scale = 1;
+  opts.rot = 0;
+  if (a.kind === 'move') {
+    const t = easeInOut(u);
+    x = from.x + (to.x - from.x) * t;
+    y = fromY + (toY - fromY) * t - Math.sin(Math.PI * u) * size * 0.12; // a little hop
+  } else if (a.kind === 'bump') {
+    const k = Math.sin(Math.PI * u) * 0.32; // lunge toward the target and back
+    x = from.x + (to.x - from.x) * k;
+    y = fromY + (to.y - from.y) * k;
+  } else if (a.kind === 'hit') {
+    drawHit(ctx, p, to.x, toY, size, u);
+    return;
+  } else if (a.kind === 'death') {
+    opts.alpha = 1 - u;
+    opts.scale = 1 - 0.5 * u;
+    opts.rot = u * 0.8;
+  } else if (a.kind === 'fall') {
+    // Drops through the hole: shrinks toward the centre while spinning.
+    opts.alpha = 1 - u * u;
+    opts.scale = (1 - u) * (1 - u);
+    opts.rot = u * 2.4;
+    y += u * size * 0.08;
+  }
+  drawCreature(ctx, p, a.creature, x + gap, y + gap, size - gap * 2, opts);
+}
+const ACTOR_OPTS = { alpha: 1, scale: 1, rot: 0 };
+
+// Hit burst: an expanding ring plus four spikes (shape cue, not just color).
+function drawHit(ctx, p, x, y, size, u) {
+  const cx = x + size / 2;
+  const cy = y + size / 2;
+  const rad = size * (0.2 + 0.3 * u);
+  ctx.save();
+  ctx.globalAlpha = 1 - u;
+  ctx.strokeStyle = p.danger;
+  ctx.lineWidth = Math.max(2, size * 0.06);
+  ctx.beginPath();
+  ctx.arc(cx, cy, rad, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.beginPath();
+  for (let k = 0; k < 4; k++) {
+    const ang = Math.PI / 4 + (k * Math.PI) / 2;
+    ctx.moveTo(cx + Math.cos(ang) * rad * 1.1, cy + Math.sin(ang) * rad * 1.1);
+    ctx.lineTo(cx + Math.cos(ang) * rad * 1.5, cy + Math.sin(ang) * rad * 1.5);
+  }
+  ctx.stroke();
+  ctx.restore();
+}
+
+const easeInOut = (t) => (t < 0.5 ? 2 * t * t : 1 - (-2 * t + 2) ** 2 / 2);
 
 // Reduced-motion stand-in for the invalid shake: a brief outline around the
 // board (the HUD status text carries the reason).
@@ -362,11 +444,50 @@ const TILE_PAINTERS = {
   [TILE.VOID]: paintVoid,
 };
 
-function drawLayer(ctx, p, layer, x, y, size, isTop) {
-  const gap = Math.max(1, Math.round(size * 0.04));
+function drawPinned(ctx, p, creature, x, y, size) {
+  const gap = layerGap(size);
+  ctx.save();
+  ctx.globalAlpha = 0.4;
+  drawCreature(ctx, p, creature, x + gap, y + gap, size - gap * 2, PINNED_OPTS);
+  ctx.restore();
+  // Paper clip: two nested rounded loops, top-right corner.
+  const w = size * 0.14;
+  const h = size * 0.3;
+  const cx = x + size * 0.76;
+  const cy = y + size * 0.08;
+  ctx.strokeStyle = p.ink;
+  ctx.lineWidth = Math.max(1.5, size * 0.03);
+  ctx.lineCap = 'round';
+  roundRect(ctx, cx, cy, w, h, w / 2);
+  ctx.stroke();
+  roundRect(ctx, cx + w * 0.25, cy + h * 0.15, w * 0.5, h * 0.6, w / 4);
+  ctx.stroke();
+}
+const PINNED_OPTS = { alpha: 1, scale: 0.8, rot: 0, shadow: false };
+
+/** Vertical offset per stacked layer. */
+function layerLift(size) {
+  return Math.max(2, Math.round(size * 0.06));
+}
+
+/** Inset of a tile face inside its cell. */
+function layerGap(size) {
+  return Math.max(1, Math.round(size * 0.04));
+}
+
+/** Id of the creature the actor pass is drawing instead, if any. */
+function skipId(r) {
+  const a = r.fx && r.fx.actor;
+  return a && a.skip ? a.id : null;
+}
+
+function drawLayer(ctx, p, layer, x, y, size, isTop, skip) {
+  const gap = layerGap(size);
   const s = size - gap * 2;
   const painter = TILE_PAINTERS[layer.tile] || paintFloor;
   painter(ctx, p, x + gap, y + gap, s, isTop);
+  const c = layer.creature;
+  if (c && c.id !== skip) drawCreature(ctx, p, c, x + gap, y + gap, s, null);
 }
 
 function paintFloor(ctx, p, x, y, s) {

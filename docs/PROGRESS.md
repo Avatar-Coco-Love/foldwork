@@ -4,12 +4,13 @@
 small. At the end of each conversation, update this file in the same PR.
 
 ## Next up
-**Phase 2a: Turn engine + event list, player move/bump/wait/HP.** `core/turn.js`
-runs the player action and returns an event list; move the floor screen's
-`{board, undo}` into it, add fold charges (undo refunds) and HP. The renderer
-plays the events back (the fold event reuses `buildFoldAnim` + `fx.playFold`).
-Add the one-action input buffer during animations (spec 04) here, since that
-is when there are actions worth queueing.
+**Phase 2b: Scrap Mite AI, pin/strand/void-drop.** Add `core/enemies.js`
+(Mite def in `CREATURE_DEFS`, AI: step toward the player, bump for 1) and fill
+the `enemies` entry of `TURN_PHASES` in `core/turn.js` (fixed order:
+top-to-bottom, left-to-right; reuse `damageAt`, `fall` and the `move` / `bump`
+events, so playback already works). Implement pin, strand and void drop in
+the `resolveFold` hook, and add a Mite shape to `CREATURE_SHAPES`. Settle the
+open questions about a pinned player and empty cells for enemies first.
 
 ## Phase checklist
 Larger phases are split into PR-sized chunks so each conversation stays small.
@@ -20,7 +21,7 @@ Larger phases are split into PR-sized chunks so each conversation stays small.
   - [x] 1b Drag-to-fold input + live preview (pointer + keyboard, `ui/input.js`) (PR 3)
   - [x] 1c Fold animation + reduced-motion / speed setting (`render/fx.js`) (PR 4)
 - [ ] **Phase 2** — Player, turns, combat
-  - [ ] 2a Turn engine + event list, player move/bump/wait/HP
+  - [x] 2a Turn engine + event list, player move/bump/wait/HP (PR 5)
   - [ ] 2b Scrap Mite AI, pin/strand/void-drop, event playback
 - [ ] **Phase 3** — Puzzle tiles, floors 1–3, tutorial hints, solver v1
   - [ ] 3a Keys, locks, plates, exit tiles
@@ -121,6 +122,48 @@ Larger phases are split into PR-sized chunks so each conversation stays small.
   (frame-by-frame), phone + desktop, keyboard and mouse folds, undo reverse,
   reduced-motion instant fold, settings persistence. No console errors.
 
+### PR 5: Phase 2a turn engine + player
+- `core/turn.js`: floor state `{board, turn, charges, maxCharges, status,
+  outcome, undo}`. States are values: `act(state, action)` works on a copy
+  and returns `{ok, state, events, reason}`. A rejected action (wall, edge,
+  invalid fold, no charges) takes no turn and changes nothing.
+- Actions live in the `ACTIONS` table (move, wait, fold), plus undo. After a
+  turn-taking action, `TURN_PHASES` runs in order: `enemies` (2b) and
+  `environment` (3a) are empty stubs, then `outcome`.
+- The player is a creature on a layer (`core/creatures.js`, 3 HP), so folds
+  carry it for free. Move is 1 orthogonal step and can climb stacks. Walking
+  into a creature bumps it for 1 instead (`damageAt`; 0 HP removes it).
+  Walking into a void tile or an empty cell is a fall, which is defeat.
+- Fold charges: default 3, `?charges=` dev param. A fold costs 1. The undo
+  snapshot is the whole prior state, so undo refunds the charge (and will also
+  revert the enemy phase). It is only available until the next accepted
+  action, and not after defeat.
+- A player covered by a fold is "pinned": it can't move but can wait, fold,
+  or undo (see open questions). The renderer shows covered creatures as a
+  ghost with a paper clip on top of the stack.
+- Events: move, bump, damage, death, fall, wait, fold, unfold, defeat. With
+  `{snapshots: true}`, each event carries the board right after it.
+- `render/playback.js`: pure `buildClips(startBoard, events, motion)` makes one
+  clip per visible event, each showing the board before it. `createPlayback`
+  sequences them on the fx player. `fx.playActor` adds creature clips (move
+  hop, bump lunge, hit burst, death fade, fall spin) next to `playFold`.
+  Reduced motion gives no clips, so the board just jumps.
+- `render/creatures.js`: data-driven polygon shapes (`CREATURE_SHAPES`),
+  shared painter, HP pips for multi-HP enemies. Unknown kinds get a labelled
+  fallback token.
+- Input: arrows/WASD move, Space waits, tap an adjacent tile to move or bump
+  (`ui/moveInput.js`, pure). During playback, folds can't start
+  (`input.setBusy`), but one tap or key is buffered (the latest wins) and runs
+  when playback ends.
+- HUD: hearts and charge icons (filled = left, hollow dashed = spent, plus
+  aria labels), a message line for refusals, a Wait button (Cancel takes its
+  place while previewing), and a defeat panel with Retry / Menu.
+- 33 new tests (98 total). Verified in headless Chromium: desktop keyboard
+  (moves, buffered move, fold, undo refund, charges running out), phone touch
+  (tap moves, drag fold with the player riding the sheet, tap buffered during
+  the fold, fall into a void → defeat → Retry), landscape + Night Ink +
+  reduced motion. No console errors.
+
 ## Conventions worth remembering
 - Dev URL params: `?screen=floor&size=7&seed=abc&palette=night-ink&demo=1&speed=slow&motion=on`.
 - New draw layers → add a pass to `PASSES` in `renderer.js`.
@@ -135,3 +178,11 @@ Larger phases are split into PR-sized chunks so each conversation stays small.
   motion), and logic state is final before playback starts.
 - Settings: add fields to `DEFAULT_SETTINGS` + `normalizeSettings`.
 - HUD sizes live only in `HUD_METRICS` (layout.js); CSS reads them as variables.
+- Player actions → `ACTIONS` in `turn.js`; per-turn systems → `TURN_PHASES`.
+  Logic emits events; anything visible needs a case in `clipFor`
+  (`render/playback.js`).
+- Creature kinds → `CREATURE_DEFS` (`core/creatures.js`) + a shape in
+  `CREATURE_SHAPES` (`render/creatures.js`). Damage goes through `damageAt`,
+  falls through `fall`.
+- Fold-time creature rules (pin, strand, void drop) → `resolveFold` in
+  `turn.js`.
