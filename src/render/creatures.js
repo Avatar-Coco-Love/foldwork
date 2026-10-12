@@ -127,6 +127,24 @@ export const CREATURE_SHAPES = Object.freeze({
       { fill: 'shadow', points: [[0.5, 0.68], [0.68, 0.68], [0.62, 0.86], [0.5, 0.86]] },
     ],
   },
+  // Great Crane (boss): an origami crane in profile. A tall folded wing
+  // pair rising from a diamond body, a thin neck to a beaked head on the
+  // left, a tail spike on the right, two stilt legs. Large, and much
+  // wider than anything else.
+  crane: {
+    size: 'large',
+    parts: [
+      { fill: 'ink', points: [[0.44, 0.7], [0.48, 0.7], [0.42, 0.9], [0.38, 0.9]] },
+      { fill: 'ink', points: [[0.52, 0.7], [0.56, 0.7], [0.62, 0.9], [0.58, 0.9]] },
+      { fill: 'danger', stroke: 'ink', points: [[0.32, 0.6], [0.12, 0.16], [0.4, 0.52]] },
+      { fill: 'tileFace', stroke: 'ink', points: [[0.12, 0.16], [0.06, 0.24], [0.17, 0.2]] },
+      { fill: 'danger', stroke: 'ink', points: [[0.68, 0.6], [0.94, 0.2], [0.6, 0.52]] },
+      { fill: 'tileFace', stroke: 'ink', points: [[0.36, 0.5], [0.5, 0.05], [0.64, 0.5]] },
+      { fill: 'shadow', points: [[0.5, 0.05], [0.64, 0.5], [0.5, 0.5]] },
+      { fill: 'danger', stroke: 'ink', points: [[0.24, 0.6], [0.5, 0.46], [0.76, 0.6], [0.5, 0.74]] },
+      { fill: 'shadow', points: [[0.5, 0.46], [0.76, 0.6], [0.5, 0.74]] },
+    ],
+  },
 });
 
 // Unknown kinds: a plain token with the kind's initial, so tests and new

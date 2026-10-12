@@ -26,7 +26,7 @@ export const FLASH_MS = 300;
  * Creature clip durations at speed 1 (render/playback.js). Kept short so a
  * turn reads instantly; the fold is the showpiece.
  */
-export const ACTOR_MS = Object.freeze({ move: 130, slide: 240, bump: 170, shoot: 200, hit: 220, death: 260, fall: 380, spawn: 260, drop: 240 });
+export const ACTOR_MS = Object.freeze({ move: 130, slide: 240, bump: 170, shoot: 200, hit: 220, death: 260, fall: 380, spawn: 260, drop: 240, flee: 420 });
 
 /**
  * A clip's duration in ms. `speed` is a multiplier (2 = twice as fast).

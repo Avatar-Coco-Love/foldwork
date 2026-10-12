@@ -8,7 +8,7 @@
 //   @  player start (on floor)      m  Scrap Mite (on floor)
 //   W  Paper Wasp (on floor)        B  Card Brute (on floor)
 //   C  Creaseling (on floor)    J  Lockjaw (on floor)
-//   S  Spore Bloom (on floor)      G  Great Crane (on floor; its perch)
+//   S  Spore Bloom (on floor)      G  Great Crane (on floor)
 //   ?  enemy anchor (on floor): a spot a floor template may place an enemy
 //
 // parseMap(rows, { under }) → { board, player, enemies, anchors }, ready

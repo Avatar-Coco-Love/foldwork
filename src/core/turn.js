@@ -69,8 +69,8 @@
 //   { type: 'swat', id, by, from, to }           a boss fold landed on the
 //                                                player: moved from `from`
 //                                                to `to` (a damage follows)
-//   { type: 'perch', id, creature, from, to }    a boss lost a phase (or fell)
-//                                                and went back to its perch
+//   { type: 'flee', id, creature, from, to }     a hit boss flew away
+//                                                (core/boss.js fleeSpot)
 //   { type: 'pickup', id, item, at }             the player took an item
 //   { type: 'unlock', at, by }                   by: 'walk' | 'fold' |
 //                                                'master-key'
@@ -92,7 +92,7 @@ import { tileDef, itemDef, ITEM } from './tiles.js';
 import { validateFold, applyFold, isDiagonal } from './fold.js';
 import { createCreature, creatureDef, isHeavy } from './creatures.js';
 import { actingEnemies, reachField, planEnemy, enemiesInReach } from './enemies.js';
-import { isBoss, phaseOf, markCode } from './boss.js';
+import { isBoss, markCode, fleeSpot } from './boss.js';
 import { syncGates, tickPlates, isLocked, unlockLayer, keyMeetsLock, spendKey } from './environment.js';
 
 export { DIRS };
@@ -150,10 +150,6 @@ export function createFloorState({
     const spot = topLayer(next, e.col, e.row);
     if (!spot || !isFooting(spot) || spot.creature) throw new Error(`No room for ${e.kind} at ${e.col},${e.row}`);
     spot.creature = createCreature(e.kind, { id: e.id || `${e.kind}-${n}` });
-    if (isBoss(spot.creature)) {
-      spot.creature.homeCol = e.col;
-      spot.creature.homeRow = e.row;
-    }
     if (e.item !== undefined) {
       if (e.item) spot.creature.item = e.item;
       else delete spot.creature.item;
@@ -551,13 +547,12 @@ export function damageAt(s, at, amount, emit, { blockable = true } = {}) {
   const creature = layer && layer.creature;
   if (!creature) return;
   if (blockable && creature.id === PLAYER_ID && blockHit(s, creature, at, emit)) return;
-  const phase = isBoss(creature) ? phaseOf(creature) : 0;
   creature.hp = Math.max(0, creature.hp - amount);
   emit({ type: 'damage', id: creature.id, amount, hp: creature.hp, at: { ...at } });
   if (creature.hp > 0) {
-    if (phase && phaseOf(creature) !== phase) {
+    if (isBoss(creature)) {
       layer.creature = null;
-      perch(s, creature, at, emit);
+      flee(s, creature, at, emit);
     }
     return;
   }
@@ -570,25 +565,26 @@ export function damageAt(s, at, amount, emit, { blockable = true } = {}) {
   }
 }
 
-// A boss (already off its cell) goes back to its perch: the nearest free
-// footing to it. Its mark is cleared. Nowhere free: it stays out (can't
-// happen on a board with any free footing).
-function perch(s, creature, from, emit) {
+// A hit boss (already off its cell) flies to fleeSpot, mark cleared.
+// Nowhere free: it stays off the board (can't happen with any free
+// footing left).
+function flee(s, creature, from, emit) {
   creature.mark = null;
-  const to = nearestFreeFooting(s.board, { col: creature.homeCol ?? from.col, row: creature.homeRow ?? from.row });
+  const field = reachField(s.board, findCreature(s.board, PLAYER_ID));
+  const to = fleeSpot(s.board, field, from, nearestFreeFooting);
   if (!to) return;
   topLayer(s.board, to.col, to.row).creature = creature;
-  emit({ type: 'perch', id: creature.id, creature: { ...creature }, from: { ...from }, to });
+  emit({ type: 'flee', id: creature.id, creature: { ...creature }, from: { ...from }, to });
 }
 
 // A boss that falls (a void dropped on it) takes boss.drop damage instead
-// of dying, then perches; at 0 HP it dies and the floor is won.
+// of dying, then flees; at 0 HP it dies and the floor is won.
 function bossDrop(s, creature, at, emit) {
   const amount = creatureDef(creature.kind).boss.drop;
   creature.hp = Math.max(0, creature.hp - amount);
   emit({ type: 'damage', id: creature.id, amount, hp: creature.hp, at: { ...at } });
   if (creature.hp > 0) {
-    perch(s, creature, at, emit);
+    flee(s, creature, at, emit);
     return;
   }
   emit({ type: 'death', id: creature.id, creature, at: { ...at } });

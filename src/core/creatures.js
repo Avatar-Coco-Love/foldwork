@@ -29,10 +29,9 @@
 //          (turns left; 1 = spawns this enemy phase). Pinned or stranded
 //          (no walkable path to the player), the count waits.
 //   boss   { phases, drop }: a boss (core/boss.js). Its HP is split into
-//          `phases` equal phases; losing one sends it back to its perch. A
-//          void drop deals `drop` damage instead of killing it. Instances
-//          keep `mark` (the crease it will fold next, or null) and their
-//          perch (`homeCol`, `homeRow`, set by createFloorState).
+//          `phases` equal phases. A void drop deals `drop` damage instead
+//          of killing it; any hit makes it flee. Instances keep `mark`
+//          (the crease it will fold next, or null).
 
 export const CREATURE_DEFS = Object.freeze({
   player: { kind: 'player', name: 'You', team: 'player', hp: 3 },

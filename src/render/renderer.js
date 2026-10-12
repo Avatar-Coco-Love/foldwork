@@ -483,6 +483,10 @@ function drawActor(r, ctx) {
     const t = easeInOut(u);
     x = from.x + (to.x - from.x) * t;
     y = fromY + (toY - fromY) * t - Math.sin(Math.PI * u) * size * 0.12; // a little hop
+  } else if (a.kind === 'flee') {
+    const t = easeInOut(u); // a high, fast arc: it flies
+    x = from.x + (to.x - from.x) * t;
+    y = fromY + (toY - fromY) * t - Math.sin(Math.PI * u) * size * 0.6;
   } else if (a.kind === 'slide') {
     const t = easeInOut(u); // a flat glide: no hop
     x = from.x + (to.x - from.x) * t;

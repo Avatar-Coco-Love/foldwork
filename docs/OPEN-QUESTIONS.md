@@ -15,7 +15,8 @@ These belong to later phases and get decided when that phase is built.
 - Telemetry start: collection is off (`TELEMETRY.collect: false`) until the
   first playtests have been watched; then deploy the Sheets collector and
   switch it on (docs/07).
-- Great Crane balance and arena templates (Phase 6).
+- Great Crane arena layout and charges (6a, being tuned); phase 2-3
+  behaviour (6b).
 - Names and mechanics for the two later spirits (post-launch; ideas: Rabbit,
   Koi).
 - Telemetry consent before a public launch: is "on by default, with an
@@ -32,6 +33,34 @@ These belong to later phases and get decided when that phase is built.
   shortcuts with thick card.
 
 ## Resolved
+- Great Crane core rules (6a, user's choice after a solver check): a
+  1-tile crane, **6 HP in 3 phases of 2**, not Heavy, never walks or bumps.
+  Its only attack is its own fold, on a fixed two-beat cycle: it **marks** a
+  crease in one enemy phase and **folds** it in the next, so the player
+  always gets one action in between.
+  - **Aim** (no RNG): straight creases only, and only a **strip** (the
+    smaller side, at most half the rows or columns). It rides the strip
+    (not clipped, never landing on the player's cell) or folds it from
+    elsewhere, but never onto itself. It prefers covering the player,
+    then ending closest to the player, then moving the fewest cells, then
+    a fixed order (v before h, index ascending, before before after).
+  - The mark is **locked**: if the board changed, it folds whatever is on
+    that side now (it can pin or void-drop itself). Invalid when due, it
+    **fizzles**. Pinned, its mark is cleared.
+  - Its fold landing on the player is a **swat**: 1 damage (blockable)
+    and the player moves to the nearest free footing (the new top of its
+    cell if that is footing). Never a pin or an instant fall.
+  - A **void drop deals 2** instead of killing it. **Every hit** (bump or
+    drop) makes it **flee** to the free footing farthest from the player
+    by walking distance (ties row-major), mark cleared.
+  - Why strips and fleeing: with the first draft ("always ride its own
+    half", perch on phase loss) its first fold collapsed the 7x7 to a
+    3-row strip and the solver won in 8 turns by bumping, no folds. With
+    strips + flee the solver's best line used a pre-emptive fold
+    (fizzle), a bump and two void drops (10 turns, 3 folds); a hand line
+    with no folds died in 6 turns.
+  - Proof: a full solver search of the boss took ~170 s, so the arena
+    template stores a winning line and the test replays it (exact, fast).
 - F5 "pinning and stranding as the intended solution" (5d, decided while
   building): proven by a `pin` need. At 1 HP, with every fold that pins,
   strands or void-drops an enemy forbidden, the floor must be unwinnable.
