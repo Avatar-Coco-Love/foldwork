@@ -34,38 +34,43 @@
 //   { type: 'bump', id, target, from, to }       attacker stays put
 //   { type: 'damage', id, amount, hp, at }
 //   { type: 'death', id, creature, at }
-//   { type: 'fall', id, creature, at }           into a void or empty cell
+//   { type: 'fall', id, creature, at }           into a void or empty cell,
+//                                                or void-dropped by a fold
+//   { type: 'pin', id, at }                      a fold covered it (docs/02)
+//   { type: 'strand', id, at }                   a fold cut it off from the player
 //   { type: 'wait', id }
 //   { type: 'fold', fold }
 //   { type: 'unfold', fold }
 //   { type: 'defeat', cause }
 
-import { inBounds, getCell, topLayer, findCreature, cloneBoard } from './board.js';
+import { DIRS, inBounds, getCell, topLayer, findCreature, cloneBoard, isFooting } from './board.js';
 import { tileDef } from './tiles.js';
 import { validateFold, applyFold } from './fold.js';
-import { createCreature } from './creatures.js';
+import { createCreature, creatureDef } from './creatures.js';
+import { actingEnemies, reachField, planEnemy, enemiesInReach } from './enemies.js';
+
+export { DIRS };
 
 export const PLAYER_ID = 'player';
 export const DEFAULT_FOLD_CHARGES = 3;
 export const BUMP_DAMAGE = 1;
 
-export const DIRS = Object.freeze({
-  up: Object.freeze({ dc: 0, dr: -1 }),
-  down: Object.freeze({ dc: 0, dr: 1 }),
-  left: Object.freeze({ dc: -1, dr: 0 }),
-  right: Object.freeze({ dc: 1, dr: 0 }),
-});
-
 /**
  * Start a floor: places the player on the top layer of `player` ({col,row},
- * default: defaultStart). The input board is not mutated.
+ * default: defaultStart), then each of `enemies` ([{ kind, col, row, id? }],
+ * ids default to `${kind}-${n}`). The input board is not mutated.
  */
-export function createFloorState({ board, player = null, charges = DEFAULT_FOLD_CHARGES, hp } = {}) {
+export function createFloorState({ board, player = null, enemies = [], charges = DEFAULT_FOLD_CHARGES, hp } = {}) {
   const next = cloneBoard(board);
   const at = player || defaultStart(next);
   const layer = at && topLayer(next, at.col, at.row);
-  if (!layer || !isSafeFooting(layer)) throw new Error('No safe start cell for the player');
+  if (!layer || !isFooting(layer) || layer.creature) throw new Error('No safe start cell for the player');
   layer.creature = createCreature('player', { id: PLAYER_ID, hp });
+  enemies.forEach((e, n) => {
+    const spot = topLayer(next, e.col, e.row);
+    if (!spot || !isFooting(spot) || spot.creature) throw new Error(`No room for ${e.kind} at ${e.col},${e.row}`);
+    spot.creature = createCreature(e.kind, { id: e.id || `${e.kind}-${n}` });
+  });
   return { board: next, turn: 0, charges, maxCharges: charges, status: 'playing', outcome: null, undo: null };
 }
 
@@ -80,7 +85,7 @@ export function defaultStart(board) {
   for (let row = 0; row < board.h; row++) {
     for (let col = 0; col < board.w; col++) {
       const layer = topLayer(board, col, row);
-      if (!layer || !isSafeFooting(layer) || layer.creature) continue;
+      if (!isFooting(layer) || layer.creature) continue;
       const d = Math.abs(col - goal.col) + Math.abs(row - goal.row);
       if (d < bestD) {
         best = { col, row };
@@ -89,11 +94,6 @@ export function defaultStart(board) {
     }
   }
   return best;
-}
-
-function isSafeFooting(layer) {
-  const def = tileDef(layer.tile);
-  return def.walkable && !def.hole;
 }
 
 /** The player's creature data, or null once it has left the board. */
@@ -118,11 +118,32 @@ export function foldCheck(state, fold) {
 }
 
 /**
- * Hook for creature effects when a fold lands stacks (pin, strand, void drop:
- * Phase 2b). Receives the folded board and applyFold's landings.
+ * What a landing stack does to the creature on the destination's top layer
+ * (docs/02): 'drop' when the new top layer is a hole (void drop: it falls),
+ * 'pin' otherwise (it is covered: can't act, can't be attacked), or null
+ * when nobody stands there. Pure; used by resolveFold and the fold preview.
  */
-export function resolveFold(board /* , landings */) {
-  return board;
+export function coverEffect(board, from, to) {
+  const dest = topLayer(board, to.col, to.row);
+  const src = topLayer(board, from.col, from.row);
+  if (!dest || !dest.creature || !src) return null;
+  return tileDef(src.tile).hole ? 'drop' : 'pin';
+}
+
+/**
+ * Creature effects of a fold that just landed (applyFold's `landings`, on
+ * s.board): pin or void-drop whoever was covered. Strands are found by
+ * runFold, which can compare reach before and after.
+ */
+export function resolveFold(s, landings, emit) {
+  for (const l of landings) {
+    const cell = getCell(s.board, l.to.col, l.to.row);
+    const covered = l.baseHeight > 0 ? cell.layers[l.baseHeight - 1].creature : null;
+    if (!covered) continue;
+    const at = { col: l.to.col, row: l.to.row };
+    if (tileDef(cell.layers[cell.layers.length - 1].tile).hole) fall(s, covered, at, emit);
+    else emit({ type: 'pin', id: covered.id, at });
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -142,7 +163,7 @@ const ACTIONS = {
  * has ended.
  */
 export const TURN_PHASES = [
-  { id: 'enemies', run: () => {} }, // Phase 2b: fixed order, top-to-bottom, left-to-right
+  { id: 'enemies', run: runEnemies },
   { id: 'environment', run: () => {} }, // Phase 3a: plates, doors, hazards
   { id: 'outcome', run: runOutcome },
 ];
@@ -192,13 +213,7 @@ function runMove(s, action, emit) {
     return null;
   }
   if (dest && !tileDef(dest.tile).walkable) return 'blocked';
-
-  const src = getCell(s.board, me.col, me.row).layers[me.depth];
-  src.creature = null;
-  if (dest) dest.creature = me.creature;
-  emit({ type: 'move', id: PLAYER_ID, from, to });
-  // An empty cell (vacated by a fold) has no paper left: it plays as a void.
-  if (!dest || tileDef(dest.tile).hole) fall(s, me.creature, to, emit);
+  stepCreature(s, me, to, emit);
   return null;
 }
 
@@ -211,12 +226,28 @@ function runWait(s, action, emit) {
 function runFold(s, action, emit, before) {
   const check = foldCheck(s, action.fold);
   if (!check.ok) return check.reasons[0]?.code === 'no-charges' ? 'no-charges' : 'invalid-fold';
-  s.board = applyFold(s.board, action.fold, { resolve: resolveFold });
+  let landings = [];
+  s.board = applyFold(s.board, action.fold, {
+    resolve: (b, l) => {
+      landings = l;
+      return b;
+    },
+  });
   s.charges -= 1;
   // The whole prior state, so undo also restores charges and anything the
   // enemy phase did after the fold.
   s.undo = { state: { ...before, undo: null }, fold: { ...action.fold } };
   emit({ type: 'fold', fold: { ...action.fold } });
+  resolveFold(s, landings, emit);
+
+  // Strand: an enemy that could reach the player before the fold, is still
+  // free to act, and now has no path.
+  const reachBefore = enemiesInReach(before.board, PLAYER_ID);
+  const reachAfter = enemiesInReach(s.board, PLAYER_ID);
+  for (const id of reachBefore) {
+    const e = reachAfter.has(id) ? null : findCreature(s.board, id);
+    if (e && e.top) emit({ type: 'strand', id, at: { col: e.col, row: e.row } });
+  }
   return null;
 }
 
@@ -228,13 +259,35 @@ function runUndo(state, snapshots) {
   return { ok: true, state: restored, events: [ev], reason: null };
 }
 
+// Enemies act once each, in actingEnemies() order (docs/02). The player
+// doesn't move during this phase and creatures don't block the reach field,
+// so one field serves the whole phase.
+function runEnemies(s, emit) {
+  const player = findCreature(s.board, PLAYER_ID);
+  if (!player) return;
+  const ctx = { field: reachField(s.board, player), player };
+  for (const id of actingEnemies(s.board)) {
+    if (s.status !== 'playing') break;
+    const plan = planEnemy(s.board, id, ctx);
+    if (plan.type === 'wait') continue;
+    const me = findCreature(s.board, id);
+    if (plan.type === 'bump') {
+      const target = topLayer(s.board, plan.to.col, plan.to.row).creature;
+      emit({ type: 'bump', id, target: target.id, from: { col: me.col, row: me.row }, to: { ...plan.to } });
+      damageAt(s, plan.to, creatureDef(me.creature.kind).attack ?? BUMP_DAMAGE, emit);
+    } else {
+      stepCreature(s, me, plan.to, emit);
+    }
+  }
+}
+
 function runOutcome(s, emit) {
   const me = findCreature(s.board, PLAYER_ID);
   if (!me || me.creature.hp <= 0) lose(s, me ? 'hp' : 'fall', emit);
 }
 
 // ---------------------------------------------------------------------------
-// Shared rules (enemy AI reuses these in Phase 2b).
+// Shared rules, used by player actions and the enemy phase alike.
 
 /**
  * Deal `amount` damage to the creature on the top layer at `at`. Creatures
@@ -252,10 +305,29 @@ export function damageAt(s, at, amount, emit) {
   if (creature.id === PLAYER_ID) lose(s, 'hp', emit);
 }
 
-/** A creature drops into a void / empty cell at `at` and leaves the board. */
+/**
+ * Move the creature found at `me` (findCreature()'s result) onto `to`'s top
+ * layer. Walls are the caller's check. An empty cell (vacated by a fold) has
+ * no paper left, so like a void it makes the creature fall.
+ */
+export function stepCreature(s, me, to, emit) {
+  const from = { col: me.col, row: me.row };
+  getCell(s.board, me.col, me.row).layers[me.depth].creature = null;
+  const dest = topLayer(s.board, to.col, to.row);
+  if (dest) dest.creature = me.creature;
+  emit({ type: 'move', id: me.creature.id, from, to: { ...to } });
+  if (!dest || tileDef(dest.tile).hole) fall(s, me.creature, to, emit);
+}
+
+/**
+ * A creature drops through the cell at `at` (a void, an empty cell, or a
+ * void sheet folded over it) and leaves the board.
+ */
 export function fall(s, creature, at, emit) {
-  const layer = topLayer(s.board, at.col, at.row);
-  if (layer && layer.creature === creature) layer.creature = null;
+  const cell = getCell(s.board, at.col, at.row);
+  for (const layer of cell ? cell.layers : []) {
+    if (layer.creature === creature) layer.creature = null;
+  }
   emit({ type: 'fall', id: creature.id, creature, at: { ...at } });
   if (creature.id === PLAYER_ID) lose(s, 'fall', emit);
 }

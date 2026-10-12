@@ -14,7 +14,7 @@
 import { computeLayout, cellOrigin } from './layout.js';
 import { getPalette, DEFAULT_PALETTE_ID } from './palette.js';
 import { TILE } from '../core/tiles.js';
-import { CELL } from './preview.js';
+import { CELL, EFFECT } from './preview.js';
 import { drawCreature } from './creatures.js';
 
 const MAX_DPR = 2;
@@ -172,7 +172,9 @@ function drawTiles(r, ctx) {
 // Fold preview (scene.preview from render/preview.js). Each state has a
 // non-color cue too: leaving cells are dimmed with a dashed outline, landing
 // cells show a ghost of the incoming sheet and the new stack height, overflow
-// cells get a "!" badge and a cross, clipped cells a dotted outline.
+// cells get a "!" badge and a cross, clipped cells a dotted outline. A
+// landing that pins a creature shows a paper clip; one that void-drops it a
+// dashed red outline and a "↓" badge.
 function drawFoldPreview(r, ctx) {
   const L = r.layout;
   const pv = r.scene && r.scene.preview;
@@ -220,6 +222,11 @@ function drawFoldPreview(r, ctx) {
       }
       badge(ctx, p, o.x + size * 0.78, o.y + size * 0.22, size * 0.2,
         over ? `!${pv.heights[i]}` : String(pv.heights[i]), over);
+      if (pv.effect[i] === EFFECT.PIN) drawClip(ctx, p, o.x + size * 0.06, o.y + size * 0.6, size);
+      else if (pv.effect[i] === EFFECT.DROP) {
+        outline(ctx, o.x, o.y, size, p.danger, lineW, [dash, dash / 2]);
+        badge(ctx, p, o.x + size * 0.22, o.y + size * 0.78, size * 0.2, '↓', true);
+      }
     }
   }
   drawCrease(ctx, p, L, pv, lineW);
@@ -450,11 +457,15 @@ function drawPinned(ctx, p, creature, x, y, size) {
   ctx.globalAlpha = 0.4;
   drawCreature(ctx, p, creature, x + gap, y + gap, size - gap * 2, PINNED_OPTS);
   ctx.restore();
-  // Paper clip: two nested rounded loops, top-right corner.
+  drawClip(ctx, p, x + size * 0.76, y + size * 0.08, size);
+}
+const PINNED_OPTS = { alpha: 1, scale: 0.8, rot: 0, shadow: false };
+
+// Paper clip glyph (pinned creatures, and pin cues in the fold preview):
+// two nested rounded loops with their top-left corner at (cx, cy).
+function drawClip(ctx, p, cx, cy, size) {
   const w = size * 0.14;
   const h = size * 0.3;
-  const cx = x + size * 0.76;
-  const cy = y + size * 0.08;
   ctx.strokeStyle = p.ink;
   ctx.lineWidth = Math.max(1.5, size * 0.03);
   ctx.lineCap = 'round';
@@ -463,7 +474,6 @@ function drawPinned(ctx, p, creature, x, y, size) {
   roundRect(ctx, cx + w * 0.25, cy + h * 0.15, w * 0.5, h * 0.6, w / 4);
   ctx.stroke();
 }
-const PINNED_OPTS = { alpha: 1, scale: 0.8, rot: 0, shadow: false };
 
 /** Vertical offset per stacked layer. */
 function layerLift(size) {
