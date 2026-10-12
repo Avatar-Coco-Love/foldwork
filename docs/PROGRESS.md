@@ -4,20 +4,21 @@
 small. At the end of each conversation, update this file in the same PR.
 
 ## Next up
-**Phase 1c: Fold animation + reduced-motion / speed setting.** `src/render/fx.js`:
-the folding half rotates around the crease (cosine scaling), then settles onto
-the stacks; 350–450ms scaled by an animation-speed setting, instant with
-reduced motion. Input stays disabled during it (`input.setEnabled(false)`), and
-undo plays the fold in reverse. Replace the CSS shake with an fx-driven one.
+**Phase 2a: Turn engine + event list, player move/bump/wait/HP.** `core/turn.js`
+runs the player action and returns an event list; move the floor screen's
+`{board, undo}` into it, add fold charges (undo refunds) and HP. The renderer
+plays the events back (the fold event reuses `buildFoldAnim` + `fx.playFold`).
+Add the one-action input buffer during animations (spec 04) here, since that
+is when there are actions worth queueing.
 
 ## Phase checklist
 Larger phases are split into PR-sized chunks so each conversation stays small.
 
 - [x] **Phase 0** — Scaffolding (PR 1)
-- [ ] **Phase 1** — Board and folding core
+- [x] **Phase 1** — Board and folding core
   - [x] 1a Fold logic + tests (`core/fold.js`) (PR 2)
   - [x] 1b Drag-to-fold input + live preview (pointer + keyboard, `ui/input.js`) (PR 3)
-  - [ ] 1c Fold animation + reduced-motion / speed setting (`render/fx.js`)
+  - [x] 1c Fold animation + reduced-motion / speed setting (`render/fx.js`) (PR 4)
 - [ ] **Phase 2** — Player, turns, combat
   - [ ] 2a Turn engine + event list, player move/bump/wait/HP
   - [ ] 2b Scrap Mite AI, pin/strand/void-drop, event playback
@@ -95,8 +96,33 @@ Larger phases are split into PR-sized chunks so each conversation stays small.
   off-board cancel, undo button; desktop mouse drag, keyboard mode,
   invalid-release shake, right-click cancel, U undo. No console errors.
 
+### PR 4: Phase 1c fold animation + motion settings
+- `render/fx.js`: pure `buildFoldAnim(boardBefore, fold)` → `{fold, base,
+  sheets}` (base = board minus moving stacks; each sheet lands on `to` above
+  `baseHeight`), `foldFrame(u)` (angle 0→π over the first 75%, then a settle
+  drop; writes into a reused object), `shakeOffset`, `foldDurationMs`
+  (400ms / speed, 0 under reduced motion). `createFxPlayer` is the rAF driver;
+  the renderer only paints `fx.foldAnim` / `fx.shake` (`renderer.setFx`).
+- Renderer: `drawFoldAnim` scales each moving stack by cos(angle) around the
+  crease (exact mirror at π), lifts it on an arc with a ground shadow, and
+  shades it as it turns edge-on. `drawTiles` draws `anim.base` mid-fold. The
+  shake translates every pass except the background. Under reduced motion the
+  invalid cue is a static dashed outline instead of a shake.
+- Logic never waits on animation: the board is already folded/unfolded when
+  playback starts. Input is disabled during it and the Undo button greys out.
+  Undo plays the same anim in reverse (from the undo snapshot).
+- `ui/settings.js`: `foldwork.settings` (versioned, try/catch, per-field
+  reset on bad data). Animation speed Slow/Normal/Fast (0.7/1/1.6×), reduced
+  motion System/On/Off. Title screen cycles both until the Phase 7 settings
+  screen. `html.reduce-motion` mirrors the setting for CSS. The CSS shake is
+  gone.
+- Dev URL params `?speed=` and `?motion=` override for the session only.
+- 11 new tests (65 total). Verified in headless Chromium with a frozen clock
+  (frame-by-frame), phone + desktop, keyboard and mouse folds, undo reverse,
+  reduced-motion instant fold, settings persistence. No console errors.
+
 ## Conventions worth remembering
-- Dev URL params: `?screen=floor&size=7&seed=abc&palette=night-ink&demo=1`.
+- Dev URL params: `?screen=floor&size=7&seed=abc&palette=night-ink&demo=1&speed=slow&motion=on`.
 - New draw layers → add a pass to `PASSES` in `renderer.js`.
 - New tile types → `TILE`/`TILE_DEFS` in `tiles.js` + a painter in `renderer.js`.
 - New screens → `ui/screens.js`, register in `main.js`.
@@ -104,4 +130,8 @@ Larger phases are split into PR-sized chunks so each conversation stays small.
 - Fold geometry → add an entry to `AXES` in `fold.js`; creature effects of a
   fold → `resolve` hook, not inside `applyFold`.
 - Fold preview visuals → `CELL` states in `render/preview.js` + `drawFoldPreview`.
+- Animations: model + timing in `render/fx.js`, painting in a renderer pass
+  reading `r.fx`; durations always go through `ctx.motion()` (speed + reduced
+  motion), and logic state is final before playback starts.
+- Settings: add fields to `DEFAULT_SETTINGS` + `normalizeSettings`.
 - HUD sizes live only in `HUD_METRICS` (layout.js); CSS reads them as variables.

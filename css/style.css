@@ -167,16 +167,6 @@ body {
   display: none;
 }
 
-/* Invalid fold release: brief shake (disabled by reduced motion below). */
-@keyframes board-shake {
-  0%, 100% { transform: translateX(0); }
-  25% { transform: translateX(-6px); }
-  75% { transform: translateX(6px); }
-}
-#board.shake {
-  animation: board-shake 180ms ease-in-out 2;
-}
-
 /* Landscape: one side panel holding both regions. */
 @media (orientation: landscape) {
   .hud {
@@ -209,4 +199,9 @@ body {
     transition: none !important;
     animation: none !important;
   }
+}
+/* Same, when reduced motion is forced on in settings. */
+.reduce-motion * {
+  transition: none !important;
+  animation: none !important;
 }

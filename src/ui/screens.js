@@ -5,6 +5,8 @@ import { createHud } from './hud.js';
 import { createFoldInput } from './input.js';
 import { foldWithUndo, unfold } from '../core/fold.js';
 import { buildFoldPreview } from '../render/preview.js';
+import { createFxPlayer, buildFoldAnim, foldDurationMs } from '../render/fx.js';
+import { ANIM_SPEEDS, MOTION_MODES, cycleOption, optionName } from './settings.js';
 import { createBoard } from '../core/board.js';
 import { TILE } from '../core/tiles.js';
 import { createRng, fork, nextInt, chance } from '../core/rng.js';
@@ -25,6 +27,23 @@ export const titleScreen = {
     });
     syncPaletteLabel();
 
+    // Animation options (Phase 7 moves these to a full settings screen).
+    const speedBtn = el('button', { class: 'btn btn-secondary', type: 'button' });
+    const motionBtn = el('button', { class: 'btn btn-secondary', type: 'button' });
+    const syncMotionLabels = () => {
+      speedBtn.textContent = `Animation: ${optionName(ANIM_SPEEDS, ctx.settings.animSpeed)}`;
+      motionBtn.textContent = `Reduced motion: ${optionName(MOTION_MODES, ctx.settings.reducedMotion)}`;
+    };
+    speedBtn.addEventListener('click', () => {
+      ctx.updateSettings({ animSpeed: cycleOption(ANIM_SPEEDS, ctx.settings.animSpeed) });
+      syncMotionLabels();
+    });
+    motionBtn.addEventListener('click', () => {
+      ctx.updateSettings({ reducedMotion: cycleOption(MOTION_MODES, ctx.settings.reducedMotion) });
+      syncMotionLabels();
+    });
+    syncMotionLabels();
+
     root.append(
       el('div', { class: 'menu' },
         el('h1', { class: 'title', text: 'Foldwork' }),
@@ -32,6 +51,8 @@ export const titleScreen = {
         el('div', { class: 'menu-buttons' },
           el('button', { class: 'btn btn-primary', type: 'button', onclick: () => ctx.router.go('floor', { floor: 1 }) }, 'New Run'),
           paletteBtn,
+          speedBtn,
+          motionBtn,
         ),
       ),
     );
@@ -49,10 +70,12 @@ export const floorScreen = {
       preview: null,
     };
     const canvas = ctx.renderer.canvas;
+    const fx = createFxPlayer({ onChange: () => ctx.renderer.invalidate() });
+    ctx.renderer.setFx(fx);
 
     const sync = () => {
       ctx.renderer.setScene({ board: state.board, preview: state.preview });
-      hud.setUndoEnabled(!!state.undo);
+      hud.setUndoEnabled(!!state.undo && !fx.busy);
       const pv = state.preview;
       hud.setFoldStatus(pv ? foldStatusText(pv) : null, pv && !pv.ok);
     };
@@ -64,10 +87,29 @@ export const floorScreen = {
       onCancel: () => input.cancel(),
     });
 
+    // Plays a fold animation with input locked; the board is already in its
+    // final state, so skipping or interrupting the animation is always safe.
+    function animateFold(anim, reverse) {
+      const duration = foldDurationMs(ctx.motion());
+      if (!duration) return;
+      input.setEnabled(false);
+      fx.playFold(anim, {
+        duration,
+        reverse,
+        done: () => {
+          input.setEnabled(true);
+          sync();
+        },
+      });
+    }
+
     function undo() {
-      if (!state.undo) return;
-      state.board = unfold(state.undo);
+      if (!state.undo || fx.busy) return;
+      const snapshot = state.undo;
+      state.board = unfold(snapshot);
       state.undo = null;
+      // Reverse playback: the sheets lift off the stacks and unfold home.
+      animateFold(buildFoldAnim(snapshot.board, snapshot.fold), true);
       sync();
     }
 
@@ -82,26 +124,27 @@ export const floorScreen = {
       onConfirm(crease) {
         const pv = buildFoldPreview(state.board, crease);
         if (!pv || !pv.ok) return false;
-        const result = foldWithUndo(state.board, crease);
+        const before = state.board;
+        const result = foldWithUndo(before, crease);
         state.board = result.board;
         state.undo = result.undo;
         state.preview = null;
+        animateFold(buildFoldAnim(before, crease), false);
         sync();
         return true;
       },
       onInvalid() {
-        canvas.classList.remove('shake');
-        void canvas.offsetWidth; // restart the animation
-        canvas.classList.add('shake');
+        fx.playShake({ reducedMotion: ctx.motion().reducedMotion });
       },
       onUndo: undo,
     });
 
     sync();
     return () => {
+      fx.destroy();
+      ctx.renderer.setFx(null);
       input.destroy();
       hud.destroy();
-      canvas.classList.remove('shake');
     };
   },
 };
