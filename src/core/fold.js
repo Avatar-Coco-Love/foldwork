@@ -4,12 +4,19 @@
 //   Fold = { axis, index, side }
 //     axis  'v' — vertical crease line between columns index-1 and index
 //           'h' — horizontal crease line between rows index-1 and index
-//     index grid line, 1..w-1 (axis 'v') or 1..h-1 (axis 'h')
+//           'd' — diagonal "\" through cell centres, col - row = index - (h-1)
+//           'a' — anti-diagonal "/" through cell centres, col + row = index
+//     index grid line, 1..lineCount (w-1, h-1, or w+h-3 for diagonals)
 //     side  the half that folds over (where the drag starts):
-//           'before' = left / top of the line, 'after' = right / bottom
+//           'before' = left / top of the line (for 'd': below-left),
+//           'after' = right / bottom (for 'd': above-right)
 //
-// New crease shapes (e.g. diagonal, via relic) are added as a new entry in
-// AXES. Callers only go through the exported functions, so they don't change.
+// Diagonal creases (docs/OPEN-QUESTIONS.md): cells on the line are the
+// hinge. They are on neither side, so they stay put and are not covered.
+// Whether a player may use them is a turn rule (rules.diagonal), not geometry.
+//
+// New crease shapes are added as a new entry in AXES. Callers only go
+// through the exported functions, so they don't change.
 //
 // Rules (docs/02-core-mechanics.md, docs/05-tech-architecture.md):
 // - Every cell on the folding side moves its whole stack onto its mirror cell,
@@ -26,22 +33,69 @@ export const SIDES = Object.freeze(['before', 'after']);
 
 /**
  * Crease geometry per axis. Each entry:
- *   lineCount(board)          number of grid lines (valid index is 1..count)
- *   onFoldingSide(fold, c, r) true if (c, r) is in the half that folds
- *   mirror(fold, c, r)        destination {col,row} (may be off-board)
+ *   lineCount(board)          number of lines (valid index is 1..count)
+ *   onFoldingSide(fold, c, r, board)  true if (c, r) is in the half that folds
+ *   mirror(fold, c, r, board) destination {col,row} (may be off-board)
+ *   normal                    [nx, ny]: the line is { p : n·p = offset }, in
+ *                             board cell units (cell (c,r) spans c..c+1);
+ *                             n points from 'before' to 'after'
+ *   offset(board, index)      that offset; consecutive lines differ by 1
+ *   diagonal                  needs rules.diagonal to play (core/turn.js)
+ * The continuous fields serve input (snapping a drag) and rendering.
  */
 export const AXES = Object.freeze({
   v: {
     lineCount: (board) => board.w - 1,
     onFoldingSide: (fold, col) => (fold.side === 'before' ? col < fold.index : col >= fold.index),
     mirror: (fold, col, row) => ({ col: 2 * fold.index - 1 - col, row }),
+    normal: [1, 0],
+    offset: (board, index) => index,
+    diagonal: false,
   },
   h: {
     lineCount: (board) => board.h - 1,
     onFoldingSide: (fold, col, row) => (fold.side === 'before' ? row < fold.index : row >= fold.index),
     mirror: (fold, col, row) => ({ col, row: 2 * fold.index - 1 - row }),
+    normal: [0, 1],
+    offset: (board, index) => index,
+    diagonal: false,
+  },
+  // col - row = k, k = index - (h - 1). Lines through a corner cell only
+  // (k = ±(size-1)) fold nothing, so they are left out.
+  d: {
+    lineCount: (board) => Math.max(0, board.w + board.h - 3),
+    onFoldingSide: (fold, col, row, board) => {
+      const k = fold.index - (board.h - 1);
+      return fold.side === 'before' ? col - row < k : col - row > k;
+    },
+    mirror: (fold, col, row, board) => {
+      const k = fold.index - (board.h - 1);
+      return { col: row + k, row: col - k };
+    },
+    normal: [1, -1],
+    offset: (board, index) => index - (board.h - 1),
+    diagonal: true,
+  },
+  // col + row = index.
+  a: {
+    lineCount: (board) => Math.max(0, board.w + board.h - 3),
+    onFoldingSide: (fold, col, row) => (fold.side === 'before' ? col + row < fold.index : col + row > fold.index),
+    mirror: (fold, col, row) => ({ col: fold.index - row, row: fold.index - col }),
+    normal: [1, 1],
+    offset: (board, index) => index + 1,
+    diagonal: true,
   },
 });
+
+/** Whether this crease needs diagonal creases unlocked (rules.diagonal). */
+export function isDiagonal(fold) {
+  return !!(fold && AXES[fold.axis] && AXES[fold.axis].diagonal);
+}
+
+/** Axis ids playable with or without diagonals, in AXES order. */
+export function axesFor({ diagonal = false } = {}) {
+  return Object.keys(AXES).filter((id) => diagonal || !AXES[id].diagonal);
+}
 
 export function maxStackOf(board) {
   return board.maxStack ?? DEFAULT_MAX_STACK;
@@ -66,8 +120,8 @@ export function creaseErrors(board, fold) {
  */
 export function mirrorCell(board, fold, col, row) {
   const geo = AXES[fold.axis];
-  if (!geo.onFoldingSide(fold, col, row)) return null;
-  const dest = geo.mirror(fold, col, row);
+  if (!geo.onFoldingSide(fold, col, row, board)) return null;
+  const dest = geo.mirror(fold, col, row, board);
   return { col: dest.col, row: dest.row, clipped: !inBounds(board, dest.col, dest.row) };
 }
 

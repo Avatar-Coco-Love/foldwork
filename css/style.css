@@ -463,3 +463,11 @@ body {
     font-size: 13px;
   }
 }
+
+/* --- Spirit select (reuses the offer cards) -------------------------------- */
+
+.spirit-hearts {
+  color: var(--c-ink);
+  font-size: 16px;
+  letter-spacing: 0.15em;
+}

@@ -79,6 +79,15 @@ export const RELIC_DEFS = Object.freeze({
     glyph: '↶2',
     hooks: { rules: atLeast('undoDepth', 2) },
   },
+  'diagonal-crease': {
+    id: 'diagonal-crease',
+    name: 'Diagonal Crease',
+    text: 'You can fold along diagonals.',
+    group: 'fold',
+    rarity: 'uncommon',
+    glyph: '⟋',
+    hooks: { rules: (rules) => ({ ...rules, diagonal: true }) },
+  },
 
   // --- Defense ---
   'paper-heart': {

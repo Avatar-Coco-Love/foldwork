@@ -17,6 +17,8 @@
 //   ?screen=offer&cleared=4   the relic offer after clearing that floor
 //   ?relics=extra-crease,spring-crease   start runs with these relics
 //                   (core/relics.js ids, or 'all')
+//   ?spirit=frog    spirit for runs started without the select screen
+//                   (?screen=floor, ?screen=offer); default none
 //   ?telemetry=console   log telemetry events (also: off, or a localhost
 //                   collector URL, see tools/telemetry-collector.js)
 
@@ -24,11 +26,12 @@ import { createRenderer } from './render/renderer.js';
 import { HUD_METRICS } from './render/layout.js';
 import { getPalette, cssVarName } from './render/palette.js';
 import { createRouter } from './ui/router.js';
-import { titleScreen, floorScreen, howToScreen, offerScreen } from './ui/screens.js';
+import { titleScreen, floorScreen, howToScreen, offerScreen, spiritScreen } from './ui/screens.js';
 import { setupTelemetry, telemetryActive } from './telemetry/browser.js';
 import { TELEMETRY } from './config.js';
 import { createRun, runTag, rollOffer } from './core/run.js';
 import { RELIC_DEFS, isRelic } from './core/relics.js';
+import { isSpirit } from './core/spirits.js';
 import { loadSettings, saveSettings, normalizeSettings, resolveMotion } from './ui/settings.js';
 
 const params = Object.fromEntries(new URLSearchParams(location.search));
@@ -57,6 +60,7 @@ const newSeed = () => params.seed || String(Math.floor(Math.random() * 2 ** 32))
 const devRelics = params.relics === 'all'
   ? Object.keys(RELIC_DEFS)
   : String(params.relics || '').split(',').filter(isRelic);
+const devSpirit = isSpirit(params.spirit) ? params.spirit : null;
 
 const ctx = {
   seed: newSeed(),
@@ -67,10 +71,13 @@ const ctx = {
   inputSource: tele.inputSource,
   /** Whether the "Share play data" toggle is offered (config TELEMETRY.collect). */
   telemetryOffered: TELEMETRY.collect,
-  /** Start a new run: a fresh seed (unless ?seed= pins one) and run id. */
-  startRun({ floor = 1 } = {}) {
+  /**
+   * Start a new run as `spirit` (spirit select; dev runs use ?spirit=): a
+   * fresh seed (unless ?seed= pins one) and run id.
+   */
+  startRun({ floor = 1, spirit = devSpirit } = {}) {
     ctx.seed = newSeed();
-    ctx.run = createRun({ seed: ctx.seed, relics: devRelics, floor });
+    ctx.run = createRun({ seed: ctx.seed, relics: devRelics, floor, spirit });
     ctx.telemetry.setRun(`r_${Date.now().toString(36)}${Math.floor(Math.random() * 1e6).toString(36)}`);
     ctx.telemetry.track('run.start', { ...runTag(ctx.run), daily: false, lastFloor: ctx.run.lastFloor });
   },
@@ -129,6 +136,7 @@ ctx.router
   .register('title', titleScreen)
   .register('floor', floorScreen)
   .register('offer', offerScreen)
+  .register('spirit', spiritScreen)
   .register('howto', howToScreen);
 
 // --- Viewport tracking -----------------------------------------------------

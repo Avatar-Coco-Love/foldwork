@@ -2,7 +2,7 @@
 // Pure (no DOM). Built once per crease change, not per frame, so the draw
 // pass only reads typed arrays.
 
-import { validateFold } from '../core/fold.js';
+import { validateFold, AXES } from '../core/fold.js';
 import { cellIndex, topLayer } from '../core/board.js';
 import { coverEffect, PLAYER_ID } from '../core/turn.js';
 import { keyMeetsLock } from '../core/environment.js';
@@ -25,12 +25,12 @@ export const EFFECT = Object.freeze({
 /**
  * @returns {{ fold, ok, reasons, heights: number[], state: Uint8Array,
  *   source: Int16Array, effect: Uint8Array, unlock: Uint8Array,
- *   unlocks: number, player: 'pin'|'drop'|null }}
+ *   unlocks: number, player: 'pin'|'drop'|null, line }}
  *   `source[dest]` is the cell index whose stack lands on `dest` (or -1).
  *   `effect[dest]` is an EFFECT; `unlock[dest]` is 1 where the landing
  *   stacks a key and a lock together (the lock opens), `unlocks` counts
- *   them. `player` says what the fold does to the player. Returns null for
- *   a malformed crease.
+ *   them. `player` says what the fold does to the player. `line` is
+ *   creaseSegment(). Returns null for a malformed crease.
  */
 export function buildFoldPreview(board, fold) {
   const check = validateFold(board, fold);
@@ -65,5 +65,43 @@ export function buildFoldPreview(board, fold) {
   for (const r of check.reasons) {
     if (r.code === 'stack-overflow') state[cellIndex(board, r.col, r.row)] = CELL.OVERFLOW;
   }
-  return { fold, ok: check.ok, reasons: check.reasons, heights: check.perCellHeights, state, source, effect, unlock, unlocks, player };
+  return {
+    fold, ok: check.ok, reasons: check.reasons, heights: check.perCellHeights, state, source, effect, unlock, unlocks, player,
+    line: creaseSegment(board, fold),
+  };
+}
+
+/**
+ * Where a crease line crosses the board, in cell units (cell (c,r) spans
+ * c..c+1): the segment { x0, y0, x1, y1 }, plus the unit normal { nx, ny }
+ * pointing from the 'before' half to the 'after' half and `offset` (n·p on
+ * the line, unit n). Works for every axis in AXES; null if the line misses
+ * the board.
+ */
+export function creaseSegment(board, fold) {
+  const geo = AXES[fold.axis];
+  if (!geo) return null;
+  const len = Math.hypot(geo.normal[0], geo.normal[1]);
+  const nx = geo.normal[0] / len;
+  const ny = geo.normal[1] / len;
+  const offset = geo.offset(board, fold.index) / len;
+  // Walk the line p0 + t·(-ny, nx) and clip t to the board rectangle.
+  const px = nx * offset;
+  const py = ny * offset;
+  const dx = -ny;
+  const dy = nx;
+  let t0 = -Infinity;
+  let t1 = Infinity;
+  for (const [p, d, max] of [[px, dx, board.w], [py, dy, board.h]]) {
+    if (Math.abs(d) < 1e-9) {
+      if (p < 0 || p > max) return null;
+      continue;
+    }
+    const a = (0 - p) / d;
+    const b = (max - p) / d;
+    t0 = Math.max(t0, Math.min(a, b));
+    t1 = Math.min(t1, Math.max(a, b));
+  }
+  if (!(t1 > t0)) return null;
+  return { x0: px + dx * t0, y0: py + dy * t0, x1: px + dx * t1, y1: py + dy * t1, nx, ny, offset };
 }

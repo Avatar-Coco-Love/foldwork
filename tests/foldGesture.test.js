@@ -71,3 +71,31 @@ test('keyboard: default crease, move, clamp, switch axis, flip side', () => {
   assert.equal(stepCrease(b, c, 'x'), c);
   assert.ok(sameCrease(c, { ...c }) && !sameCrease(c, null));
 });
+
+test('diagonal drags snap to diagonal creases only when unlocked', () => {
+  const on = { diagonal: true };
+  assert.deepEqual(creaseFromDrag(L, pt(0.5, 0.5), pt(2.5, 2.5), on), { axis: 'a', index: 2, side: 'before' });
+  assert.deepEqual(creaseFromDrag(L, pt(0.5, 4.5), pt(2.5, 2.5), on), { axis: 'd', index: 2, side: 'before' });
+  assert.deepEqual(creaseFromDrag(L, pt(4.5, 0.5), pt(2.5, 2.5), on), { axis: 'd', index: 6, side: 'after' });
+  assert.equal(creaseFromDrag(L, pt(0.5, 0.5), pt(2.5, 2.5)).axis, 'v'); // locked: dominant axis
+  // Mostly-horizontal drags stay orthogonal even when diagonals are on.
+  assert.equal(creaseFromDrag(L, pt(0.5, 2), pt(3.5, 2.8), on).axis, 'v');
+});
+
+test('keyboard: R turns the crease through the unlocked axes; arrows push diagonals', () => {
+  const b = createBoard(5, 5);
+  const v = defaultCrease(b);
+  const on = { diagonal: true };
+  const h = stepCrease(b, v, 'r', on);
+  assert.equal(h.axis, 'h');
+  const d = stepCrease(b, h, 'R', on);
+  assert.deepEqual(d, { axis: 'd', index: 4, side: v.side });
+  const a = stepCrease(b, d, 'r', on);
+  assert.deepEqual(a, { axis: 'a', index: 4, side: v.side });
+  assert.equal(stepCrease(b, a, 'r', on).axis, 'v');
+  assert.equal(stepCrease(b, h, 'r').axis, 'v'); // locked: v ↔ h only
+  assert.equal(stepCrease(b, d, 'ArrowRight', on).index, 5);
+  assert.equal(stepCrease(b, d, 'ArrowDown', on).index, 3);
+  assert.equal(stepCrease(b, a, 'ArrowUp', on).index, 3);
+  assert.equal(stepCrease(b, { ...a, index: 7 }, 'ArrowRight', on).index, 7); // clamped
+});

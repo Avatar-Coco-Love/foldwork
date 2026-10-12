@@ -246,35 +246,42 @@ function drawFoldPreview(r, ctx) {
 }
 
 // Fold animation (render/fx.js). Each moving stack scales by cos(angle)
-// around the crease, so at angle π it is exactly mirrored onto its landing
-// cell. It rises on an arc, floats, then settles onto the stack below; its
-// shadow stays on the board. Shading by the angle sells the edge-on moment.
+// across the crease (along its normal, so diagonals work the same way), so
+// at angle π it is exactly mirrored onto its landing cell. It rises on an
+// arc, floats, then settles onto the stack below; its shadow stays on the
+// board. Shading by the angle sells the edge-on moment.
 function drawFoldAnim(r, ctx) {
   const L = r.layout;
   const anim = r.fx && r.fx.foldAnim;
-  if (!L || !anim) return;
+  if (!L || !anim || !anim.line) return;
   const p = r.palette;
   const f = anim.frame;
   const size = L.cellSize;
   const lift = layerLift(size);
   const c = f.cos;
-  const vertical = anim.fold.axis === 'v';
-  const crease = anim.fold.index * size + (vertical ? L.boardX : L.boardY);
+  // p' = p + (c - 1)(n·p - o)n: squash across the line n·p = o (CSS px).
+  const { nx, ny } = anim.line;
+  const lineAt = anim.line.offset * size + nx * L.boardX + ny * L.boardY;
+  const k = c - 1;
+  const ta = 1 + k * nx * nx;
+  const tb = k * nx * ny;
+  const td = 1 + k * ny * ny;
+  const te = -k * lineAt * nx;
+  const tf = -k * lineAt * ny;
   const rise = f.arc * size * 0.6 + f.hover * lift * 2;
   const sheets = anim.sheets;
 
   // Shadows first, flat on the board under the flying sheet.
   ctx.fillStyle = p.shadow;
   ctx.globalAlpha = Math.min(1, f.arc + f.hover * 0.5);
-  for (let k = 0; k < sheets.length; k++) {
-    const o = cellOrigin(L, sheets[k].col, sheets[k].row);
-    const a = vertical ? crease + (o.x - crease) * c : crease + (o.y - crease) * c;
-    const b = vertical ? crease + (o.x + size - crease) * c : crease + (o.y + size - crease) * c;
-    const lo = Math.min(a, b);
-    const len = Math.abs(b - a);
-    const off = rise * 0.25;
-    if (vertical) ctx.fillRect(lo + off, o.y + off, len, size);
-    else ctx.fillRect(o.x + off, lo + off, size, len);
+  const off = rise * 0.25;
+  for (let n = 0; n < sheets.length; n++) {
+    const so = cellOrigin(L, sheets[n].col, sheets[n].row);
+    ctx.save();
+    ctx.translate(off, off);
+    ctx.transform(ta, tb, tb, td, te, tf);
+    ctx.fillRect(so.x, so.y, size, size);
+    ctx.restore();
   }
   ctx.globalAlpha = 1;
   if (Math.abs(c) < 0.03) return; // edge-on: nothing visible
@@ -291,15 +298,8 @@ function drawFoldAnim(r, ctx) {
     for (let i = 0; i < s.layers.length; i++) {
       const up = baseLift + i * lift;
       ctx.save();
-      if (vertical) {
-        ctx.translate(crease, -up);
-        ctx.scale(c, 1);
-        ctx.translate(-crease, 0);
-      } else {
-        ctx.translate(0, crease - up);
-        ctx.scale(1, c);
-        ctx.translate(0, -crease);
-      }
+      ctx.translate(0, -up);
+      ctx.transform(ta, tb, tb, td, te, tf);
       drawLayer(ctx, p, s.layers[i], o.x, o.y, size, i === s.layers.length - 1, null);
       if (shade > 0.01) {
         ctx.globalAlpha = shade;
@@ -397,13 +397,14 @@ function drawFlash(r, ctx) {
 }
 
 function drawCrease(ctx, p, L, pv, lineW) {
-  const { axis, index, side } = pv.fold;
+  const ln = pv.line;
+  if (!ln) return;
+  const size = L.cellSize;
   const color = pv.ok ? p.accent : p.danger;
-  const pos = index * L.cellSize;
-  const x0 = axis === 'v' ? L.boardX + pos : L.boardX;
-  const y0 = axis === 'v' ? L.boardY : L.boardY + pos;
-  const x1 = axis === 'v' ? x0 : L.boardX + L.boardW;
-  const y1 = axis === 'v' ? L.boardY + L.boardH : y0;
+  const x0 = L.boardX + ln.x0 * size;
+  const y0 = L.boardY + ln.y0 * size;
+  const x1 = L.boardX + ln.x1 * size;
+  const y1 = L.boardY + ln.y1 * size;
   ctx.strokeStyle = color;
   ctx.lineWidth = lineW;
   ctx.setLineDash(pv.ok ? [] : [lineW * 3, lineW * 2]); // invalid: dashed
@@ -412,22 +413,18 @@ function drawCrease(ctx, p, L, pv, lineW) {
   ctx.lineTo(x1, y1);
   ctx.stroke();
   ctx.setLineDash([]);
-  // Chevron on the folding side, pointing across the crease.
-  const s = L.cellSize * 0.3;
-  const dir = side === 'before' ? 1 : -1;
-  const cx = axis === 'v' ? x0 - dir * s * 0.9 : (x0 + x1) / 2;
-  const cy = axis === 'v' ? (y0 + y1) / 2 : y0 - dir * s * 0.9;
+  // Chevron on the folding side, pointing across the crease (along u).
+  const s = size * 0.3;
+  const dir = pv.fold.side === 'before' ? 1 : -1;
+  const ux = ln.nx * dir;
+  const uy = ln.ny * dir;
+  const cx = (x0 + x1) / 2 - ux * s * 0.9;
+  const cy = (y0 + y1) / 2 - uy * s * 0.9;
   ctx.fillStyle = color;
   ctx.beginPath();
-  if (axis === 'v') {
-    ctx.moveTo(cx + dir * s * 0.5, cy);
-    ctx.lineTo(cx - dir * s * 0.4, cy - s * 0.6);
-    ctx.lineTo(cx - dir * s * 0.4, cy + s * 0.6);
-  } else {
-    ctx.moveTo(cx, cy + dir * s * 0.5);
-    ctx.lineTo(cx - s * 0.6, cy - dir * s * 0.4);
-    ctx.lineTo(cx + s * 0.6, cy - dir * s * 0.4);
-  }
+  ctx.moveTo(cx + ux * s * 0.5, cy + uy * s * 0.5);
+  ctx.lineTo(cx - ux * s * 0.4 + uy * s * 0.6, cy - uy * s * 0.4 - ux * s * 0.6);
+  ctx.lineTo(cx - ux * s * 0.4 - uy * s * 0.6, cy - uy * s * 0.4 + ux * s * 0.6);
   ctx.closePath();
   ctx.fill();
 }

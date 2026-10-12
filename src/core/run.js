@@ -5,7 +5,8 @@
 //   RunState = {
 //     v,          RUN_VERSION (saves)
 //     seed,       run seed; each floor forks its own stream from it
-//     spirit,     spirit id, or null until spirits exist (Phase 4c)
+//     spirit,     spirit id (core/spirits.js), or null for a run with no
+//                 spirit (dev runs, tests): 3 HP and no perk
 //     floor,      the floor being played (1-based)
 //     lastFloor,  the run is won after clearing this floor
 //     hp, maxHp,  the player's HP, carried between floors
@@ -21,12 +22,14 @@
 // The floor screen asks floorSetupFor() how to start each floor and hands
 // the finished FloorState to finishFloor(). A win before the last floor
 // rolls an offer; the offer screen hands the choice to takeOffer(), and
-// the next floor starts. Spirits (4c) extend this module.
+// the next floor starts. The spirit's hooks run before the relics' at
+// every hook point.
 
 import { playerOf } from './turn.js';
 import { CREATURE_DEFS } from './creatures.js';
 import { templateFloors } from './floors.js';
 import { applyRelics, relicDef, runHooks, RELIC_DEFS, RARITY_WEIGHTS } from './relics.js';
+import { spiritDef, spiritHook } from './spirits.js';
 import { createRng, fork, pickWeighted } from './rng.js';
 
 export const RUN_VERSION = 2;
@@ -52,11 +55,11 @@ export function runLength(floors = templateFloors()) {
 }
 
 /**
- * A new run. `relics` start in the run (dev `?relics=`; spirits in 4c);
- * `floor` starts it deeper (dev `?floor=`).
+ * A new run as `spirit` (its HP, then its `gain` hook). `relics` start in
+ * the run (dev `?relics=`); `floor` starts it deeper (dev `?floor=`).
  */
 export function createRun({ seed, relics = [], spirit = null, floor = 1, lastFloor = runLength() } = {}) {
-  const hp = CREATURE_DEFS.player.hp;
+  const hp = spirit ? spiritDef(spirit).hp : CREATURE_DEFS.player.hp;
   let run = {
     v: RUN_VERSION,
     seed: String(seed),
@@ -72,6 +75,7 @@ export function createRun({ seed, relics = [], spirit = null, floor = 1, lastFlo
     status: 'playing',
     cause: null,
   };
+  run = spiritHook(spirit, 'gain', run);
   for (const id of relics) run = addRelic(run, id);
   return run;
 }
@@ -86,11 +90,17 @@ export function addRelic(run, id) {
 
 /**
  * createFloorState() options for this run's current floor, from the
- * floor's own setup (core/floors.js generateFloor): relic hooks, rules and
- * the carried HP.
+ * floor's own setup (core/floors.js generateFloor): spirit and relic hooks,
+ * rules and the carried HP. `run` may also be a telemetry loadout
+ * ({ spirit, relics, hp, maxHp, landings }), which is how replays rebuild
+ * a floor.
  */
 export function floorSetupFor(run, setup) {
-  return { ...applyRelics(setup, run.relics, run), hp: run.hp, maxHp: run.maxHp, landings: run.landings || 0 };
+  const spirit = run.spirit || null;
+  const out = applyRelics(spiritHook(spirit, 'setup', setup, run), run.relics || [], run);
+  return {
+    ...out, rules: spiritHook(spirit, 'rules', out.rules), hp: run.hp, maxHp: run.maxHp, landings: run.landings || 0,
+  };
 }
 
 /**
@@ -120,14 +130,15 @@ export function finishFloor(run, floorState) {
 /**
  * The relic offer after clearing `floor`: OFFER_SIZE relics (or what the
  * relics' `offer` hooks make it), weighted by rarity, none already owned
- * and no repeats, from the run seed's own stream (`offers-<floor>`), so a
- * seed always offers the same. `rest` adds the rest option (REST_FLOORS).
+ * or covered by the spirit's perk, and no repeats, from the run seed's
+ * own stream (`offers-<floor>`), so a seed always offers the same. `rest` adds the rest option (REST_FLOORS).
  * Fewer relics are offered once the pool runs low.
  */
 export function rollOffer(run, floor) {
   const { count } = runHooks(run.relics, 'offer', { count: OFFER_SIZE });
   const rng = fork(createRng(run.seed), `offers-${floor}`);
-  const pool = Object.keys(RELIC_DEFS).filter((id) => !run.relics.includes(id));
+  const covered = run.spirit ? spiritDef(run.spirit).covers : [];
+  const pool = Object.keys(RELIC_DEFS).filter((id) => !run.relics.includes(id) && !covered.includes(id));
   const relics = [];
   while (relics.length < count && pool.length) {
     const id = pickWeighted(rng, pool, (r) => RARITY_WEIGHTS[relicDef(r).rarity] ?? 1);

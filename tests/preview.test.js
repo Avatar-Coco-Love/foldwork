@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from './harness.js';
-import { buildFoldPreview, CELL } from '../src/render/preview.js';
+import { buildFoldPreview, CELL, creaseSegment } from '../src/render/preview.js';
 import { createBoard, createLayer, getCell, cellIndex } from '../src/core/board.js';
 import { TILE } from '../src/core/tiles.js';
 
@@ -33,4 +33,18 @@ test('empty source cells do not mark a landing', () => {
   const pv = buildFoldPreview(b, { axis: 'v', index: 1, side: 'before' });
   assert.equal(pv.state[cellIndex(b, 1, 0)], CELL.NONE);
   assert.equal(pv.state[cellIndex(b, 0, 0)], CELL.LEAVING);
+});
+
+test('creaseSegment spans the board for every axis', () => {
+  const b = createBoard(5, 5);
+  const close = (seg, want) => {
+    for (const k of Object.keys(want)) assert.ok(Math.abs(seg[k] - want[k]) < 1e-9, `${k}: ${seg[k]} vs ${want[k]}`);
+  };
+  const v = creaseSegment(b, { axis: 'v', index: 2, side: 'before' });
+  close({ x: Math.min(v.x0, v.x1), y: Math.min(v.y0, v.y1), X: Math.max(v.x0, v.x1), Y: Math.max(v.y0, v.y1), nx: v.nx },
+    { x: 2, y: 0, X: 2, Y: 5, nx: 1 });
+  const d = creaseSegment(b, { axis: 'd', index: 4, side: 'before' }); // main diagonal, corner to corner
+  close({ len: Math.hypot(d.x1 - d.x0, d.y1 - d.y0), slope: (d.y1 - d.y0) / (d.x1 - d.x0) }, { len: 5 * Math.SQRT2, slope: 1 });
+  const a = creaseSegment(b, { axis: 'a', index: 1, side: 'after' }); // through (0,1) and (1,0) centres
+  close({ sum: a.x0 + a.y0, sum1: a.x1 + a.y1, len: Math.hypot(a.x1 - a.x0, a.y1 - a.y0) }, { sum: 2, sum1: 2, len: 2 * Math.SQRT2 });
 });

@@ -11,6 +11,7 @@
 // animation starts. The animation only shows how it got there.
 
 import { foldMapping } from '../core/fold.js';
+import { creaseSegment } from './preview.js';
 import { cellIndex, cloneBoard } from '../core/board.js';
 
 /** Base fold duration at speed 1 (spec: 350–450ms). */
@@ -45,6 +46,7 @@ export function foldDurationMs(motion) {
  * What a fold animation draws, built once per fold from the board *before*
  * the fold:
  *   fold    the crease
+ *   line    creaseSegment(): where it crosses the board, and its normal
  *   base    the board minus the moving stacks (what stays put)
  *   sheets  [{ index, col, row, to, layers, baseHeight }] one per moving
  *           stack: `layers` lift off (col,row) and land on cell index `to`
@@ -70,7 +72,7 @@ export function buildFoldAnim(boardBefore, fold) {
     });
     base.cells[index].layers = [];
   }
-  return { fold, base, sheets };
+  return { fold, base, sheets, line: creaseSegment(boardBefore, fold) };
 }
 
 const easeInOut = (t) => (t < 0.5 ? 2 * t * t : 1 - (-2 * t + 2) ** 2 / 2);

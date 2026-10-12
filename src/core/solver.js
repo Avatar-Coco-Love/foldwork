@@ -23,16 +23,19 @@
 
 import { act } from './turn.js';
 import { DIRS } from './board.js';
-import { AXES, SIDES } from './fold.js';
+import { AXES, SIDES, axesFor } from './fold.js';
 
 export const SOLVER_DEFAULTS = Object.freeze({ maxStates: 20000, maxTurns: 40, noFolds: false });
 
-/** Every action worth trying on this board, in a fixed order. */
-export function candidateActions(board, { noFolds = false } = {}) {
+/**
+ * Every action worth trying on this board, in a fixed order. Diagonal
+ * creases only when `diagonal` (the floor's rules.diagonal).
+ */
+export function candidateActions(board, { noFolds = false, diagonal = false } = {}) {
   const list = Object.keys(DIRS).map((dir) => ({ type: 'move', dir }));
   list.push({ type: 'wait' });
   if (noFolds) return list;
-  for (const axis of Object.keys(AXES)) {
+  for (const axis of axesFor({ diagonal })) {
     const lines = AXES[axis].lineCount(board);
     for (let index = 1; index <= lines; index++) {
       for (const side of SIDES) list.push({ type: 'fold', fold: { axis, index, side } });
@@ -61,7 +64,7 @@ export function stateKey(state) {
 
 export function solve(start, options = {}) {
   const { maxStates, maxTurns, noFolds } = { ...SOLVER_DEFAULTS, ...options };
-  const actions = candidateActions(start.board, { noFolds });
+  const actions = candidateActions(start.board, { noFolds, diagonal: !!(start.rules && start.rules.diagonal) });
   const fail = (explored, capped) => ({ solvable: false, actions: null, turns: null, folds: null, explored, capped });
   if (start.status === 'won') return { solvable: true, actions: [], turns: 0, folds: 0, explored: 0, capped: false };
   if (start.status !== 'playing') return fail(0, false);
