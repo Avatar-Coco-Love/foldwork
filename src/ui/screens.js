@@ -15,6 +15,7 @@ import { CREATURE_DEFS } from '../core/creatures.js';
 import { ANIM_SPEEDS, MOTION_MODES, cycleOption, optionName } from './settings.js';
 import { createBoard, findCreature } from '../core/board.js';
 import { TILE } from '../core/tiles.js';
+import { parseMap, DEV_MAPS } from '../core/maps.js';
 import { createRng, fork, nextInt, chance } from '../core/rng.js';
 import { PALETTES } from '../render/palette.js';
 
@@ -67,15 +68,7 @@ export const titleScreen = {
 
 export const floorScreen = {
   mount(root, ctx, params) {
-    const size = clampSize(Number(params.size) || 5);
-    const board = params.demo ? demoBoard(size, ctx.seed) : createBoard(size, size);
-    const charges = Number.isInteger(params.charges) ? params.charges : DEFAULT_FOLD_CHARGES;
-    // Dev floors scatter Scrap Mites (default 2, ?mites=) until the Phase 3b
-    // templates place enemies on anchors.
-    const mites = Number.isInteger(params.mites) ? params.mites : DEV_MITES;
-    const start = defaultStart(board);
-    const enemies = scatterEnemies(board, fork(createRng(ctx.seed), 'enemies'), { kind: 'mite', count: mites, avoid: start });
-    let state = createFloorState({ board, player: start, enemies, charges });
+    let state = createFloorState(devFloor(params, ctx.seed));
     let shownBoard = state.board; // what the renderer shows (lags during playback)
     let preview = null;
     let queued = null; // one action pressed during playback (docs/04 input buffer)
@@ -96,6 +89,7 @@ export const floorScreen = {
       const me = playerOf(state);
       hud.setHp(me ? me.hp : 0, me ? me.maxHp : CREATURE_DEFS.player.hp);
       hud.setCharges(state.charges, state.maxCharges);
+      hud.setKeys(state.keys);
       hud.setUndoEnabled(canUndo(state));
       hud.setFoldStatus(preview ? foldStatusText(preview) : null, !!preview && (!preview.ok || preview.player === 'drop'));
     };
@@ -125,6 +119,7 @@ export const floorScreen = {
       }
       state = result.state;
       preview = null;
+      announce(result.events);
       input.setBusy(true);
       playback.play(buildClips(before.board, result.events, ctx.motion()), state.board, settle);
     }
@@ -150,9 +145,28 @@ export const floorScreen = {
       }
     }
 
+    // Short HUD notes for environment events (the board shows them too).
+    function announce(events) {
+      for (const ev of events) {
+        const text = NOTICES[ev.type] && NOTICES[ev.type](ev);
+        if (text) hud.notify(text, { info: true });
+      }
+    }
+
     function endFloor() {
       input.setEnabled(false);
       const cause = state.outcome && state.outcome.cause;
+      if (state.status === 'won') {
+        hud.showOutcome({
+          title: 'Floor cleared',
+          text: 'You found the way out.',
+          actions: [
+            { label: 'Play again', primary: true, onclick: () => ctx.router.go('floor', params) },
+            { label: 'Menu', onclick: () => ctx.router.go('title') },
+          ],
+        });
+        return;
+      }
       hud.showOutcome({
         title: 'Torn',
         text: cause === 'fall' ? 'You fell through the paper.' : 'Out of HP.',
@@ -210,11 +224,20 @@ export const floorScreen = {
 /** Why an action was refused, for the HUD (null = say nothing). */
 const REFUSALS = {
   blocked: 'A wall blocks the way.',
+  locked: 'Locked. Find a key, or fold one onto the lock.',
+  'gate-closed': 'The gate is shut. Something must hold its plate.',
   edge: null,
   pinned: 'Pinned under paper. Undo the fold to get free.',
   'no-charges': 'No fold charges left.',
   'no-undo': 'Nothing to undo.',
   'invalid-fold': null,
+};
+
+/** HUD notes per event type (null = say nothing). */
+const NOTICES = {
+  pickup: () => 'Got a key.',
+  unlock: (ev) => (ev.by === 'fold' ? 'The key opens the lock.' : 'Unlocked.'),
+  gate: (ev) => (ev.open ? 'A gate opens.' : 'A gate closes.'),
 };
 
 /** Fold preview for the HUD and board, including the charge check. */
@@ -233,10 +256,33 @@ function foldStatusText(pv) {
   }
   if (pv.player === 'drop') return 'Warning: a void lands on you';
   if (pv.player === 'pin') return 'Warning: this pins you';
+  if (pv.unlocks) return pv.unlocks > 1 ? `Ready: opens ${pv.unlocks} locks` : 'Ready: opens a lock';
   return 'Ready to fold';
 }
 
 const DEV_MITES = 2;
+
+/**
+ * createFloorState() options for a dev floor (Phase 3b swaps in templates).
+ * `?size=` or `?demo=1` gives the old open board with scattered Mites (no
+ * exit); otherwise a hand-made map from DEV_MAPS (`?map=`, default sandbox).
+ * `?charges=` and `?mites=` override either.
+ */
+function devFloor(params, seed) {
+  const charges = Number.isInteger(params.charges) ? params.charges : null;
+  if (!params.size && !params.demo) {
+    const map = DEV_MAPS[params.map] || DEV_MAPS.sandbox;
+    const parsed = parseMap(map.rows);
+    const enemies = Number.isInteger(params.mites) ? parsed.enemies.slice(0, params.mites) : parsed.enemies;
+    return { ...parsed, enemies, charges: charges ?? map.charges };
+  }
+  const size = clampSize(Number(params.size) || 5);
+  const board = params.demo ? demoBoard(size, seed) : createBoard(size, size);
+  const mites = Number.isInteger(params.mites) ? params.mites : DEV_MITES;
+  const player = defaultStart(board);
+  const enemies = scatterEnemies(board, fork(createRng(seed), 'enemies'), { kind: 'mite', count: mites, avoid: player });
+  return { board, player, enemies, charges: charges ?? DEFAULT_FOLD_CHARGES };
+}
 
 function clampSize(n) {
   return Math.min(8, Math.max(5, Math.round(n)));

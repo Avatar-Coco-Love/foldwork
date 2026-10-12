@@ -1,0 +1,76 @@
+// Environment rules (docs/02 turn step 3): keys and locks, pressure plates
+// and the gates they power. Pure functions over plain-data boards; no DOM.
+// turn.js calls these from player actions, fold resolution and the
+// `environment` turn phase.
+//
+// Rules (decided in Phase 3a, see docs/OPEN-QUESTIONS.md):
+//   - Only the top layer is active: a plate is pressed while a creature
+//     stands on its top layer, and a covered plate is never pressed.
+//   - A gate is open while any plate with its link is pressed. Gates update
+//     in the environment phase, after enemies act. A gate can't close on a
+//     creature: it stays open until the cell is clear.
+//   - A key opens a lock when the player walks into the lock carrying one,
+//     or when a fold stacks a key's layer and a lock directly on each other
+//     (either one on top). The key is used up and the lock becomes a door.
+
+import { tileDef, itemDef } from './tiles.js';
+
+/** Link channel of a plate or gate layer. */
+export const linkOf = (layer) => layer.link ?? 0;
+
+/** Links with at least one pressed plate (a creature on its top layer). */
+export function pressedLinks(board) {
+  const pressed = new Set();
+  for (const cell of board.cells) {
+    const top = cell.layers[cell.layers.length - 1];
+    if (top && top.creature && tileDef(top.tile).plate) pressed.add(linkOf(top));
+  }
+  return pressed;
+}
+
+/**
+ * Open or close every gate to match its link (mutates `board`). Gates at any
+ * depth follow their plates, so a gate uncovered later is already right.
+ * Calls emit({ type: 'gate', at, open, link }) for each change, if given.
+ */
+export function syncGates(board, emit = null) {
+  const pressed = pressedLinks(board);
+  board.cells.forEach((cell, i) => {
+    for (const layer of cell.layers) {
+      const def = tileDef(layer.tile);
+      const link = linkOf(layer);
+      let next = null;
+      if (def.powered && pressed.has(link)) next = def.powered;
+      else if (def.unpowered && !pressed.has(link) && !layer.creature) next = def.unpowered;
+      if (!next) continue;
+      layer.tile = next;
+      if (emit) {
+        const col = i % board.w;
+        emit({ type: 'gate', at: { col, row: (i - col) / board.w }, open: tileDef(next).walkable, link });
+      }
+    }
+  });
+}
+
+/** Whether a lock tile is still locked. */
+export const isLocked = (layer) => !!layer && !!tileDef(layer.tile).unlocksTo;
+
+/** Whether a layer carries an item that opens locks. */
+export const holdsKey = (layer) => !!layer && !!layer.item && !!itemDef(layer.item).opens;
+
+/** Turn a lock layer into its open form (mutates the layer). */
+export function unlockLayer(layer) {
+  layer.tile = tileDef(layer.tile).unlocksTo;
+}
+
+/**
+ * Key delivery by fold: `lower` was the destination's top layer and `upper`
+ * is the landed stack's top layer. Returns which of the two holds the lock
+ * and which the key, or null when they don't meet.
+ */
+export function keyMeetsLock(lower, upper) {
+  if (!lower || !upper) return null;
+  if (isLocked(lower) && holdsKey(upper)) return { lock: lower, key: upper };
+  if (isLocked(upper) && holdsKey(lower)) return { lock: upper, key: lower };
+  return null;
+}

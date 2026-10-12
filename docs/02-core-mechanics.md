@@ -13,9 +13,10 @@ Status: draft based on decisions made so far. Items marked **[OPEN]** await desi
 | Floor | Walkable. |
 | Wall | Blocks movement. Folds like any tile (can be stacked). |
 | Void | A hole. Entering it = fall (instant defeat for player; kills enemies). A non-void layer stacked over a void covers it and makes it walkable. |
-| Key | Picked up by walking on it, or "delivered" by folding its layer onto a Lock's cell. |
-| Lock / Door | Opens when a key reaches it (walked over, or folded onto it). Blocks movement until opened. |
-| Pressure plate | Triggers its linked target (doors, spikes, bridges) while any creature or object occupies its top layer. |
+| Key | An item lying on a layer. Picked up by walking on it, or "delivered" by a fold that stacks its layer and a Lock directly on each other (either on top). |
+| Lock / Door | Opens when a key reaches it (walked into while carrying a key, or folded together with one). Blocks movement until opened. |
+| Pressure plate | Triggers its linked target (v1: gates) while any creature or object occupies its top layer. |
+| Gate | Blocks movement unless a plate with the same link is pressed. Updates in the environment step; can't close on a creature. |
 | Exit | Reaching it ends the floor. May be locked behind a door or plate. |
 
 Later (not v1): Ink hazards, Mirror tiles.

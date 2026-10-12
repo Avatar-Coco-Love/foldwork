@@ -13,7 +13,7 @@
 
 import { computeLayout, cellOrigin } from './layout.js';
 import { getPalette, DEFAULT_PALETTE_ID } from './palette.js';
-import { TILE } from '../core/tiles.js';
+import { TILE, ITEM } from '../core/tiles.js';
 import { CELL, EFFECT } from './preview.js';
 import { drawCreature } from './creatures.js';
 
@@ -174,7 +174,7 @@ function drawTiles(r, ctx) {
 // cells show a ghost of the incoming sheet and the new stack height, overflow
 // cells get a "!" badge and a cross, clipped cells a dotted outline. A
 // landing that pins a creature shows a paper clip; one that void-drops it a
-// dashed red outline and a "↓" badge.
+// dashed red outline and a "↓" badge; one that opens a lock a key badge.
 function drawFoldPreview(r, ctx) {
   const L = r.layout;
   const pv = r.scene && r.scene.preview;
@@ -222,6 +222,19 @@ function drawFoldPreview(r, ctx) {
       }
       badge(ctx, p, o.x + size * 0.78, o.y + size * 0.22, size * 0.2,
         over ? `!${pv.heights[i]}` : String(pv.heights[i]), over);
+      if (pv.unlock && pv.unlock[i]) {
+        // The fold stacks a key and a lock: the lock opens. Key badge.
+        const bx = o.x + size * 0.78;
+        const by = o.y + size * 0.78;
+        ctx.fillStyle = p.tileFace;
+        ctx.beginPath();
+        ctx.arc(bx, by, size * 0.2, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = p.accent;
+        ctx.lineWidth = lineW;
+        ctx.stroke();
+        drawKey(ctx, bx, by, size * 0.3, p.accent, p.glyph);
+      }
       if (pv.effect[i] === EFFECT.PIN) drawClip(ctx, p, o.x + size * 0.06, o.y + size * 0.6, size);
       else if (pv.effect[i] === EFFECT.DROP) {
         outline(ctx, o.x, o.y, size, p.danger, lineW, [dash, dash / 2]);
@@ -449,6 +462,17 @@ const TILE_PAINTERS = {
   [TILE.FLOOR]: paintFloor,
   [TILE.WALL]: paintWall,
   [TILE.VOID]: paintVoid,
+  [TILE.LOCK]: paintLock,
+  [TILE.DOOR]: paintDoor,
+  [TILE.PLATE]: paintPlate,
+  [TILE.GATE]: paintGate,
+  [TILE.GATE_OPEN]: paintGateOpen,
+  [TILE.EXIT]: paintExit,
+};
+
+// Item painters, keyed by item id; drawn on the tile face under any creature.
+const ITEM_PAINTERS = {
+  [ITEM.KEY]: paintKeyItem,
 };
 
 function drawPinned(ctx, p, creature, x, y, size) {
@@ -495,7 +519,9 @@ function drawLayer(ctx, p, layer, x, y, size, isTop, skip) {
   const gap = layerGap(size);
   const s = size - gap * 2;
   const painter = TILE_PAINTERS[layer.tile] || paintFloor;
-  painter(ctx, p, x + gap, y + gap, s, isTop);
+  painter(ctx, p, x + gap, y + gap, s, isTop, layer);
+  const item = layer.item && ITEM_PAINTERS[layer.item];
+  if (item) item(ctx, p, x + gap, y + gap, s, !!layer.creature);
   const c = layer.creature;
   if (c && c.id !== skip) drawCreature(ctx, p, c, x + gap, y + gap, s, null);
 }
@@ -554,6 +580,182 @@ function paintVoid(ctx, p, x, y, s) {
   ctx.arc(x + s / 2, y + s / 2, s * 0.28, 0, Math.PI * 2);
   ctx.stroke();
   ctx.globalAlpha = 1;
+}
+
+// Puzzle tiles. Each has its own symbol (padlock, open shackle, plate,
+// bars, stairs) so none relies on color. Plates and gates also carry a link
+// mark (dot, triangle, square, diamond) shared by the plate and the gates it
+// powers.
+
+function paintLock(ctx, p, x, y, s) {
+  paintFloor(ctx, p, x, y, s);
+  const rad = Math.max(2, s * 0.08);
+  const w = Math.max(2, s * 0.08);
+  ctx.strokeStyle = p.wallFace;
+  ctx.lineWidth = w;
+  roundRect(ctx, x + w / 2, y + w / 2, s - w, s - w, rad);
+  ctx.stroke();
+  drawPadlock(ctx, p, x + s / 2, y + s * 0.55, s * 0.5, false);
+}
+
+function paintDoor(ctx, p, x, y, s) {
+  paintFloor(ctx, p, x, y, s);
+  const w = Math.max(1, s * 0.04);
+  ctx.strokeStyle = p.wallFace;
+  ctx.lineWidth = w;
+  ctx.setLineDash([w * 2, w * 2]);
+  ctx.strokeRect(x + w * 2, y + w * 2, s - w * 4, s - w * 4);
+  ctx.setLineDash([]);
+  ctx.globalAlpha = 0.45;
+  drawPadlock(ctx, p, x + s / 2, y + s * 0.58, s * 0.36, true);
+  ctx.globalAlpha = 1;
+}
+
+function drawPadlock(ctx, p, cx, cy, size, open) {
+  const bw = size * 0.7;
+  const bh = size * 0.55;
+  ctx.strokeStyle = p.glyph;
+  ctx.lineWidth = Math.max(1.5, size * 0.1);
+  ctx.beginPath();
+  // Shackle: closed sits in the body; open is lifted and swung aside.
+  const sx = open ? cx + bw * 0.18 : cx;
+  const sy = open ? cy - bh * 0.2 : cy;
+  ctx.arc(sx, sy - bh * 0.5, bw * 0.3, Math.PI, 0);
+  ctx.lineTo(sx + bw * 0.3, sy - bh * 0.45);
+  ctx.moveTo(sx - bw * 0.3, sy - bh * 0.5);
+  ctx.lineTo(sx - bw * 0.3, sy - bh * (open ? 0.6 : 0.45));
+  ctx.stroke();
+  ctx.fillStyle = p.glyph;
+  roundRect(ctx, cx - bw / 2, cy - bh / 2, bw, bh, size * 0.08);
+  ctx.fill();
+  ctx.fillStyle = p.tileFace; // keyhole
+  ctx.beginPath();
+  ctx.arc(cx, cy - bh * 0.05, size * 0.07, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillRect(cx - size * 0.03, cy - bh * 0.05, size * 0.06, bh * 0.3);
+}
+
+function paintPlate(ctx, p, x, y, s, isTop, layer) {
+  paintFloor(ctx, p, x, y, s);
+  const pressed = isTop && !!layer.creature;
+  const inset = s * 0.18;
+  const d = pressed ? 0 : Math.max(1, s * 0.05); // raised lip when up
+  const w = s - inset * 2;
+  ctx.fillStyle = p.tileEdge;
+  roundRect(ctx, x + inset, y + inset + d, w, w, s * 0.06);
+  ctx.fill();
+  ctx.fillStyle = pressed ? p.tileEdge : p.tileFace;
+  roundRect(ctx, x + inset, y + inset + (pressed ? d : 0), w, w, s * 0.06);
+  ctx.fill();
+  ctx.strokeStyle = p.glyph;
+  ctx.lineWidth = Math.max(1, s * 0.035);
+  ctx.setLineDash(pressed ? [s * 0.06, s * 0.04] : []); // pressed: dashed rim
+  ctx.stroke();
+  ctx.setLineDash([]);
+  drawLinkMark(ctx, p, x, y, s, layer);
+}
+
+function paintGate(ctx, p, x, y, s, isTop, layer) {
+  paintFloor(ctx, p, x, y, s);
+  const w = Math.max(2, s * 0.08);
+  ctx.fillStyle = p.glyph;
+  ctx.fillRect(x + s * 0.1, y + s * 0.12, s * 0.8, w); // top rail
+  ctx.fillRect(x + s * 0.1, y + s * 0.88 - w, s * 0.8, w); // bottom rail
+  for (let k = 0; k < 4; k++) ctx.fillRect(x + s * (0.17 + k * 0.2), y + s * 0.12, w, s * 0.76);
+  drawLinkMark(ctx, p, x, y, s, layer);
+}
+
+function paintGateOpen(ctx, p, x, y, s, isTop, layer) {
+  paintFloor(ctx, p, x, y, s);
+  const w = Math.max(2, s * 0.08);
+  ctx.fillStyle = p.glyph;
+  ctx.globalAlpha = 0.5;
+  ctx.fillRect(x + s * 0.1, y + s * 0.12, s * 0.8, w); // bars retracted into the top rail
+  for (let k = 0; k < 4; k++) ctx.fillRect(x + s * (0.17 + k * 0.2), y + s * 0.12, w, s * 0.12);
+  ctx.globalAlpha = 1;
+  drawLinkMark(ctx, p, x, y, s, layer);
+}
+
+function paintExit(ctx, p, x, y, s) {
+  paintFloor(ctx, p, x, y, s);
+  // Stairs: three steps rising to the right, filled with the accent and
+  // outlined in ink.
+  const x0 = x + s * 0.18;
+  const yb = y + s * 0.8;
+  const step = s * 0.2;
+  ctx.beginPath();
+  ctx.moveTo(x0, yb);
+  for (let k = 0; k < 3; k++) {
+    ctx.lineTo(x0 + k * step, yb - (k + 1) * step);
+    ctx.lineTo(x0 + (k + 1) * step, yb - (k + 1) * step);
+  }
+  ctx.lineTo(x0 + 3 * step, yb);
+  ctx.closePath();
+  ctx.fillStyle = p.accent;
+  ctx.fill();
+  ctx.strokeStyle = p.glyph;
+  ctx.lineWidth = Math.max(1.5, s * 0.04);
+  ctx.lineJoin = 'round';
+  ctx.stroke();
+}
+
+// Link marks: a small shape in the top-left corner, one per link channel.
+function drawLinkMark(ctx, p, x, y, s, layer) {
+  const link = (layer && layer.link) || 0;
+  const r = s * 0.08;
+  const cx = x + s * 0.13;
+  const cy = y + s * 0.13;
+  ctx.fillStyle = p.accent;
+  ctx.strokeStyle = p.glyph;
+  ctx.lineWidth = Math.max(1, s * 0.025);
+  ctx.beginPath();
+  const shape = link % 4;
+  if (shape === 1) ctx.arc(cx, cy, r, 0, Math.PI * 2);
+  else if (shape === 2) {
+    ctx.moveTo(cx, cy - r * 1.1);
+    ctx.lineTo(cx + r * 1.1, cy + r * 0.9);
+    ctx.lineTo(cx - r * 1.1, cy + r * 0.9);
+  } else if (shape === 3) ctx.rect(cx - r, cy - r, r * 2, r * 2);
+  else {
+    ctx.moveTo(cx, cy - r * 1.2);
+    ctx.lineTo(cx + r * 1.2, cy);
+    ctx.lineTo(cx, cy + r * 1.2);
+    ctx.lineTo(cx - r * 1.2, cy);
+  }
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+}
+
+// Key item: centered, or tucked in a corner when a creature stands on it.
+function paintKeyItem(ctx, p, x, y, s, crowded) {
+  const size = crowded ? s * 0.32 : s * 0.6;
+  const cx = crowded ? x + s * 0.8 : x + s / 2;
+  const cy = crowded ? y + s * 0.2 : y + s / 2;
+  drawKey(ctx, cx, cy, size, p.accent, p.glyph);
+}
+
+// A key glyph centered on (cx, cy), `size` across: ring bow, shaft, teeth.
+function drawKey(ctx, cx, cy, size, fill, stroke) {
+  const r = size * 0.2;
+  const bx = cx - size * 0.28;
+  ctx.lineWidth = Math.max(1, size * 0.07);
+  ctx.strokeStyle = stroke;
+  ctx.fillStyle = fill;
+  ctx.beginPath();
+  ctx.rect(bx + r * 0.8, cy - size * 0.06, size * 0.48, size * 0.12); // shaft
+  ctx.rect(cx + size * 0.18, cy + size * 0.06, size * 0.08, size * 0.14); // teeth
+  ctx.rect(cx + size * 0.04, cy + size * 0.06, size * 0.08, size * 0.1);
+  ctx.fill();
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.arc(bx, cy, r, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.fillStyle = stroke;
+  ctx.arc(bx, cy, r * 0.35, 0, Math.PI * 2);
+  ctx.fill();
 }
 
 function roundRect(ctx, x, y, w, h, rad) {

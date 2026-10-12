@@ -5,8 +5,10 @@
 //     turn,             completed turns
 //     charges,          fold charges left this floor
 //     maxCharges,
+//     keys,             keys the player carries
 //     status,           'playing' | 'won' | 'lost'
-//     outcome,          null, or { cause } once the floor ends ('fall', 'hp')
+//     outcome,          null, or { cause } once the floor ends ('fall', 'hp',
+//                       or 'exit' for a win)
 //     undo,             null, or { state, fold }: the state before the latest
 //                       fold, while it can still be undone for free
 //   }
@@ -21,7 +23,8 @@
 // order, for the renderer to play back (render/playback.js).
 //
 // Actions:
-//   { type: 'move', dir }   dir in DIRS; walking into a creature bumps it
+//   { type: 'move', dir }   dir in DIRS; walking into a creature bumps it,
+//                           into a lock with a key opens it and steps in
 //   { type: 'wait' }
 //   { type: 'fold', fold }  a crease (core/fold.js); costs one charge
 //   { type: 'undo' }        free unfold of the latest fold (refunds its
@@ -41,13 +44,18 @@
 //   { type: 'wait', id }
 //   { type: 'fold', fold }
 //   { type: 'unfold', fold }
+//   { type: 'pickup', id, item, at }             the player took an item
+//   { type: 'unlock', at, by }                   by: 'walk' | 'fold'
+//   { type: 'gate', at, open, link }             environment phase
 //   { type: 'defeat', cause }
+//   { type: 'victory', cause }                   cause: 'exit'
 
 import { DIRS, inBounds, getCell, topLayer, findCreature, cloneBoard, isFooting } from './board.js';
-import { tileDef } from './tiles.js';
+import { tileDef, itemDef, ITEM } from './tiles.js';
 import { validateFold, applyFold } from './fold.js';
 import { createCreature, creatureDef } from './creatures.js';
 import { actingEnemies, reachField, planEnemy, enemiesInReach } from './enemies.js';
+import { syncGates, isLocked, unlockLayer, keyMeetsLock } from './environment.js';
 
 export { DIRS };
 
@@ -71,7 +79,8 @@ export function createFloorState({ board, player = null, enemies = [], charges =
     if (!spot || !isFooting(spot) || spot.creature) throw new Error(`No room for ${e.kind} at ${e.col},${e.row}`);
     spot.creature = createCreature(e.kind, { id: e.id || `${e.kind}-${n}` });
   });
-  return { board: next, turn: 0, charges, maxCharges: charges, status: 'playing', outcome: null, undo: null };
+  syncGates(next); // a creature may start on a plate
+  return { board: next, turn: 0, charges, maxCharges: charges, keys: 0, status: 'playing', outcome: null, undo: null };
 }
 
 /**
@@ -138,9 +147,16 @@ export function coverEffect(board, from, to) {
 export function resolveFold(s, landings, emit) {
   for (const l of landings) {
     const cell = getCell(s.board, l.to.col, l.to.row);
-    const covered = l.baseHeight > 0 ? cell.layers[l.baseHeight - 1].creature : null;
-    if (!covered) continue;
     const at = { col: l.to.col, row: l.to.row };
+    const lower = l.baseHeight > 0 ? cell.layers[l.baseHeight - 1] : null;
+    const meet = keyMeetsLock(lower, cell.layers[cell.layers.length - 1]);
+    if (meet) {
+      unlockLayer(meet.lock);
+      meet.key.item = null;
+      emit({ type: 'unlock', at, by: 'fold' });
+    }
+    const covered = lower ? lower.creature : null;
+    if (!covered) continue;
     if (tileDef(cell.layers[cell.layers.length - 1].tile).hole) fall(s, covered, at, emit);
     else emit({ type: 'pin', id: covered.id, at });
   }
@@ -164,7 +180,7 @@ const ACTIONS = {
  */
 export const TURN_PHASES = [
   { id: 'enemies', run: runEnemies },
-  { id: 'environment', run: () => {} }, // Phase 3a: plates, doors, hazards
+  { id: 'environment', run: (s, emit) => syncGates(s.board, emit) },
   { id: 'outcome', run: runOutcome },
 ];
 
@@ -212,8 +228,22 @@ function runMove(s, action, emit) {
     damageAt(s, to, BUMP_DAMAGE, emit);
     return null;
   }
-  if (dest && !tileDef(dest.tile).walkable) return 'blocked';
+  if (isLocked(dest)) {
+    if (s.keys <= 0) return 'locked';
+    s.keys -= 1;
+    unlockLayer(dest);
+    emit({ type: 'unlock', at: { ...to }, by: 'walk' });
+  }
+  if (dest && !tileDef(dest.tile).walkable) return tileDef(dest.tile).powered ? 'gate-closed' : 'blocked';
   stepCreature(s, me, to, emit);
+  if (s.status !== 'playing') return null; // fell
+  if (dest.item && itemDef(dest.item).pickup) {
+    emit({ type: 'pickup', id: PLAYER_ID, item: dest.item, at: { ...to } });
+    if (dest.item === ITEM.KEY) s.keys += 1;
+    dest.item = null;
+  }
+  // Reaching the exit ends the floor at once: enemies don't get a last turn.
+  if (tileDef(dest.tile).exit) win(s, 'exit', emit);
   return null;
 }
 
@@ -284,6 +314,7 @@ function runEnemies(s, emit) {
 function runOutcome(s, emit) {
   const me = findCreature(s.board, PLAYER_ID);
   if (!me || me.creature.hp <= 0) lose(s, me ? 'hp' : 'fall', emit);
+  else if (me.top && tileDef(topLayer(s.board, me.col, me.row).tile).exit) win(s, 'exit', emit);
 }
 
 // ---------------------------------------------------------------------------
@@ -330,6 +361,13 @@ export function fall(s, creature, at, emit) {
   }
   emit({ type: 'fall', id: creature.id, creature, at: { ...at } });
   if (creature.id === PLAYER_ID) lose(s, 'fall', emit);
+}
+
+function win(s, cause, emit) {
+  if (s.status !== 'playing') return;
+  s.status = 'won';
+  s.outcome = { cause };
+  emit({ type: 'victory', cause });
 }
 
 function lose(s, cause, emit) {
