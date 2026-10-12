@@ -6,6 +6,7 @@
   --c-ink: #3a3229;
   --c-ink-soft: #6d6253;
   --c-accent: #d9734e;
+  --c-danger: #c0392b;
   --c-ui-surface: rgba(251, 248, 241, 0.92);
   --c-ui-border: #cfc4ae;
 
@@ -153,6 +154,27 @@ body {
 .hud-actions {
   height: var(--hud-bottom);
   justify-content: center;
+}
+.hud-fold {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--c-ink-soft);
+}
+.hud-fold[data-invalid] {
+  color: var(--c-danger);
+}
+.btn[hidden] {
+  display: none;
+}
+
+/* Invalid fold release: brief shake (disabled by reduced motion below). */
+@keyframes board-shake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-6px); }
+  75% { transform: translateX(6px); }
+}
+#board.shake {
+  animation: board-shake 180ms ease-in-out 2;
 }
 
 /* Landscape: one side panel holding both regions. */

@@ -4,11 +4,11 @@
 small. At the end of each conversation, update this file in the same PR.
 
 ## Next up
-**Phase 1b: Drag-to-fold input + live preview.** `src/ui/input.js`: Pointer
-Events drag that snaps to a crease (`{axis, index, side}`, side = where the
-drag starts), keyboard crease selection, cancel by dragging off-board or tapping
-cancel. Preview draws `validateFold()` output (per-cell heights, red overflow
-cells, clipped cells). Confirm calls `foldWithUndo()`; undo calls `unfold()`.
+**Phase 1c: Fold animation + reduced-motion / speed setting.** `src/render/fx.js`:
+the folding half rotates around the crease (cosine scaling), then settles onto
+the stacks; 350–450ms scaled by an animation-speed setting, instant with
+reduced motion. Input stays disabled during it (`input.setEnabled(false)`), and
+undo plays the fold in reverse. Replace the CSS shake with an fx-driven one.
 
 ## Phase checklist
 Larger phases are split into PR-sized chunks so each conversation stays small.
@@ -16,7 +16,7 @@ Larger phases are split into PR-sized chunks so each conversation stays small.
 - [x] **Phase 0** — Scaffolding (PR 1)
 - [ ] **Phase 1** — Board and folding core
   - [x] 1a Fold logic + tests (`core/fold.js`) (PR 2)
-  - [ ] 1b Drag-to-fold input + live preview (pointer + keyboard, `ui/input.js`)
+  - [x] 1b Drag-to-fold input + live preview (pointer + keyboard, `ui/input.js`) (PR 3)
   - [ ] 1c Fold animation + reduced-motion / speed setting (`render/fx.js`)
 - [ ] **Phase 2** — Player, turns, combat
   - [ ] 2a Turn engine + event list, player move/bump/wait/HP
@@ -65,6 +65,36 @@ Larger phases are split into PR-sized chunks so each conversation stays small.
   void drop. It receives `landings: [{from, to, baseHeight, count}]`.
 - 14 new tests (44 total).
 
+### PR 3: Phase 1b drag-to-fold input + live preview
+- `ui/foldGesture.js` (pure): the drag crease is the perpendicular bisector of
+  the drag (paper-like), snapped and clamped to an interior line. The dominant
+  direction picks the axis, and the start cell is always on the folding side.
+  Drags under 0.5 cell are taps. Keyboard: `defaultCrease`, `stepCrease`.
+- `ui/input.js` (DOM): Pointer Events with capture. Release confirms; dragging
+  more than 0.6 cell off the board, right click, Esc or the HUD Cancel button
+  (pointerdown, so a second finger works) aborts. Keyboard: F enters fold mode,
+  arrows/WASD move the crease, F flips the side, Enter confirms, Esc cancels,
+  U/Z undo. `setEnabled()` is ready for 1c animations.
+- `render/preview.js` (pure): `buildFoldPreview` turns `validateFold` into
+  typed arrays (leaving / landing / overflow / clipped + source cell). It is
+  built per crease change, not per frame.
+- `renderer.js` `drawFoldPreview` pass. Each state has a non-color cue:
+  - leaving: dimmed with a dashed outline
+  - landing: ghost of the incoming sheet plus a height badge
+  - overflow: red outline, ✕ and an "!n" badge
+  - clipped: dotted outline
+  - crease: solid when valid, dashed when invalid, with a chevron on the
+    folding side
+- Empty (vacated) cells are painted as void.
+- HUD: Undo Fold (only the latest fold), Cancel (only while previewing), and
+  live fold status text. A CSS shake plays on an invalid release (off under
+  reduced motion).
+- The floor screen holds `{board, undo, preview}` for now; 2a moves it into the
+  turn engine. There are no fold charges yet.
+- 10 new tests (54 total). Verified in headless Chromium: phone touch drag,
+  off-board cancel, undo button; desktop mouse drag, keyboard mode,
+  invalid-release shake, right-click cancel, U undo. No console errors.
+
 ## Conventions worth remembering
 - Dev URL params: `?screen=floor&size=7&seed=abc&palette=night-ink&demo=1`.
 - New draw layers → add a pass to `PASSES` in `renderer.js`.
@@ -73,4 +103,5 @@ Larger phases are split into PR-sized chunks so each conversation stays small.
 - New random streams → `fork(runRng, 'label')`; never use `Math.random` in logic.
 - Fold geometry → add an entry to `AXES` in `fold.js`; creature effects of a
   fold → `resolve` hook, not inside `applyFold`.
+- Fold preview visuals → `CELL` states in `render/preview.js` + `drawFoldPreview`.
 - HUD sizes live only in `HUD_METRICS` (layout.js); CSS reads them as variables.
