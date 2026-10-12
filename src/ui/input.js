@@ -1,6 +1,7 @@
 // Board input: drag-to-fold (Pointer Events: mouse, touch, pen share one
-// path) and keyboard fold mode. A thin layer: gesture math lives in
-// foldGesture.js; the owner (floor screen) validates, previews and applies.
+// path), keyboard fold mode, and tap / key moves. A thin layer: gesture math
+// lives in foldGesture.js and moveInput.js; the owner (floor screen)
+// validates, previews and applies.
 //
 // Callbacks:
 //   onPreview(crease | null)  crease under the gesture changed (null = none)
@@ -8,6 +9,13 @@
 //                             rejected (input then reports it via onInvalid)
 //   onInvalid()               a release or Enter on an invalid fold
 //   onUndo()                  U / Z
+//   onMove(dir)               arrows / WASD (outside fold mode)
+//   onTap(cell)               a tap on a board cell
+//   onWait()                  Space
+//
+// setBusy(true) (during animations) blocks starting a fold, since its
+// preview would be of a board that is still moving, but still reports taps
+// and keys so the owner can buffer one action.
 //
 // Controls (docs/04-ui-input-visuals.md):
 //   drag on board → preview; release confirms; drag off board, right click,
@@ -16,11 +24,15 @@
 //   folding side; Enter confirms; Esc cancels.
 
 import { creaseFromDrag, isOffBoard, defaultCrease, stepCrease, sameCrease } from './foldGesture.js';
+import { dirForKey, isTap } from './moveInput.js';
 import { cellAtPoint } from '../render/layout.js';
 
-export function createFoldInput({ canvas, getLayout, getBoard, onPreview, onConfirm, onInvalid, onUndo }) {
+export function createFoldInput({
+  canvas, getLayout, getBoard, onPreview, onConfirm, onInvalid, onUndo, onMove, onTap, onWait,
+}) {
   let enabled = true;
-  let drag = null; // { pointerId, start: {x,y}, crease, off }
+  let busy = false;
+  let drag = null; // { pointerId, start: {x,y}, crease, off, tap, foldable }
   let keyCrease = null; // crease while in keyboard fold mode
   let shown = null; // last crease sent to onPreview
 
@@ -60,7 +72,7 @@ export function createFoldInput({ canvas, getLayout, getBoard, onPreview, onConf
     const p = point(e);
     if (!layout || !cellAtPoint(layout, p.x, p.y)) return;
     keyCrease = null;
-    drag = { pointerId: e.pointerId, start: p, crease: null, off: false };
+    drag = { pointerId: e.pointerId, start: p, crease: null, off: false, tap: true, foldable: !busy };
     canvas.setPointerCapture?.(e.pointerId);
     show(null);
   }
@@ -70,6 +82,8 @@ export function createFoldInput({ canvas, getLayout, getBoard, onPreview, onConf
     const layout = getLayout();
     if (!layout) return;
     const p = point(e);
+    if (drag.tap && !isTap(layout, drag.start, p)) drag.tap = false; // once a drag, never a tap
+    if (!drag.foldable) return;
     drag.off = isOffBoard(layout, p.x, p.y);
     drag.crease = drag.off ? null : creaseFromDrag(layout, drag.start, p);
     show(drag.crease);
@@ -77,10 +91,16 @@ export function createFoldInput({ canvas, getLayout, getBoard, onPreview, onConf
 
   function onPointerUp(e) {
     if (!drag || e.pointerId !== drag.pointerId) return;
-    const crease = drag.off ? null : drag.crease;
+    const held = drag;
     drag = null;
     show(null);
-    confirm(crease);
+    if (held.tap) {
+      const layout = getLayout();
+      const cell = layout && cellAtPoint(layout, held.start.x, held.start.y);
+      if (cell && onTap) onTap(cell);
+      return;
+    }
+    if (held.foldable) confirm(held.off ? null : held.crease);
   }
 
   function onPointerCancel(e) {
@@ -97,6 +117,8 @@ export function createFoldInput({ canvas, getLayout, getBoard, onPreview, onConf
     const board = getBoard();
     if (!board) return;
     const key = e.key;
+    // Space / Enter on a focused button belong to the button (it clicks).
+    if ((key === ' ' || key === 'Enter') && e.target && e.target.closest && e.target.closest('button')) return;
 
     if (keyCrease) {
       if (key === 'Escape') {
@@ -124,12 +146,20 @@ export function createFoldInput({ canvas, getLayout, getBoard, onPreview, onConf
       return;
     }
 
+    const dir = dirForKey(key);
     if (key === 'f' || key === 'F') {
+      if (busy) return;
       keyCrease = defaultCrease(board);
       show(keyCrease);
       e.preventDefault();
     } else if (key === 'u' || key === 'U' || key === 'z' || key === 'Z') {
       onUndo();
+      e.preventDefault();
+    } else if (dir) {
+      if (onMove) onMove(dir);
+      e.preventDefault();
+    } else if (key === ' ') {
+      if (onWait) onWait();
       e.preventDefault();
     }
   }
@@ -144,10 +174,16 @@ export function createFoldInput({ canvas, getLayout, getBoard, onPreview, onConf
 
   return {
     cancel,
-    /** Ignore new input (e.g. during animations). Cancels any gesture. */
+    /** Ignore all input (e.g. once the floor has ended). Cancels any gesture. */
     setEnabled(value) {
       enabled = !!value;
       if (!enabled) cancel();
+    },
+    /** While busy, folds can't start; taps and keys still report. */
+    setBusy(value) {
+      busy = !!value;
+      // Drop a fold in progress, but keep a tap that is mid-press.
+      if (busy && (keyCrease || (drag && drag.foldable))) cancel();
     },
     get active() {
       return !!(drag || keyCrease);

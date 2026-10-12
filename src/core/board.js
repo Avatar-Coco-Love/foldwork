@@ -62,3 +62,22 @@ export function stackHeight(board, col, row) {
 export function cloneBoard(board) {
   return structuredClone(board);
 }
+
+/**
+ * Locate a creature by id. Returns { col, row, depth, top, creature } where
+ * depth is its layer index and top says it is on the active (top) layer, or
+ * null if it is not on the board. Boards are tiny, so a scan is fine.
+ */
+export function findCreature(board, id) {
+  for (let i = 0; i < board.cells.length; i++) {
+    const layers = board.cells[i].layers;
+    for (let depth = 0; depth < layers.length; depth++) {
+      const creature = layers[depth].creature;
+      if (creature && creature.id === id) {
+        const col = i % board.w;
+        return { col, row: (i - col) / board.w, depth, top: depth === layers.length - 1, creature };
+      }
+    }
+  }
+  return null;
+}
