@@ -192,6 +192,27 @@ body {
 .hud-count {
   font-size: 15px;
 }
+.hud-relics {
+  display: inline-flex;
+  gap: 4px;
+}
+.hud-relics[hidden] {
+  display: none;
+}
+/* A relic chip: glyph on a paper tag, outlined so it reads in every palette. */
+.hud-relic {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 22px;
+  height: 22px;
+  padding: 0 4px;
+  border: 1.5px solid var(--c-ink);
+  border-radius: 5px;
+  background: var(--c-panel, transparent);
+  font-size: 13px;
+  line-height: 1;
+}
 /* Spent: hollow and dashed, so it never relies on color alone. */
 .hud-meter .hud-icon-spent {
   fill: none;

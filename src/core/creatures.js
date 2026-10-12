@@ -21,11 +21,15 @@ export function creatureDef(kind) {
   return def;
 }
 
-/** New creature of `kind`. `hp` overrides the definition (relics, spirits). */
-export function createCreature(kind, { id = kind, hp } = {}) {
+/**
+ * New creature of `kind`. `maxHp` overrides the definition (relics,
+ * spirits) and `hp` starts it below full (HP carried between floors).
+ * Passing only `hp` sets both, as before.
+ */
+export function createCreature(kind, { id = kind, hp, maxHp } = {}) {
   const def = creatureDef(kind);
-  const maxHp = hp ?? def.hp;
-  return { id, kind, hp: maxHp, maxHp };
+  const max = maxHp ?? hp ?? def.hp;
+  return { id, kind, hp: Math.min(hp ?? max, max), maxHp: max };
 }
 
 /** Whether a creature is on the enemy team (unknown kinds are not). */

@@ -6,7 +6,12 @@ to "Resolved" with the answer once decided.
 ## Open
 These belong to later phases and get decided when that phase is built.
 - Exact scrap costs and earn rates (Phase 7; tune in Phase 9).
-- Relic rarity assignments (Phase 4, with the relic implementations).
+- Relic rarity assignments (Phase 4b, with offers). 4a gives provisional
+  ones: Extra Crease and Spring Crease common, Thick Paper and Recycled
+  Crease uncommon.
+- Telemetry start: collection is off (`TELEMETRY.collect: false`) until the
+  first playtests have been watched; then deploy the Sheets collector and
+  switch it on (docs/07).
 - Great Crane balance and arena templates (Phase 6).
 - Names and mechanics for the two later spirits (post-launch; ideas: Rabbit,
   Koi).
@@ -15,10 +20,21 @@ These belong to later phases and get decided when that phase is built.
   be opt-in (a first-run prompt)? Where is the notice shown? The repo ships
   with no endpoint, so nothing is sent until this is decided and an
   endpoint is configured in `src/config.js`.
-- Telemetry hosting: which backend and region (any store that keeps JSON
-  rows works; see `docs/07-telemetry.md`).
 
 ## Resolved
+- Telemetry hosting (4a): Google Sheets via an Apps Script web app for
+  playtests (`tools/telemetry-sheets/`); a real database before launch.
+- Run rules (4a, provisional, playtest them): HP carries between floors,
+  with no healing yet (rest/heal relics arrive in 4b). Defeat ends the run
+  (no more same-floor retry). Leaving mid-floor ends the run as
+  `abandoned` until Phase 7 can save and resume runs.
+- Spring Crease (4a): undo unwinds up to 2 consecutive folds, one per
+  press; any other action ends the chain (docs/02's undo window).
+- Recycled Crease (4a): refunds 1 charge per fold (not per enemy) when it
+  pins, strands or void-drops an enemy. Pinning yourself doesn't count.
+- Thick Paper (4a): max stack 4, which also lets folds land on templates'
+  3-high "thick card". That's the relic's power; floors stay solvable,
+  since more legal folds never remove a solution.
 - Mite tuning (decided in 3b): stats unchanged (1 HP, bites for 1). Floors
   control the pressure instead: 1 Mite on F1, 2 on F2, 1–2 on F3, on
   template anchors (mostly across the void, so they reach you only after a

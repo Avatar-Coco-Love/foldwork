@@ -7,20 +7,41 @@
 //   points are in cell units (0..1 across the tile face); fill/stroke are
 //   palette token names. Parts are painted in order.
 // New creature kinds add an entry to CREATURE_SHAPES.
+//
+// Size and alignment guide (docs/04; tests/creatures.test.js checks it), so
+// every figure reads at the same scale on every board size:
+// - Everything stays inside ART_BOUNDS of the face (the corners above it
+//   hold HP pips, link marks and clips).
+// - Figures are centred left to right (bounding box centre 0.5 ± 0.02).
+// - Feet sit on the shared ground line: the lowest point is FOOT_LINE ±
+//   0.04, just above the drop shadow (centre 0.88).
+// - Height says weight class: small (Mite, Wasp) 0.45–0.65, medium (player,
+//   Creaseling, Lockjaw, Spore Bloom) 0.65–0.85, large (Card Brute) up to the
+//   full 0.9. Width follows the silhouette.
+
+export const ART_BOUNDS = Object.freeze({ min: 0.05, max: 0.95 });
+export const FOOT_LINE = 0.86;
+export const SIZE_CLASSES = Object.freeze({
+  small: [0.45, 0.65],
+  medium: [0.65, 0.85],
+  large: [0.85, 0.9],
+});
 
 export const CREATURE_SHAPES = Object.freeze({
   // A folded-paper figure: a tall rhombus body with one shaded facet and a
   // small diamond head.
   player: {
+    size: 'medium',
     parts: [
-      { fill: 'accent', stroke: 'ink', points: [[0.5, 0.22], [0.8, 0.56], [0.5, 0.9], [0.2, 0.56]] },
-      { fill: 'shadow', points: [[0.5, 0.22], [0.5, 0.9], [0.2, 0.56]] },
-      { fill: 'tileFace', stroke: 'ink', points: [[0.5, 0.06], [0.63, 0.2], [0.5, 0.34], [0.37, 0.2]] },
+      { fill: 'accent', stroke: 'ink', points: [[0.5, 0.245], [0.77, 0.552], [0.5, 0.86], [0.23, 0.552]] },
+      { fill: 'shadow', points: [[0.5, 0.245], [0.5, 0.86], [0.23, 0.552]] },
+      { fill: 'tileFace', stroke: 'ink', points: [[0.5, 0.1], [0.62, 0.227], [0.5, 0.353], [0.38, 0.227]] },
     ],
   },
   // Scrap Mite: a low, wide hexagonal scrap with spiky legs and two
   // feelers. Squat and horizontal where the player is tall and narrow.
   mite: {
+    size: 'small',
     parts: [
       { fill: 'ink', points: [[0.22, 0.6], [0.06, 0.5], [0.26, 0.54]] },
       { fill: 'ink', points: [[0.24, 0.72], [0.06, 0.84], [0.3, 0.76]] },

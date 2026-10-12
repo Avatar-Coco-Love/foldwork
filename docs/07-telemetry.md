@@ -22,9 +22,11 @@ actually behave. The goal is to answer questions we haven't thought of yet
 - `src/telemetry/browser.js`: `fetch` / `sendBeacon` transport, device
   context, input-source tracking, error capture, flush on page hide.
 - `src/telemetry/floorRecorder.js`: the per-floor action log and counters.
-- `src/config.js`: `TELEMETRY.endpoint` (empty = nothing leaves the
-  device), batch size, flush delay, queue cap; `APP_VERSION`,
-  `LOGIC_VERSION`.
+- `src/config.js`: `TELEMETRY.collect` (master switch, **off**: nothing
+  is recorded, queued or given an install id, and the "Share play data"
+  toggle is hidden; dev overrides below still work), `TELEMETRY.endpoint`
+  (empty = nothing leaves the device), batch size, flush delay, queue cap;
+  `APP_VERSION`, `LOGIC_VERSION`.
 - Adding an event: `ctx.telemetry.track('thing.happened', { ... })`. If
   you later change that event's `data` shape, pass `{ dv: 2 }` so analysis
   can tell the versions apart. Never repurpose an existing field.
@@ -95,18 +97,44 @@ create index on events (install);
 Any queue, warehouse or serverless function that can store JSON works the
 same way; analysis queries read `data` with JSON operators.
 
+## Google Sheets backend (playtests)
+`tools/telemetry-sheets/Code.gs` is the contract as a Google Apps Script
+web app writing to a Sheet: one row per event, `data` as JSON text (long
+`data` continues in the next columns), retry dedupe by id (6 h cache).
+Apps Script can't set HTTP status codes, so it answers
+`{ status, message }` and the game retries a batch only on a 5xx status.
+Good for playtest volume (a Sheet holds 10M cells, roughly 800k events);
+move to a database (the SQL above, e.g. Cloudflare D1 or Postgres) before
+a public launch.
+
+Setup:
+1. Create a Google Sheet. Extensions → Apps Script. Paste `Code.gs`, save.
+2. Deploy → New deployment → Web app. Execute as: **Me**. Who has access:
+   **Anyone**. Copy the `/exec` URL (opening it shows "collector ok").
+3. In `src/config.js` set `endpoint` to that URL and `collect: true`.
+   Bump `APP_VERSION`.
+4. Analysis: File → Download → CSV, then
+   `node tools/replay-check.js events.csv` (or
+   `node tools/sheet-to-ndjson.js events.csv > events.ndjson`).
+
+Redeploying after editing the script: Deploy → Manage deployments → edit →
+New version (keeps the same URL).
+
 ## Events (data dictionary)
 All `dv: 1`. Floor events share a tag: `floor`, `seed`, `source`
-(`template` | `dev`), `templateId`, `variant`, and `overrides` when dev
-URL params changed the floor (such floors aren't replayable).
+(`template` | `dev`), `templateId`, `variant`, `loadout` (what the floor
+started with: `relics`, `hp`, `maxHp`; replays need it), and `overrides`
+when dev URL params changed the floor (such floors aren't replayable).
+Run events share a run tag: `seed`, `floor`, `hp`, `maxHp`, `relics`,
+`spirit`.
 
 | Type | When | `data` |
 |---|---|---|
 | `session.start` | Page load | `device` (viewport, screen, dpr, orientation, pointer, hover, touchPoints, reducedMotion, colorScheme, lang, tzOffset, ua, standalone), `settings`, `palette`, `entry` (start screen, dev params used) |
 | `session.hide` | Page hidden / closed | `ms` since load |
 | `screen.view` | Every screen change | `name`, `floor` |
-| `run.start` | New Run | `seed`, `daily` |
-| `run.end` | Last floor cleared | `outcome`, `floor`, `seed` |
+| `run.start` | New Run | run tag, `daily`, `lastFloor` |
+| `run.end` | Run won, lost, or left (`abandoned`: Menu mid-floor, or a new run started) | run tag, `outcome`, `cause`, `cleared`, `lastFloor` |
 | `floor.start` | Floor shown | floor tag, `map` (dev), `attempt`, `checked`, `size`, `charges`, `enemies` [{kind, col, row}] |
 | `floor.end` | Won, lost, or left mid-floor (`abandoned`) | floor tag, `outcome`, `cause`, `turn`, `chargesLeft`, `keys`, `hp`, `ms`, `turns`, `folds`, `undos`, `refused`, `previews`, `foldAttempts`, `previewsCancelled`, `hints`, `inputs` {source: count}, `log` |
 | `hint.show` | Tutorial hint shown | floor tag, `id`, `turn` |
@@ -124,7 +152,8 @@ folds like `fh3a`). Input sources: `key`, `mouse`, `touch`, `pen`.
 - A player setting ("Share play data", title screen; the Phase 7 settings
   screen later) turns it off. Off deletes unsent events and records nothing
   more.
-- With no `endpoint` configured (the default in the repo) nothing is sent.
+- With `collect: false` (the default in the repo) nothing is recorded;
+  with no `endpoint` nothing is sent.
 - Before a public launch, decide the consent notice and default (see
   `docs/OPEN-QUESTIONS.md`).
 

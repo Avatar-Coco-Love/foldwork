@@ -1,16 +1,20 @@
 // Replays recorded floors from telemetry and checks they come out the same.
 // Usage: node tools/replay-check.js telemetry-data/events-*.ndjson
+//        node tools/replay-check.js events.csv   (a Google Sheets CSV export,
+//                                                 tools/telemetry-sheets/)
 //
 // This is the pattern for answering new questions from old data: rebuild
-// the floor from its floor.end event (seed, template, variant), replay the
+// the floor from its floor.end event (seed, template, variant, and the
+// run's loadout: relics and HP the floor started with), replay the
 // action log through the real rules (core/replay.js), and measure whatever
 // you like on the states along the way. Logs from a different LOGIC_VERSION
 // are skipped, since the rules they were played under have changed.
-import { readFileSync } from 'node:fs';
 import { templateById, buildFloor } from '../src/core/floors.js';
 import { createFloorState } from '../src/core/turn.js';
 import { replay } from '../src/core/replay.js';
+import { floorSetupFor } from '../src/core/run.js';
 import { LOGIC_VERSION } from '../src/config.js';
+import { readEvents } from './sheet-to-ndjson.js';
 
 export function checkFloorEnd(ev) {
   const d = ev.data;
@@ -18,7 +22,10 @@ export function checkFloorEnd(ev) {
   const template = d.source === 'template' && templateById(d.templateId);
   if (!template || !d.variant) return { skip: 'not a template floor' };
   if (d.overrides) return { skip: 'dev overrides' };
-  const start = createFloorState(buildFloor(template, d.variant));
+  // Floors recorded before runs existed have no loadout: no relics, full
+  // HP, which is what an empty loadout gives.
+  const loadout = { relics: [], ...d.loadout };
+  const start = createFloorState(floorSetupFor(loadout, buildFloor(template, d.variant)));
   const { state, refused } = replay(start, d.log.map((entry) => entry[1]));
   const loggedRefused = d.log.flatMap((entry, i) => (entry.length > 3 ? [i] : []));
   const outcome = state.status === 'playing' ? 'abandoned' : state.status;
@@ -34,9 +41,7 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   let bad = 0;
   let skipped = 0;
   for (const file of process.argv.slice(2)) {
-    for (const line of readFileSync(file, 'utf8').split('\n')) {
-      if (!line.trim()) continue;
-      const ev = JSON.parse(line);
+    for (const ev of readEvents(file)) {
       if (ev.type !== 'floor.end') continue;
       const r = checkFloorEnd(ev);
       if (r.skip) skipped++;

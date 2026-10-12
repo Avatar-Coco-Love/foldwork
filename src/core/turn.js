@@ -10,7 +10,10 @@
 //     outcome,          null, or { cause } once the floor ends ('fall', 'hp',
 //                       or 'exit' for a win)
 //     undo,             null, or { state, fold }: the state before the latest
-//                       fold, while it can still be undone for free
+//                       fold, while it can still be undone for free (that
+//                       state's own undo chains back rules.undoDepth folds)
+//     rules,            RULES values for this floor (relics and spirits set
+//                       them, core/relics.js; plain data, constant per floor)
 //   }
 //
 // States are values: act() works on a copy and never mutates its input. The
@@ -49,6 +52,10 @@
 //   { type: 'gate', at, open, link }             environment phase
 //   { type: 'defeat', cause }
 //   { type: 'victory', cause }                   cause: 'exit'
+//   { type: 'refund', amount, by }               a fold gave charges back
+//                                                (rules.foldRefund; by: what
+//                                                earned it: 'pin' | 'strand'
+//                                                | 'fall')
 
 import { DIRS, inBounds, getCell, topLayer, findCreature, cloneBoard, isFooting } from './board.js';
 import { tileDef, itemDef, ITEM } from './tiles.js';
@@ -64,23 +71,41 @@ export const DEFAULT_FOLD_CHARGES = 3;
 export const BUMP_DAMAGE = 1;
 
 /**
+ * Rule values the turn engine reads from FloorState.rules. These are the
+ * hook points for relics and spirits (core/relics.js turns them into
+ * values); a new rule-changing effect adds a field here, with a default
+ * that keeps the base rules.
+ *   undoDepth   consecutive folds the free undo can take back (docs/02: 1)
+ *   foldRefund  charges a fold gives back when it pins, strands or drops an
+ *               enemy (once per fold; never above maxCharges)
+ */
+export const DEFAULT_RULES = Object.freeze({ undoDepth: 1, foldRefund: 0 });
+
+/**
  * Start a floor: places the player on the top layer of `player` ({col,row},
  * default: defaultStart), then each of `enemies` ([{ kind, col, row, id? }],
  * ids default to `${kind}-${n}`). The input board is not mutated.
+ * `hp` / `maxHp` carry the player's HP between floors (default: full);
+ * `rules` overrides DEFAULT_RULES fields.
  */
-export function createFloorState({ board, player = null, enemies = [], charges = DEFAULT_FOLD_CHARGES, hp } = {}) {
+export function createFloorState({
+  board, player = null, enemies = [], charges = DEFAULT_FOLD_CHARGES, hp, maxHp, rules = null,
+} = {}) {
   const next = cloneBoard(board);
   const at = player || defaultStart(next);
   const layer = at && topLayer(next, at.col, at.row);
   if (!layer || !isFooting(layer) || layer.creature) throw new Error('No safe start cell for the player');
-  layer.creature = createCreature('player', { id: PLAYER_ID, hp });
+  layer.creature = createCreature('player', { id: PLAYER_ID, hp, maxHp });
   enemies.forEach((e, n) => {
     const spot = topLayer(next, e.col, e.row);
     if (!spot || !isFooting(spot) || spot.creature) throw new Error(`No room for ${e.kind} at ${e.col},${e.row}`);
     spot.creature = createCreature(e.kind, { id: e.id || `${e.kind}-${n}` });
   });
   syncGates(next); // a creature may start on a plate
-  return { board: next, turn: 0, charges, maxCharges: charges, keys: 0, status: 'playing', outcome: null, undo: null };
+  return {
+    board: next, turn: 0, charges, maxCharges: charges, keys: 0, status: 'playing', outcome: null, undo: null,
+    rules: { ...DEFAULT_RULES, ...rules },
+  };
 }
 
 /**
@@ -253,7 +278,7 @@ function runWait(s, action, emit) {
   return null;
 }
 
-function runFold(s, action, emit, before) {
+function runFold(s, action, outerEmit, before) {
   const check = foldCheck(s, action.fold);
   if (!check.ok) return check.reasons[0]?.code === 'no-charges' ? 'no-charges' : 'invalid-fold';
   let landings = [];
@@ -265,8 +290,15 @@ function runFold(s, action, emit, before) {
   });
   s.charges -= 1;
   // The whole prior state, so undo also restores charges and anything the
-  // enemy phase did after the fold.
-  s.undo = { state: { ...before, undo: null }, fold: { ...action.fold } };
+  // enemy phase did after the fold. With undoDepth > 1 it keeps its own
+  // undo, so consecutive folds unwind one at a time.
+  const depth = (s.rules && s.rules.undoDepth) || 1;
+  s.undo = { state: { ...before, undo: trimUndo(before.undo, depth - 1) }, fold: { ...action.fold } };
+  const effects = [];
+  const emit = (ev) => {
+    effects.push(ev);
+    return outerEmit(ev);
+  };
   emit({ type: 'fold', fold: { ...action.fold } });
   resolveFold(s, landings, emit);
 
@@ -278,7 +310,26 @@ function runFold(s, action, emit, before) {
     const e = reachAfter.has(id) ? null : findCreature(s.board, id);
     if (e && e.top) emit({ type: 'strand', id, at: { col: e.col, row: e.row } });
   }
+  refundFold(s, effects, emit);
   return null;
+}
+
+/** An undo chain cut to at most `n` folds (n = 0: none). */
+function trimUndo(undo, n) {
+  if (!undo || n <= 0) return null;
+  return { state: { ...undo.state, undo: trimUndo(undo.state.undo, n - 1) }, fold: undo.fold };
+}
+
+// rules.foldRefund (Recycled Crease): a fold that pins, strands or drops an
+// enemy gives charges back, once per fold.
+function refundFold(s, effects, emit) {
+  const amount = Math.min((s.rules && s.rules.foldRefund) || 0, s.maxCharges - s.charges);
+  if (amount <= 0) return;
+  const hit = effects.find((ev) => (ev.type === 'pin' || ev.type === 'strand' || ev.type === 'fall')
+    && ev.id !== PLAYER_ID);
+  if (!hit) return;
+  s.charges += amount;
+  emit({ type: 'refund', amount, by: hit.type });
 }
 
 function runUndo(state, snapshots) {

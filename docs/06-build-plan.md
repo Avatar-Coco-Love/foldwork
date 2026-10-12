@@ -51,6 +51,7 @@ Build one phase at a time. Finish, test, and summarize before moving on. Each ph
 ## Phase 8 — Audio and polish
 - Synthesized SFX, ambient loop, volume controls.
 - Paper grain, shadows, fold polish, screen shake, palettes, reduced-motion handling.
+- Visual alignment audit on phone, tablet and desktop (both orientations): every board piece at its relative size and centred (docs/04 guide). Known items from 4a: 3-high stacks lift into the row above (layer lift vs cell gap); the landscape board touches the top/bottom edges; HUD heart vs charge icon sizes.
 - **Done when:** the game feels cohesive and passes the accessibility checklist in `CLAUDE.md`.
 
 ## Phase 9 — Playtesting and balance

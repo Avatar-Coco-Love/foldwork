@@ -1,7 +1,7 @@
 // Build-wide constants. Edit here; nothing else hard-codes them.
 
 /** Shown to players and sent with telemetry. Bump with each release. */
-export const APP_VERSION = '0.3.2';
+export const APP_VERSION = '0.4.0';
 
 /**
  * Game-rule version. Bump it whenever a rule change would make an old
@@ -11,11 +11,18 @@ export const APP_VERSION = '0.3.2';
 export const LOGIC_VERSION = 1;
 
 /**
- * Telemetry (src/telemetry, docs/07-telemetry.md). `endpoint` is the
- * collector URL; empty means nothing leaves the device (events are still
- * built, and `?telemetry=console` logs them for development).
+ * Telemetry (src/telemetry, docs/07-telemetry.md).
+ *   collect   master switch. false: nothing is recorded at all (no events,
+ *             no local queue, no install id) and the "Share play data"
+ *             toggle is hidden. Flip to true (with an endpoint) once we're
+ *             ready to collect from playtests. Dev overrides still work:
+ *             `?telemetry=console` or a localhost collector URL.
+ *   endpoint  collector URL (e.g. the Google Apps Script web app in
+ *             tools/telemetry-sheets/); empty means nothing leaves the
+ *             device.
  */
 export const TELEMETRY = Object.freeze({
+  collect: false,
   endpoint: '',
   batchSize: 25, // events per request
   flushMs: 15000, // send at most this long after an event

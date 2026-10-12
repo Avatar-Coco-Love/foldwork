@@ -661,7 +661,7 @@ function paintGate(ctx, p, x, y, s, isTop, layer) {
   ctx.fillStyle = p.glyph;
   ctx.fillRect(x + s * 0.1, y + s * 0.12, s * 0.8, w); // top rail
   ctx.fillRect(x + s * 0.1, y + s * 0.88 - w, s * 0.8, w); // bottom rail
-  for (let k = 0; k < 4; k++) ctx.fillRect(x + s * (0.17 + k * 0.2), y + s * 0.12, w, s * 0.76);
+  for (let k = 0; k < 4; k++) ctx.fillRect(x + s * (0.2 + k * 0.2) - w / 2, y + s * 0.12, w, s * 0.76);
   drawLinkMark(ctx, p, x, y, s, layer);
 }
 
@@ -671,7 +671,7 @@ function paintGateOpen(ctx, p, x, y, s, isTop, layer) {
   ctx.fillStyle = p.glyph;
   ctx.globalAlpha = 0.5;
   ctx.fillRect(x + s * 0.1, y + s * 0.12, s * 0.8, w); // bars retracted into the top rail
-  for (let k = 0; k < 4; k++) ctx.fillRect(x + s * (0.17 + k * 0.2), y + s * 0.12, w, s * 0.12);
+  for (let k = 0; k < 4; k++) ctx.fillRect(x + s * (0.2 + k * 0.2) - w / 2, y + s * 0.12, w, s * 0.12);
   ctx.globalAlpha = 1;
   drawLinkMark(ctx, p, x, y, s, layer);
 }
@@ -679,8 +679,8 @@ function paintGateOpen(ctx, p, x, y, s, isTop, layer) {
 function paintExit(ctx, p, x, y, s) {
   paintFloor(ctx, p, x, y, s);
   // Stairs: three steps rising to the right, filled with the accent and
-  // outlined in ink.
-  const x0 = x + s * 0.18;
+  // outlined in ink. Centred on the face (0.2–0.8 both ways).
+  const x0 = x + s * 0.2;
   const yb = y + s * 0.8;
   const step = s * 0.2;
   ctx.beginPath();
@@ -736,16 +736,17 @@ function paintKeyItem(ctx, p, x, y, s, crowded) {
 }
 
 // A key glyph centered on (cx, cy), `size` across: ring bow, shaft, teeth.
+// It spans cx ± 0.42 size, so it sits in the middle of whatever holds it.
 function drawKey(ctx, cx, cy, size, fill, stroke) {
   const r = size * 0.2;
-  const bx = cx - size * 0.28;
+  const bx = cx - size * 0.22;
   ctx.lineWidth = Math.max(1, size * 0.07);
   ctx.strokeStyle = stroke;
   ctx.fillStyle = fill;
   ctx.beginPath();
   ctx.rect(bx + r * 0.8, cy - size * 0.06, size * 0.48, size * 0.12); // shaft
-  ctx.rect(cx + size * 0.18, cy + size * 0.06, size * 0.08, size * 0.14); // teeth
-  ctx.rect(cx + size * 0.04, cy + size * 0.06, size * 0.08, size * 0.1);
+  ctx.rect(cx + size * 0.24, cy + size * 0.06, size * 0.08, size * 0.14); // teeth
+  ctx.rect(cx + size * 0.1, cy + size * 0.06, size * 0.08, size * 0.1);
   ctx.fill();
   ctx.stroke();
   ctx.beginPath();

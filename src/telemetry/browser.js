@@ -6,6 +6,18 @@ import { createTelemetry } from './telemetry.js';
 import { APP_VERSION, LOGIC_VERSION, TELEMETRY } from '../config.js';
 
 /**
+ * Whether telemetry records anything, given the player's "Share play data"
+ * setting (`shareOn`) and the `?telemetry=` dev override. Nothing is
+ * recorded while TELEMETRY.collect is false, unless a developer asks for it
+ * with `?telemetry=console` or a localhost collector URL.
+ */
+export function telemetryActive(shareOn, override = '') {
+  if (override === 'off') return false;
+  if (override === 'console' || isLocalUrl(override)) return true;
+  return TELEMETRY.collect && !!shareOn;
+}
+
+/**
  * Create the app's telemetry client. `override` is the `?telemetry=` dev
  * param: 'console' logs every event, 'off' disables, and a localhost URL
  * replaces the endpoint (for a local collector, tools/telemetry-collector.js).
@@ -14,7 +26,7 @@ export function setupTelemetry({ enabled, override = '' }) {
   const endpoint = endpointFor(override);
   const telemetry = createTelemetry({
     endpoint,
-    enabled: enabled && override !== 'off',
+    enabled: telemetryActive(enabled, override),
     app: APP_VERSION,
     logic: LOGIC_VERSION,
     storage: safeStorage(),
@@ -83,9 +95,12 @@ export function setupTelemetry({ enabled, override = '' }) {
   };
 }
 
+function isLocalUrl(text) {
+  return /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?\//.test(text);
+}
+
 function endpointFor(override) {
-  if (/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?\//.test(override)) return override;
-  return TELEMETRY.endpoint;
+  return isLocalUrl(override) ? override : TELEMETRY.endpoint;
 }
 
 function safeStorage() {
@@ -113,5 +128,14 @@ async function send(url, body, { beacon }) {
     credentials: 'omit',
     mode: 'cors',
   });
-  return res.ok;
+  if (!res.ok) return false;
+  // Collectors that can't set HTTP status codes (the Google Apps Script one,
+  // tools/telemetry-sheets/) answer 200 with { status } in the body: 5xx
+  // there means "busy, send again later".
+  try {
+    const reply = JSON.parse(await res.text());
+    return !(reply && typeof reply.status === 'number' && reply.status >= 500);
+  } catch {
+    return true; // no JSON body: the HTTP status said it all
+  }
 }

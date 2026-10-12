@@ -36,6 +36,7 @@
 - Tile faces are warm off-white with colored accents; different tile types use both color and a distinct symbol/pattern (colorblind-safe).
 - Layers are drawn as slightly offset stacked sheets, with a visible edge thickness per layer.
 - Creatures are simple origami-inspired polygons built from triangles and rhombi (Mite = small beetle, Wasp = triangular wasp, Brute = boxy golem, etc.). Defined as data, drawn by a shared vector routine.
+- Size and alignment guide (tested in `tests/creatures.test.js`): creature art stays inside 0.05–0.95 of the tile face, is centred left to right, and stands on a shared foot line (0.86) above its shadow. Height marks weight class: small (Mite, Wasp) 0.45–0.65, medium (player, Creaseling, Lockjaw, Spore Bloom) 0.65–0.85, large (Card Brute) up to 0.9. Tile glyphs are centred on the face; corners hold link marks, HP pips and clips.
 - Fold animation: the folding half rotates around the crease with perspective-like scaling (cosine of fold angle), then settles onto the stack. Duration 350–450ms, adjustable by an animation speed setting, and instant if reduced-motion is on.
 - Palette: 3 built-in palettes (default Paper, Night Ink, High Contrast). Extra palettes are unlockable cosmetics.
 

@@ -17,6 +17,8 @@ import { createBoard, findCreature } from '../core/board.js';
 import { TILE } from '../core/tiles.js';
 import { parseMap, DEV_MAPS } from '../core/maps.js';
 import { generateFloor, templateFloors } from '../core/floors.js';
+import { floorSetupFor, finishFloor } from '../core/run.js';
+import { relicDef } from '../core/relics.js';
 import { HINTS, hintDef, hintsFor } from '../core/hints.js';
 import { loadSeenHints, saveSeenHints } from './hintStore.js';
 import { createFloorRecorder } from '../telemetry/floorRecorder.js';
@@ -64,6 +66,8 @@ export const titleScreen = {
       syncShareLabel();
     });
     syncShareLabel();
+    // Hidden until collection is switched on (config TELEMETRY.collect).
+    shareBtn.hidden = !ctx.telemetryOffered;
 
     root.append(
       el('div', { class: 'menu' },
@@ -73,10 +77,7 @@ export const titleScreen = {
           el('button', {
             class: 'btn btn-primary',
             type: 'button',
-            onclick: () => {
-              ctx.startRun();
-              ctx.router.go('floor', { floor: 1 });
-            },
+            onclick: () => startNewRun(ctx),
           }, 'New Run'),
           el('button', { class: 'btn btn-secondary', type: 'button', onclick: () => ctx.router.go('howto') }, 'How to Play'),
           paletteBtn,
@@ -115,10 +116,24 @@ export const howToScreen = {
   },
 };
 
+/** End any run in progress and start a fresh one on its first floor. */
+function startNewRun(ctx) {
+  ctx.endRun('abandoned');
+  ctx.startRun();
+  ctx.router.go('floor', { floor: ctx.run.floor });
+}
+
 export const floorScreen = {
   mount(root, ctx, params) {
     const floorNo = params.floor || 1;
-    const { setup, info } = floorSetup(floorNo, params, ctx.seed);
+    if (!ctx.run) ctx.startRun();
+    const run = ctx.run;
+    const { setup: base, info } = floorSetup(floorNo, params, ctx.seed);
+    // A template floor at the run's floor is part of the run: its result
+    // moves the run on. Dev floors get the run's relics and HP but leave
+    // the run alone.
+    const inRun = info.source === 'template' && run.floor === floorNo;
+    const setup = floorSetupFor(run, base);
     let state = createFloorState(setup);
     let shownBoard = state.board; // what the renderer shows (lags during playback)
     let preview = null;
@@ -133,6 +148,8 @@ export const floorScreen = {
       source: info.source,
       templateId: info.templateId || null,
       variant: info.variant || null,
+      // What the floor started with, so replays rebuild it exactly.
+      loadout: { relics: run.relics.slice(), hp: setup.hp, maxHp: setup.maxHp },
       ...(info.overrides ? { overrides: info.overrides } : {}),
     };
     let reported = false;
@@ -168,12 +185,15 @@ export const floorScreen = {
       hud.setHp(me ? me.hp : 0, me ? me.maxHp : CREATURE_DEFS.player.hp);
       hud.setCharges(state.charges, state.maxCharges);
       hud.setKeys(state.keys);
+      hud.setRelics(relicList);
       hud.setUndoEnabled(canUndo(state));
       hud.setFoldStatus(preview ? foldStatusText(preview) : null, !!preview && (!preview.ok || preview.player === 'drop'));
     };
 
+    const relicList = run.relics.map(relicDef);
     const hud = createHud(root, {
       floor: floorNo,
+      lastFloor: inRun ? run.lastFloor : null,
       onMenu: () => ctx.router.go('title'),
       onUndo: () => dispatch({ type: 'undo' }),
       onWait: () => dispatch({ type: 'wait' }),
@@ -297,8 +317,13 @@ export const floorScreen = {
       hud.hideHint();
       const cause = state.outcome && state.outcome.cause;
       report(state.status === 'won' ? 'won' : 'lost');
+      if (inRun) {
+        ctx.run = finishFloor(run, state);
+        hud.showOutcome(runPanel(ctx, ctx.run, floorNo, cause, params));
+        return;
+      }
       if (state.status === 'won') {
-        hud.showOutcome(victoryPanel(ctx, floorNo, info, params));
+        hud.showOutcome(devVictoryPanel(ctx, params));
         return;
       }
       hud.showOutcome({
@@ -352,6 +377,8 @@ export const floorScreen = {
     queueHints({ type: 'start' });
     return () => {
       report('abandoned');
+      // Leaving mid-floor ends the run (until Phase 7 saves runs to resume).
+      if (inRun && state.status === 'playing' && ctx.run === run) ctx.endRun('abandoned');
       playback.finish();
       fx.destroy();
       ctx.renderer.setFx(null);
@@ -378,6 +405,7 @@ const NOTICES = {
   pickup: () => 'Got a key.',
   unlock: (ev) => (ev.by === 'fold' ? 'The key opens the lock.' : 'Unlocked.'),
   gate: (ev) => (ev.open ? 'A gate opens.' : 'A gate closes.'),
+  refund: () => 'Recycled Crease: charge refunded.',
 };
 
 /** Fold preview for the HUD and board, including the charge check. */
@@ -423,36 +451,46 @@ function floorSetup(floorNo, params, seed) {
   return { setup: { ...setup, charges, enemies }, info: { ...info, ...tagged, source: 'template' } };
 }
 
-/** End-of-floor panel after a win: on to the next floor, or the run is done. */
-function victoryPanel(ctx, floorNo, info, params) {
+/** Dev floors (?map=, ?size=, ?demo=1): play again or leave. */
+function devVictoryPanel(ctx, params) {
+  return {
+    title: 'Floor cleared',
+    text: 'You found the way out.',
+    actions: [
+      { label: 'Play again', primary: true, onclick: () => ctx.router.go('floor', params) },
+      { label: 'Menu', onclick: () => ctx.router.go('title') },
+    ],
+  };
+}
+
+/**
+ * End-of-floor panel for a run floor, given the run after finishFloor():
+ * on to the next floor, the run won, or the run lost. Ends the run (and
+ * reports run.end) when it is over.
+ */
+function runPanel(ctx, run, floorNo, cause, params) {
   const menu = { label: 'Menu', onclick: () => ctx.router.go('title') };
-  if (info.source !== 'template') {
-    return {
-      title: 'Floor cleared',
-      text: 'You found the way out.',
-      actions: [{ label: 'Play again', primary: true, onclick: () => ctx.router.go('floor', params) }, menu],
-    };
-  }
-  const next = templateFloors().find((n) => n > floorNo);
-  if (next) {
+  const newRun = { label: 'New run', primary: true, onclick: () => startNewRun(ctx) };
+  const relics = run.relics.length ? ` Relics: ${run.relics.map((id) => relicDef(id).name).join(', ')}.` : '';
+  if (run.status === 'playing') {
     return {
       title: `Floor ${floorNo} cleared`,
-      text: 'The stairs fold down to the next floor.',
-      actions: [{ label: 'Next floor', primary: true, onclick: () => ctx.router.go('floor', { ...params, floor: next }) }, menu],
+      text: `The stairs fold down to floor ${run.floor}. HP ${run.hp}/${run.maxHp}.${relics}`,
+      actions: [{ label: 'Next floor', primary: true, onclick: () => ctx.router.go('floor', { ...params, floor: run.floor }) }, menu],
     };
   }
-  ctx.telemetry.track('run.end', { outcome: 'won', floor: floorNo, seed: ctx.seed });
+  ctx.endRun(run.status);
+  if (run.status === 'won') {
+    return {
+      title: 'Run complete',
+      text: `You cleared all ${run.lastFloor} floors. Deeper floors are still being folded.`,
+      actions: [newRun, menu],
+    };
+  }
   return {
-    title: 'Run complete',
-    text: 'You reached the bottom of the paper, for now. Deeper floors are still being folded.',
-    actions: [{
-      label: 'New run',
-      primary: true,
-      onclick: () => {
-        ctx.startRun();
-        ctx.router.go('floor', { floor: 1 });
-      },
-    }, menu],
+    title: 'Torn',
+    text: `${cause === 'fall' ? 'You fell through the paper' : 'Out of HP'} on floor ${floorNo}. The run is over.`,
+    actions: [newRun, menu],
   };
 }
 
