@@ -56,7 +56,8 @@ These belong to later phases and get decided when that phase is built.
 - Menu redesign (user's proposal, reviewed against the code; built in
   P3, PR 21). Changes from the proposal are marked. Left-handed layout
   moves only the landscape side panel (portrait has no side to swap).
-  Credits read "Made by Avatar Coco Love"; say if you want other wording.
+  Credits (user's wording): "Made by Cody Joshua Clements, built with
+  Claude."
   - **Title**: Continue Run (only with a save), New Run, How to Play,
     Settings. Later phases add rows: Daily Seed, Unlocks (the proposal's
     "Collection"), Stats & History (Phase 7). Corner icon buttons, no

@@ -192,7 +192,7 @@ function escapeTo(back) {
 }
 
 /** About (Settings): who made it. */
-const CREDITS = 'Made by Avatar Coco Love. Every picture is drawn in code, so there are no image files.';
+const CREDITS = 'Made by Cody Joshua Clements, built with Claude. Every picture is drawn in code, so there are no image files.';
 
 /**
  * Settings (OPEN-QUESTIONS "Menu redesign"), built from SETTINGS_GROUPS
