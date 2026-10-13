@@ -8,7 +8,8 @@ import { CREATURE_DEFS, createCreature } from '../src/core/creatures.js';
 import { createFloorState, act, playerOf } from '../src/core/turn.js';
 import { parseMap } from '../src/core/maps.js';
 import { mirrorCell, foldMapping } from '../src/core/fold.js';
-import { chooseCrease, markCode, markFold, phaseOf, fleeSpot } from '../src/core/boss.js';
+import { chooseCrease, markCode, markFold, phaseOf, fleeSpot, bossMarks } from '../src/core/boss.js';
+import { buildTelegraph, bossForecast, CELL } from '../src/render/preview.js';
 import { reachField } from '../src/core/enemies.js';
 import { stateKey } from '../src/core/solver.js';
 import { buildClips } from '../src/render/playback.js';
@@ -35,9 +36,9 @@ function arena(rows = OPEN, opts = {}) {
 
 const crane = (s) => findCreature(s.board, CRANE);
 
-test('defs: Great Crane 6 HP boss in 3 phases, drop 2, fixed, not heavy; map symbol G', () => {
+test('defs: Great Crane 6 HP boss in 3 phases, drop 2, bump 0, fixed, not heavy; map symbol G', () => {
   const d = CREATURE_DEFS.crane;
-  assert.deepEqual([d.hp, d.ai, d.fixed, d.heavy, d.boss], [6, 'crane', true, undefined, { phases: 3, drop: 2 }]);
+  assert.deepEqual([d.hp, d.ai, d.fixed, d.heavy, d.boss], [6, 'crane', true, undefined, { phases: 3, drop: 2, bump: 0 }]);
   assert.equal(createCreature('crane').mark, null);
   assert.deepEqual(parseMap(['G @']).enemies.map((e) => e.kind), ['crane']);
   const c = createCreature('crane');
@@ -123,24 +124,40 @@ test('void drop: 2 damage, then it flees to the free tile farthest from the play
   assert.ok(field.every((v, i) => v <= d || topLayer(r.state.board, i % 7, Math.floor(i / 7)).creature));
 });
 
-test('bump: 1 damage and it flees; the killing blow wins the floor', () => {
+test('bump: no damage, it only flees; a killing void drop wins the floor', () => {
   const rows = ['. . .', '. G .', '. @ .', '. . .', '. . .'];
   let r = act(arena(rows), move('up'));
-  assert.deepEqual(types(r).slice(0, 3), ['bump', 'damage', 'flee']);
+  assert.deepEqual(types(r).slice(0, 2), ['bump', 'flee']);
   const c = crane(r.state);
-  assert.equal(c.creature.hp, 5);
+  assert.equal(c.creature.hp, 6);
   assert.notDeepEqual([c.col, c.row], [1, 1]);
   // Flee clip: the Crane flies (and the board pass skips it meanwhile).
   const clips = buildClips(arena(rows).board, act(arena(rows), move('up'), { snapshots: true }).events, MOTION);
   assert.ok(clips.some((k) => k.actor && k.actor.kind === 'flee' && k.actor.skip));
 
-  const last = arena(rows);
+  // At 2 HP, a void dropped on it kills it: the floor is won.
+  const drop = OPEN.slice();
+  drop[0] = '. . . o . . .';
+  const last = arena(drop);
   const cr = crane(last);
-  last.board.cells[cr.row * last.board.w + cr.col].layers.at(-1).creature.hp = 1;
-  r = act(last, move('up'));
-  assert.deepEqual(types(r).slice(-2), ['death', 'victory']);
+  last.board.cells[cr.row * last.board.w + cr.col].layers.at(-1).creature.hp = 2;
+  r = act(last, { type: 'fold', fold: { axis: 'h', index: 2, side: 'before' } });
+  assert.deepEqual(types(r).slice(-3), ['damage', 'death', 'victory']);
   assert.equal(r.state.status, 'won');
   assert.deepEqual(r.state.outcome, { cause: 'boss' });
+});
+
+test('a fold that wins the floor stops resolving: the player is not dropped after the boss dies', () => {
+  // Rows 0-1 fold down onto rows 3-2: the void at (3,0) lands on the
+  // Crane at (3,3); the void at (5,1) on the player at (5,2).
+  const rows = ['. . . o . . .', '. . . . . o .', '. . . . . @ .', '. . . G . . .', '. . . . . . .'];
+  const s = arena(rows);
+  const cr = crane(s);
+  s.board.cells[cr.row * s.board.w + cr.col].layers.at(-1).creature.hp = 2;
+  const r = act(s, { type: 'fold', fold: { axis: 'h', index: 2, side: 'before' } });
+  assert.equal(r.state.status, 'won');
+  assert.ok(findCreature(r.state.board, 'player'), 'the player is still on the board');
+  assert.ok(!r.events.some((e) => e.type === 'fall' && e.id === 'player'));
 });
 
 test('fleeSpot: farthest by walking distance, ties row-major; none reachable → nearest', () => {
@@ -157,4 +174,30 @@ test('stateKey tells a marked Crane from an unmarked one', () => {
   const waitedNoCrane = { ...marked, board: s.board };
   assert.notEqual(stateKey(marked), stateKey(waitedNoCrane));
   assert.equal(stackHeight(s.board, 3, 3), 1);
+});
+
+test('telegraph: the marked crease, its landing cells, and whether it hits the player', () => {
+  const s = act(arena(), WAIT).state;
+  const marks = bossMarks(s.board);
+  assert.equal(marks.length, 1);
+  assert.equal(marks[0].id, CRANE);
+  assert.equal(markCode(marks[0].fold), crane(s).creature.mark);
+  const [t] = buildTelegraph(s.board);
+  assert.equal(t.fizzle, false);
+  assert.equal(t.hits, true, 'aimed at the player');
+  assert.ok(t.pv.state.some((st) => st === CELL.LANDING));
+  assert.deepEqual(buildTelegraph(arena().board), [], 'no mark yet, nothing to draw');
+});
+
+test('forecast: what the Crane\'s fold will do after the player\'s action', () => {
+  const s = act(arena(), WAIT).state; // marked, aimed at the player
+  assert.equal(bossForecast(s, WAIT), 'swat');
+  assert.equal(bossForecast(arena(), WAIT), null, 'nothing due: it only marks');
+  // Folding rows 0-2 down pins the Crane: no fold.
+  assert.equal(bossForecast(s, { type: 'fold', fold: { axis: 'h', index: 3, side: 'before' } }), 'pinned');
+  // A void dropped on it.
+  const rows = OPEN.slice();
+  rows[0] = '. . . o . . .';
+  assert.equal(bossForecast(arena(rows), { type: 'fold', fold: { axis: 'h', index: 2, side: 'before' } }), 'dropped');
+  assert.equal(bossForecast(s, { type: 'move', dir: 'nowhere' }), null, 'refused');
 });

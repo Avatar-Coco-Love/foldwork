@@ -96,6 +96,16 @@ export const HINTS = Object.freeze({
     text: 'The number on a Bloom counts down the turns until a Scrap Mite sprouts next to it (the dashed ring). Pin it under a fold, or cut it off from you, and it stops counting.',
     on: 'start',
   },
+  'crane-telegraph': {
+    title: 'The Great Crane',
+    text: 'The Crane folds the floor too. Each time it marks a crease (the dashed line and hatched tiles), it folds that strip on its next turn. Only folds hurt it: drop a void on it. Bumping it just makes it fly off.',
+    on: 'start',
+  },
+  'crane-swat': {
+    title: 'Swatted',
+    text: 'The Crane\'s fold landed on you: 1 damage, and you were knocked to the nearest open tile. Step off the hatched tiles before it folds, or fold first to change what its crease will move.',
+    on: 'event:swat',
+  },
   'key-fold': {
     title: 'Fold a key in',
     text: 'A fold that stacks a key straight onto a lock opens it too, no walking needed.',

@@ -46,16 +46,18 @@ export const REST_HEAL = 1;
 /** Floors in a full run before the boss (docs/03). */
 export const RUN_FLOORS = 8;
 
+/** The boss floor (the Great Crane), the last floor of a full run. */
+export const BOSS_FLOOR = RUN_FLOORS + 1;
+
 /**
- * How many floors a run has today: RUN_FLOORS, or fewer while later floors
- * have no templates yet. It stops before the first floor without one, so
- * a run never reaches an untemplated floor (F6 and F7 exist before F5;
- * dev `?floor=` still reaches them).
+ * How many floors a run has: BOSS_FLOOR, or fewer while later floors have
+ * no templates. It stops before the first floor without one, so a run
+ * never reaches an untemplated floor (dev `?floor=` still reaches them).
  */
 export function runLength(floors = templateFloors()) {
   const have = new Set(floors);
   let n = 0;
-  while (n < RUN_FLOORS && have.has(n + 1)) n += 1;
+  while (n < BOSS_FLOOR && have.has(n + 1)) n += 1;
   return n;
 }
 

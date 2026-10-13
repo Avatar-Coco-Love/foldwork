@@ -4,7 +4,7 @@ import { el } from './dom.js';
 import { createHud } from './hud.js';
 import { createFoldInput } from './input.js';
 import { dirToward } from './moveInput.js';
-import { buildFoldPreview, slidePreview } from '../render/preview.js';
+import { buildFoldPreview, slidePreview, bossForecast } from '../render/preview.js';
 import { createFxPlayer } from '../render/fx.js';
 import { createPlayback, buildClips } from '../render/playback.js';
 import {
@@ -244,7 +244,7 @@ export const floorScreen = {
       hud.setKeys(state.keys);
       hud.setRelics(relicList);
       hud.setUndoEnabled(canUndo(state));
-      hud.setFoldStatus(preview ? foldStatusText(preview) : null, !!preview && (!preview.ok || preview.player === 'drop'));
+      hud.setFoldStatus(preview ? foldStatusText(preview) : null, !!preview && foldStatusWarns(preview));
     };
 
     // The tray shows the spirit first, then the relics.
@@ -491,10 +491,31 @@ function foldPreview(state, crease) {
   if (!pv) return null;
   const check = foldCheck(state, crease);
   const slides = check.ok ? slidePreview(state, crease) : [];
-  return { ...pv, ok: check.ok, reasons: check.ok === pv.ok ? pv.reasons : check.reasons, slides };
+  const boss = check.ok ? bossForecast(state, { type: 'fold', fold: crease }) : null;
+  return { ...pv, ok: check.ok, reasons: check.ok === pv.ok ? pv.reasons : check.reasons, slides, boss };
 }
 
+/** What the Crane's fold will then do (bossForecast), for the fold status. */
+const BOSS_FORECAST = {
+  dropped: 'drops the Crane through a void',
+  pinned: 'pins the Crane, cancelling its fold',
+  swat: 'the Crane\'s fold will swat you',
+  fizzle: 'the Crane\'s fold will fizzle',
+  miss: 'the Crane\'s fold will miss you',
+};
+
 function foldStatusText(pv) {
+  const text = baseFoldStatus(pv);
+  const boss = pv.ok && BOSS_FORECAST[pv.boss];
+  return boss ? `${text}; ${boss}` : text;
+}
+
+/** Whether the fold status reads as a warning. */
+function foldStatusWarns(pv) {
+  return !pv.ok || pv.player === 'drop' || pv.boss === 'swat';
+}
+
+function baseFoldStatus(pv) {
   if (!pv.ok) {
     if (pv.reasons[0]?.code === 'no-charges') return 'No fold charges left';
     if (pv.reasons.some((r) => r.code === 'heavy')) return 'Too heavy: a Card Brute can\'t be pinned';
@@ -657,9 +678,17 @@ function runPanel(ctx, run, floorNo, cause, params) {
   }
   ctx.endRun(run.status);
   if (run.status === 'won') {
+    // 6c replaces this with the full run summary.
+    if (cause === 'boss') {
+      return {
+        title: 'The Crane falls',
+        text: `You folded the Great Crane out of the sky with ${run.hp}/${run.maxHp} HP left. The run is won.${relics}`,
+        actions: [newRun, menu],
+      };
+    }
     return {
       title: 'Run complete',
-      text: `You cleared all ${run.lastFloor} floors. Deeper floors are still being folded.`,
+      text: `You cleared all ${run.lastFloor} floors.`,
       actions: [newRun, menu],
     };
   }

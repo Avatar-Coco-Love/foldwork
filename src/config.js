@@ -8,7 +8,7 @@ export const APP_VERSION = '0.4.0';
  * action log replay differently (core/replay.js), so analysis replays each
  * log with matching rules, or skips it.
  */
-export const LOGIC_VERSION = 1;
+export const LOGIC_VERSION = 2; // 2: bumps only startle the Great Crane; a winning fold stops resolving
 
 /**
  * Telemetry (src/telemetry, docs/07-telemetry.md).

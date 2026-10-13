@@ -5,9 +5,9 @@ import { createFloorState, act, canUndo, playerOf, PLAYER_ID } from '../src/core
 import { SPIRIT_DEFS, spiritDef, isSpirit } from '../src/core/spirits.js';
 import { RELIC_DEFS } from '../src/core/relics.js';
 import { createRun, floorSetupFor, rollOffer, runTag } from '../src/core/run.js';
-import { generateFloor, templateFloors } from '../src/core/floors.js';
+import { generateFloor, templateFloors, templateById } from '../src/core/floors.js';
 import { solve, candidateActions } from '../src/core/solver.js';
-import { encodeAction, decodeAction } from '../src/core/replay.js';
+import { encodeAction, decodeAction, replay } from '../src/core/replay.js';
 
 const HOOKS = ['gain', 'setup', 'rules'];
 const diag = { type: 'fold', fold: { axis: 'd', index: 4, side: 'before' } }; // 5x5 main diagonal
@@ -86,8 +86,13 @@ test('solver: diagonal candidates only with rules.diagonal; Frog floors stay win
   assert.equal(candidateActions(b, { diagonal: true }).length, 5 + 4 * 2 * 2 + 7 * 2 * 2);
   for (const floor of templateFloors()) {
     const run = createRun({ seed: 'frog-proof', spirit: 'frog', floor });
-    const { setup } = generateFloor(floor, run.seed);
+    const { setup, info } = generateFloor(floor, run.seed);
     const state = createFloorState(floorSetupFor(run, setup));
+    const stored = templateById(info.templateId).line;
+    if (stored) { // the boss arena carries its line (too big to search)
+      assert.equal(replay(state, stored).state.status, 'won', `floor ${floor}`);
+      continue;
+    }
     // Straight folds are a subset of the Frog's moves, so a straight line
     // at its lower HP proves the floor; diagonals widen the search a lot
     // on 7x7 floors, so they only get searched on floor 1.

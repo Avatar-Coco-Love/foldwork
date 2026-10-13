@@ -21,8 +21,9 @@
 //   - Pinned, it can't act and its mark is cleared.
 //   - A fold landing on the player swats instead of pinning: 1 damage and
 //     the player is moved to the nearest free footing (turn.js).
-//   - A void drop deals `boss.drop` damage instead of killing it. Every
-//     hit (bump or drop) startles it: it flies to the free footing
+//   - A void drop deals `boss.drop` damage instead of killing it; a bump
+//     deals none (`boss.bump` 0), so only folds hurt it. Every bump or
+//     drop startles it: it flies to the free footing
 //     farthest from the player (walking distance), mark cleared. Its HP
 //     is split into `phases` equal phases (phaseOf; 6b changes its
 //     behaviour per phase).
@@ -54,6 +55,31 @@ export function markFold(code) {
 export function isBoss(creature) {
   const def = creature && CREATURE_DEFS[creature.kind];
   return !!def && !!def.boss;
+}
+
+/**
+ * Every marked crease on the board, for the telegraph: [{ id, at, fold }]
+ * (at = the boss's cell). A pinned boss has no mark, so only top layers
+ * are read.
+ */
+export function bossMarks(board) {
+  const out = [];
+  for (let i = 0; i < board.cells.length; i++) {
+    const layers = board.cells[i].layers;
+    const c = layers.length ? layers[layers.length - 1].creature : null;
+    const fold = c && c.mark ? markFold(c.mark) : null;
+    if (!fold) continue;
+    const col = i % board.w;
+    out.push({ id: c.id, at: { col, row: (i - col) / board.w }, fold });
+  }
+  return out;
+}
+
+/** Ids of every boss on the board, pinned or not. */
+export function bossIds(board) {
+  const out = [];
+  for (const cell of board.cells) for (const l of cell.layers) if (isBoss(l.creature)) out.push(l.creature.id);
+  return out;
 }
 
 /** Which phase a boss is in, 1..phases, from the HP it has lost. */

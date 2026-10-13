@@ -33,6 +33,17 @@ These belong to later phases and get decided when that phase is built.
   shortcuts with thick card.
 
 ## Resolved
+- Great Crane bumps (6a part 2, user's choice after a solver check): on
+  the draft arena a no-fold search won at 1 HP (dodge every marked strip,
+  bump 6 times; its own folds pile the paper to full stacks, then it has
+  no valid crease). Skipping empty creases, measuring strips against the
+  paper left, or 1-2 row strips didn't change that. Now a bump deals **no
+  damage** and only makes it flee (def `boss.bump: 0`); only void drops
+  hurt it (3 drops). Arena `f9-crane` gets **6 charges**: a beam search
+  found no line with 5 or fewer (it stalled at two drops). Decided while
+  building: a fold that wins the floor stops resolving its other landings,
+  so a void that kills the Crane and another landing on the player in the
+  same fold is a win (before, the floor was "won" with the player gone).
 - Great Crane core rules (6a, user's choice after a solver check): a
   1-tile crane, **6 HP in 3 phases of 2**, not Heavy, never walks or bumps.
   Its only attack is its own fold, on a fixed two-beat cycle: it **marks** a

@@ -14,7 +14,7 @@
 import { computeLayout, cellOrigin } from './layout.js';
 import { getPalette, DEFAULT_PALETTE_ID } from './palette.js';
 import { TILE, ITEM } from '../core/tiles.js';
-import { CELL, EFFECT } from './preview.js';
+import { CELL, EFFECT, buildTelegraph } from './preview.js';
 import { drawCreature } from './creatures.js';
 import { findCreature, stackHeight } from '../core/board.js';
 import { creatureDef } from '../core/creatures.js';
@@ -112,7 +112,7 @@ export function createRenderer(canvas, { paletteId = DEFAULT_PALETTE_ID } = {}) 
 // ---------------------------------------------------------------------------
 // Draw passes
 
-const PASSES = [drawBackground, drawBoardBase, drawTiles, drawSightLanes, drawSpawnMarks, drawFoldPreview, drawFoldAnim, drawActor, drawFlash];
+const PASSES = [drawBackground, drawBoardBase, drawTiles, drawSightLanes, drawSpawnMarks, drawTelegraph, drawFoldPreview, drawFoldAnim, drawActor, drawFlash];
 
 function draw(r) {
   const { ctx } = r;
@@ -249,6 +249,65 @@ function drawSpawnMarks(r, ctx) {
     ctx.lineTo(cx, cy + size * 0.1);
     ctx.stroke();
   }
+  ctx.restore();
+}
+
+// The Great Crane's marked crease (render/preview.js buildTelegraph): a
+// dashed danger line with its chevron, diagonal hatching on every cell the
+// fold lands on and a "!" badge on the player if it covers them. A mark
+// that would fizzle is drawn grey. Cached per board; faded while the
+// player previews a fold of their own.
+function drawTelegraph(r, ctx) {
+  const L = r.layout;
+  if (!L || (r.fx && r.fx.foldAnim)) return;
+  const board = r.scene.board;
+  if (!r.marks || r.marks.board !== board) r.marks = { board, list: buildTelegraph(board) };
+  const list = r.marks.list;
+  if (!list.length) return;
+  const p = r.palette;
+  const size = L.cellSize;
+  const lift = layerLift(size);
+  const lineW = Math.max(2, Math.round(size * 0.06));
+  ctx.save();
+  if (r.scene.preview) ctx.globalAlpha = 0.45;
+  for (const t of list) {
+    const color = t.fizzle ? p.inkSoft : p.danger;
+    const pv = t.pv;
+    ctx.strokeStyle = color;
+    ctx.lineWidth = Math.max(1, size * 0.03);
+    for (let i = 0; i < pv.state.length; i++) {
+      if (pv.state[i] === CELL.NONE || pv.state[i] === CELL.LEAVING || pv.state[i] === CELL.CLIPPED) continue;
+      const col = i % board.w;
+      const row = (i - col) / board.w;
+      const level = Math.max(0, board.cells[i].layers.length - 1);
+      const o = cellOrigin(L, col, row);
+      hatch(ctx, o.x, o.y - level * lift, size, size * 0.2);
+    }
+    drawCrease(ctx, p, L, pv, lineW, { color, dashed: true });
+    if (t.hits) {
+      const me = findCreature(board, 'player');
+      if (me) {
+        const o = cellOrigin(L, me.col, me.row);
+        const level = Math.max(0, board.cells[me.row * board.w + me.col].layers.length - 1);
+        badge(ctx, p, o.x + size * 0.78, o.y + size * 0.22 - level * lift, size * 0.2, '!', true);
+      }
+    }
+  }
+  ctx.restore();
+}
+
+// Diagonal hatching across one cell, clipped to it.
+function hatch(ctx, x, y, size, gap) {
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(x, y, size, size);
+  ctx.clip();
+  ctx.beginPath();
+  for (let d = gap / 2; d < size * 2; d += gap) {
+    ctx.moveTo(x + d, y);
+    ctx.lineTo(x + d - size, y + size);
+  }
+  ctx.stroke();
   ctx.restore();
 }
 
@@ -584,18 +643,21 @@ function drawFlash(r, ctx) {
   ctx.setLineDash([]);
 }
 
-function drawCrease(ctx, p, L, pv, lineW) {
+// The crease line and its chevron. `style` overrides the color and dash
+// (the Crane's telegraph); by default it reads the preview's validity.
+function drawCrease(ctx, p, L, pv, lineW, style = null) {
   const ln = pv.line;
   if (!ln) return;
   const size = L.cellSize;
-  const color = pv.ok ? p.accent : p.danger;
+  const color = style ? style.color : pv.ok ? p.accent : p.danger;
+  const dashed = style ? style.dashed : !pv.ok;
   const x0 = L.boardX + ln.x0 * size;
   const y0 = L.boardY + ln.y0 * size;
   const x1 = L.boardX + ln.x1 * size;
   const y1 = L.boardY + ln.y1 * size;
   ctx.strokeStyle = color;
   ctx.lineWidth = lineW;
-  ctx.setLineDash(pv.ok ? [] : [lineW * 3, lineW * 2]); // invalid: dashed
+  ctx.setLineDash(dashed ? [lineW * 3, lineW * 2] : []); // invalid or telegraph: dashed
   ctx.beginPath();
   ctx.moveTo(x0, y0);
   ctx.lineTo(x1, y1);
