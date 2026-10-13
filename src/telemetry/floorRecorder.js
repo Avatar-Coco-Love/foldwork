@@ -12,7 +12,7 @@ import { encodeAction } from '../core/replay.js';
 export function createFloorRecorder(now = () => Date.now()) {
   const start = now();
   const log = [];
-  const counts = { turns: 0, folds: 0, undos: 0, refused: 0, previews: 0, foldAttempts: 0, hints: 0 };
+  const counts = { turns: 0, folds: 0, undos: 0, rewinds: 0, refused: 0, previews: 0, foldAttempts: 0, hints: 0 };
   const inputs = {};
   let previewing = false;
 
@@ -30,6 +30,7 @@ export function createFloorRecorder(now = () => Date.now()) {
       if (tookTurn) counts.turns += 1;
       if (action.type === 'fold') counts.folds += 1;
       if (action.type === 'undo') counts.undos += 1;
+      if (action.type === 'rewind') counts.rewinds += 1;
     },
     /** The fold preview changed: a crease (object) or none (null). */
     preview(crease) {

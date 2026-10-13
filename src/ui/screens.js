@@ -20,7 +20,7 @@ import { parseMap, DEV_MAPS } from '../core/maps.js';
 import { generateFloor, templateFloors } from '../core/floors.js';
 import { floorSetupFor, finishFloor, takeOffer, runTag, addHints } from '../core/run.js';
 import { encodeAction } from '../core/replay.js';
-import { foldsInEffect } from '../core/foldHistory.js';
+import { foldsInEffect, foldText, rewindTo } from '../core/foldHistory.js';
 import { resumeFloor, saveSummary, savedHints } from '../core/save.js';
 import { lineKeys, nextStep } from '../core/hintLine.js';
 import { stateKey } from '../core/solver.js';
@@ -341,6 +341,7 @@ export const floorScreen = {
     const inRun = info.source === 'template' && run.floor === floorNo;
     const setup = floorSetupFor(run, base);
     let state = createFloorState(setup);
+    const floorStart = state; // the floor as it began (fold history rewinds from it)
     // Run floors are saved after every action (core/save.js): the floor is
     // rebuilt from the run seed and the accepted actions are replayed.
     // Floors changed by dev overrides can't be rebuilt, so aren't saved.
@@ -687,6 +688,7 @@ export const floorScreen = {
       if (state.status !== 'playing') return;
       input.cancel();
       input.setEnabled(false);
+      sync(); // back from a fold history peek
       const runFloor = inRun && floorNo === run.floor;
       hud.showOutcome({
         title: 'Paused',
@@ -695,6 +697,7 @@ export const floorScreen = {
           { label: 'Resume', primary: true, onclick: resumePlay },
           { label: 'Restart Floor', onclick: confirmRestart },
           { label: 'How to Play', onclick: () => hud.showSheet(howToPanel(openPause), { onEscape: openPause }) },
+          { label: 'Fold history', onclick: openHistory },
           { label: 'Settings', onclick: openSettings },
           inRun ? { label: 'Abandon Run', onclick: confirmAbandon } : null,
           { label: saving ? 'Save & Quit to Title' : 'Quit to Title', onclick: () => ctx.router.go('title') },
@@ -716,6 +719,86 @@ export const floorScreen = {
         openPause();
       };
       hud.showSheet(settingsPanel(ctx, back), { onEscape: back });
+    }
+
+    // Fold history (OPEN-QUESTIONS "Playtest round 1"): the folds still in
+    // effect, numbered like their crease marks. A row peeks at the board
+    // as it was just before that fold, with the paper it moved shown by the
+    // fold preview; "Rewind to here" goes back there. Rewinding is free
+    // (Restart Floor plus the same moves does the same) and keeps the Hint
+    // count. Back / Esc: peek → list → pause menu.
+    function openHistory() {
+      queued = null;
+      playback.finish(); // its last frame would replace the peek's board
+      sync();
+      const folds = foldsInEffect(actionLog);
+      const rows = folds.map((f) => {
+        const text = foldText(state.board, f.fold);
+        return el('li', {},
+          el('button', {
+            class: 'btn setting-row history-row', type: 'button', onclick: () => peekFold(f), 'aria-label': `Fold ${f.n}: ${text}`,
+          },
+          el('span', { class: 'history-tag', 'aria-hidden': 'true', text: String(f.n) }),
+          el('span', { class: 'setting-text' },
+            el('span', { class: 'setting-label', text: `Fold ${f.n}` }),
+            el('span', { class: 'setting-note', text }))));
+      });
+      hud.showSheet(el('div', { class: 'menu settings history' },
+        el('h2', { class: 'outcome-title', text: 'Fold history' }),
+        folds.length
+          ? el('p', { class: 'subtitle', text: 'Folds still in effect. Numbers match the square tags on the paper. Tap one to see the board before it.' })
+          : null,
+        folds.length
+          ? el('ol', { class: 'history-list' }, rows)
+          : el('p', { class: 'history-empty', text: 'No folds yet. Each fold you make shows up here, numbered like its crease on the paper.' }),
+        el('div', { class: 'menu-buttons' },
+          el('button', { class: 'btn btn-primary', type: 'button', onclick: openPause }, 'Back'),
+        ),
+      ), { onEscape: openPause });
+    }
+
+    /** The board just before fold `f`, with the paper it moved. */
+    function peekFold(f) {
+      const before = rewindTo(floorStart, actionLog, f.at);
+      if (!before) return;
+      const was = before.state;
+      ctx.renderer.setScene({
+        board: was.board,
+        preview: foldPreview(was, f.fold),
+        hint: null,
+        creases: buildCreaseMarks(was.board, foldsInEffect(before.actions)),
+      });
+      // The meters show the floor as it was then, too.
+      const me = playerOf(was);
+      hud.setHp(me ? me.hp : 0, me ? me.maxHp : CREATURE_DEFS.player.hp);
+      hud.setCharges(was.charges, was.maxCharges);
+      hud.setKeys(was.keys);
+      hud.showPeek({
+        title: `Before fold ${f.n}`,
+        text: `${foldText(was.board, f.fold)}. The outlined paper is what it moved.`,
+        actions: [
+          { label: 'Rewind to here', primary: true, onclick: () => rewindFold(f, before) },
+          { label: 'Back', onclick: openHistory },
+        ],
+        onEscape: openHistory,
+      });
+    }
+
+    function rewindFold(f, before) {
+      if (state.status !== 'playing') return;
+      const to = f.at;
+      state = before.state;
+      actionLog = before.actions;
+      creasesFor = -1;
+      shownBoard = state.board;
+      preview = null;
+      recorder.action({ type: 'rewind', to }, ctx.inputSource(), { ok: true });
+      ctx.telemetry.track('floor.rewind', { ...floorTag, fold: f.n, to, turn: state.turn });
+      persist();
+      clearHelp();
+      resumePlay();
+      sync();
+      hud.notify(`Rewound to before fold ${f.n}.`, { info: true });
     }
 
     function confirmAbandon() {

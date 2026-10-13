@@ -423,6 +423,111 @@ body {
   font-size: calc(15px * var(--text-scale));
   line-height: 1.4;
 }
+/* Fold history (pause menu): numbered rows, the number in a square tag
+   like the crease marks on the paper. */
+.history-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: min(420px, 100%);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.history-row {
+  width: 100%;
+  min-height: 56px;
+  justify-content: flex-start;
+}
+.history-tag {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: 2px solid var(--c-ink);
+  border-radius: 3px;
+  background: var(--c-ui-surface);
+  font-weight: 800;
+}
+.history-empty {
+  margin: 0;
+  max-width: 420px;
+  color: var(--c-ink-soft);
+  font-size: calc(15px * var(--text-scale));
+  line-height: 1.4;
+  text-align: center;
+}
+
+/* Fold history peek: covers the HUD, never the board. Portrait: the
+   title over the status bar, the buttons over the action bar. */
+.hud-peek {
+  position: absolute;
+  inset: var(--safe-top) var(--safe-right) var(--safe-bottom) var(--safe-left);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  pointer-events: none;
+}
+.hud-peek-head,
+.hud-peek-actions {
+  display: flex;
+  background: var(--c-background);
+  pointer-events: auto;
+}
+.hud-peek-head {
+  min-height: var(--hud-top);
+  flex-direction: column;
+  justify-content: center;
+  gap: 2px;
+  padding: 4px 12px;
+  border-bottom: 2px dashed var(--c-ink-soft);
+  line-height: 1.25;
+  text-align: center;
+}
+.hud-peek-title {
+  font-size: calc(16px * var(--text-scale));
+}
+.hud-peek-text {
+  color: var(--c-ink-soft);
+  font-size: calc(14px * var(--text-scale));
+}
+.hud-peek-actions {
+  height: var(--hud-bottom);
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 0 12px;
+}
+.hud-peeking .hud-hint {
+  display: none;
+}
+@media (orientation: landscape) {
+  .hud-peek {
+    left: auto;
+    width: var(--hud-side);
+    justify-content: flex-start;
+    gap: 16px;
+    background: var(--c-background);
+    pointer-events: auto;
+  }
+  [data-left-handed] .hud-peek {
+    left: var(--safe-left);
+    right: auto;
+  }
+  .hud-peek-head {
+    border-bottom: 0;
+    padding: 12px 8px 0;
+  }
+  .hud-peek-actions {
+    height: auto;
+    flex-direction: column;
+    align-items: stretch;
+    padding: 0 8px;
+  }
+}
+
 /* Settings or How to Play opened over the board from the pause menu. */
 .hud-sheet {
   background: var(--c-background);
@@ -508,6 +613,27 @@ body {
    scrolls inside the panel so the buttons stay on screen. */
 @media (orientation: landscape) and (max-height: 500px) {
   .hud {
+    gap: 8px;
+  }
+  /* Panels over the board (the pause menu has 7 rows): two columns of
+     buttons, and scroll rather than clip if it still doesn't fit. */
+  .hud-outcome {
+    justify-content: safe center;
+    overflow-y: auto;
+    padding: 8px;
+  }
+  .hud-outcome .panel {
+    flex-shrink: 0;
+    width: min(500px, 100%);
+    padding: 12px 16px;
+  }
+  .hud-outcome .subtitle {
+    margin-bottom: 8px;
+  }
+  .hud-outcome .menu-buttons {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    width: 100%;
     gap: 8px;
   }
   .hud-status,

@@ -13,6 +13,10 @@
 //   'z'               undo
 //   'f<axis><index><side>'  fold, e.g. 'fh3a' = { axis: 'h', index: 3,
 //                     side: 'after' } ('b' = before)
+//   'x<n>'            rewind (fold history, playtest P4b): the floor goes
+//                     back to how it was after its first n accepted
+//                     actions, e.g. 'x4' = { type: 'rewind', to: 4 }. Only
+//                     telemetry logs carry it; a saved log is cut instead.
 // New action types add a case to both functions.
 
 import { act } from './turn.js';
@@ -33,6 +37,7 @@ export function encodeAction(action) {
       const f = action.fold;
       return f && SIDE_CODES[f.side] ? `f${f.axis}${f.index}${SIDE_CODES[f.side]}` : null;
     }
+    case 'rewind': return Number.isInteger(action.to) && action.to >= 0 ? `x${action.to}` : null;
     default: return null;
   }
 }
@@ -43,23 +48,38 @@ export function decodeAction(code) {
   if (MOVES[code]) return { type: 'move', dir: MOVES[code] };
   if (code === 'w') return { type: 'wait' };
   if (code === 'z') return { type: 'undo' };
+  const x = /^x(\d+)$/.exec(code);
+  if (x) return { type: 'rewind', to: Number(x[1]) };
   const m = /^f([a-z])(\d+)([ab])$/.exec(code);
   return m ? { type: 'fold', fold: { axis: m[1], index: Number(m[2]), side: SIDES[m[3]] } } : null;
 }
 
 /**
  * Replay actions (objects or codes) from `start`. Refused actions are
- * skipped, as they were in play (they change nothing). Returns
- * { state, refused }: refused lists the indexes act() turned down.
+ * skipped, as they were in play (they change nothing). A rewind replays
+ * the accepted actions before it, up to its `to`. Returns
+ * { state, refused }: refused lists the indexes turned down.
  */
 export function replay(start, actions) {
   let state = start;
   const refused = [];
+  const accepted = [];
   actions.forEach((a, i) => {
     const action = typeof a === 'string' ? decodeAction(a) : a;
+    if (action && action.type === 'rewind') {
+      if (!(action.to <= accepted.length) || state.status !== 'playing') {
+        refused.push(i);
+        return;
+      }
+      accepted.length = action.to;
+      state = replay(start, accepted).state;
+      return;
+    }
     const result = act(state, action);
-    if (result.ok) state = result.state;
-    else refused.push(i);
+    if (result.ok) {
+      state = result.state;
+      accepted.push(action);
+    } else refused.push(i);
   });
   return { state, refused };
 }
