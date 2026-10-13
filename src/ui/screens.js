@@ -4,7 +4,7 @@ import { el } from './dom.js';
 import { createHud } from './hud.js';
 import { createFoldInput } from './input.js';
 import { dirToward } from './moveInput.js';
-import { buildFoldPreview, slidePreview, bossForecast } from '../render/preview.js';
+import { buildFoldPreview, slidePreview, bossForecast, buildHintMark } from '../render/preview.js';
 import { createFxPlayer } from '../render/fx.js';
 import { createPlayback, buildClips } from '../render/playback.js';
 import {
@@ -17,9 +17,12 @@ import { createBoard, findCreature } from '../core/board.js';
 import { TILE } from '../core/tiles.js';
 import { parseMap, DEV_MAPS } from '../core/maps.js';
 import { generateFloor, templateFloors } from '../core/floors.js';
-import { floorSetupFor, finishFloor, takeOffer, runTag } from '../core/run.js';
+import { floorSetupFor, finishFloor, takeOffer, runTag, addHints } from '../core/run.js';
 import { encodeAction } from '../core/replay.js';
-import { resumeFloor, saveSummary } from '../core/save.js';
+import { resumeFloor, saveSummary, savedHints } from '../core/save.js';
+import { lineKeys, nextStep } from '../core/hintLine.js';
+import { stateKey } from '../core/solver.js';
+import { createHintSearch } from './hintSearch.js';
 import { shareGame, shareUrl } from './share.js';
 import { relicDef } from '../core/relics.js';
 import { SPIRIT_DEFS, spiritDef } from '../core/spirits.js';
@@ -251,8 +254,9 @@ export const spiritScreen = {
 export const floorScreen = {
   mount(root, ctx, routeParams) {
     // A save to continue from (Continue Run) applies to this mount only:
-    // Retry and Next floor reuse params, and must start fresh.
-    const { resume, ...params } = routeParams;
+    // Retry and Next floor reuse params, and must start fresh. Restart
+    // Floor remounts with the floor's Hint count so far.
+    const { resume, restartHints, ...params } = routeParams;
     const floorNo = params.floor || 1;
     if (!ctx.run) ctx.startRun();
     const run = ctx.run;
@@ -275,6 +279,8 @@ export const floorScreen = {
     // Continued from a save: the actions replayed first, so analysis can
     // replay this session's log after them (floor.start and floor.end).
     const resumeTag = actionLog.length ? { resumedFrom: actionLog.slice() } : {};
+    // Hint button presses on this floor, kept through Restart Floor and saves.
+    let hintCount = restartHints ?? (resume ? savedHints(resume, info) : 0);
     let shownBoard = state.board; // what the renderer shows (lags during playback)
     let preview = null;
     let queued = null; // one action pressed during playback (docs/04 input buffer)
@@ -312,12 +318,14 @@ export const floorScreen = {
     function persist() {
       if (!saving) return;
       if (state.status === 'playing') {
-        ctx.saveRun({ floor: floorNo, templateId: info.templateId, variant: info.variant, actions: actionLog });
+        ctx.saveRun({
+          floor: floorNo, templateId: info.templateId, variant: info.variant, actions: actionLog, hints: hintCount,
+        });
         return;
       }
       // Decided the moment the action lands, not after playback, so closing
       // the tab mid-animation can't undo a defeat (or lose a win).
-      ctx.run = finishFloor(run, state);
+      ctx.run = addHints(finishFloor(run, state), floorNo, hintCount);
       ctx.saveRun();
     }
 
@@ -338,7 +346,7 @@ export const floorScreen = {
     });
 
     const sync = () => {
-      ctx.renderer.setScene({ board: shownBoard, preview });
+      ctx.renderer.setScene({ board: shownBoard, preview, hint: hintMark });
       const me = playerOf(state);
       hud.setHp(me ? me.hp : 0, me ? me.maxHp : CREATURE_DEFS.player.hp);
       hud.setCharges(state.charges, state.maxCharges);
@@ -361,6 +369,8 @@ export const floorScreen = {
       onUndo: () => dispatch({ type: 'undo' }),
       onWait: () => dispatch({ type: 'wait' }),
       onCancel: () => input.cancel(),
+      onHint: () => askHint(),
+      onRestart: () => confirmRestart(),
     });
 
     // Runs one action through the turn engine, then plays its events back.
@@ -385,6 +395,7 @@ export const floorScreen = {
       actionLog.push(encodeAction(action));
       persist();
       preview = null;
+      clearHelp(); // a step shown was for the state before this action
       announce(result.events);
       queueHints({ type: 'events', events: result.events });
       input.setBusy(true);
@@ -444,6 +455,7 @@ export const floorScreen = {
       const id = hintQueue.shift();
       const def = hintDef(id);
       hintShown = id;
+      helpCard = false; // the tutorial card takes the card's place
       seenHints.add(id); // shown once, even if never dismissed
       saveSeenHints(seenHints);
       recorder.hintShown();
@@ -456,6 +468,132 @@ export const floorScreen = {
           dismissHint('player');
           showNextHint();
         },
+      });
+    }
+
+    // Hint button (OPEN-QUESTIONS "Playtest round 1"): free and unlimited,
+    // one level more per press. First the floor's written tip, then the
+    // next step of a winning line from here (searched in a worker, and
+    // reused while the player follows it), or word that the floor can't be
+    // won from here. The boss floor is too big to search: tip only.
+    const canSearch = info.search !== false;
+    const search = createHintSearch();
+    let hintLevel = 0; // highest level shown: 1 tip, 2 steps
+    let line = null; // { keys, actions, clean }: the last line found
+    let job = null; // { key, result, promise }: the latest search
+    let hintMark = null; // the next step drawn on the board
+    let helpCard = false; // the hint card shows a Hint button answer
+    let gone = false;
+
+    function askHint() {
+      if (state.status !== 'playing') return;
+      hintCount += 1;
+      persist();
+      const level = hintLevel === 0 && info.tip ? 1 : 2;
+      hintLevel = Math.max(hintLevel, level);
+      ctx.telemetry.track('hint.ask', { ...floorTag, level, count: hintCount, turn: state.turn });
+      if (level === 1) {
+        showHelp('Hint', info.tip, canSearch ? [{ label: 'Next step', onclick: askHint }] : []);
+        if (canSearch) startSearch(); // ready by the time they ask for a step
+      } else if (!canSearch) {
+        showHelp('Hint', `${info.tip || ''} This floor is too big for step-by-step hints.`.trim());
+      } else {
+        showStep();
+      }
+    }
+
+    function startSearch() {
+      const key = stateKey(state);
+      if (job && job.key === key) return job;
+      const from = state;
+      const j = { key, result: null, promise: null };
+      j.promise = search.search({ ...from, undo: null }).then((result) => {
+        if (!result) return null;
+        j.result = result;
+        if (result.status === 'line') line = { keys: lineKeys(from, result.actions), actions: result.actions, clean: result.clean };
+        return result;
+      });
+      job = j;
+      return j;
+    }
+
+    function showStep() {
+      if (showLineStep()) return;
+      const j = startSearch();
+      if (j.result) {
+        showOutcomeOf(j.result);
+        return;
+      }
+      showHelp('Next step', 'Working it out…');
+      j.promise.then((result) => {
+        // Dropped if the player acted (or left) meanwhile.
+        if (!result || gone || job !== j || stateKey(state) !== j.key) return;
+        showOutcomeOf(result);
+      });
+    }
+
+    /** Shows the next step of the known line, if the player is on it. */
+    function showLineStep() {
+      const step = nextStep(line, state);
+      if (!step) return false;
+      hintMark = buildHintMark(state.board, step);
+      const cost = line.clean ? '' : ' Every winning line from here costs HP.';
+      showHelp('Next step', `${STEP_TEXT[step.type](step)}${cost}`);
+      sync();
+      return true;
+    }
+
+    function showOutcomeOf(result) {
+      if (result.status === 'line' && showLineStep()) return;
+      const actions = [{ label: 'Restart floor', onclick: confirmRestart }];
+      if (canUndo(state)) actions.unshift({ label: 'Undo', onclick: () => dispatch({ type: 'undo' }) });
+      showHelp('Hint', result.status === 'stuck'
+        ? 'This floor can\'t be won from here.'
+        : 'No winning line turned up from here. Undo or Restart Floor may help.', actions);
+    }
+
+    function showHelp(title, text, actions = []) {
+      if (hintShown) dismissHint('replaced');
+      hintQueue.length = 0;
+      helpCard = true;
+      hud.showHint({ title, text, actions, onDismiss: clearHelp });
+    }
+
+    function clearHelp() {
+      if (helpCard) hud.hideHint();
+      helpCard = false;
+      if (hintMark) {
+        hintMark = null;
+        sync();
+      }
+    }
+
+    // Restart Floor: the floor as it started (its starting HP and charges;
+    // the run only changes when a floor ends). Asks first, since it can't
+    // be undone.
+    let leaving = null; // floor.end outcome when this screen is left on purpose
+    function confirmRestart() {
+      if (state.status !== 'playing') return;
+      input.cancel();
+      input.setEnabled(false);
+      const close = () => {
+        hud.hideOutcome();
+        input.setEnabled(true);
+      };
+      hud.showOutcome({
+        title: 'Restart floor?',
+        text: 'The floor starts over as it began, with the HP and fold charges you had then.',
+        actions: [
+          { label: 'Keep playing', primary: true, onclick: close },
+          {
+            label: 'Restart floor',
+            onclick: () => {
+              leaving = 'restart';
+              ctx.router.go('floor', { ...params, restartHints: hintCount });
+            },
+          },
+        ],
+        onEscape: close,
       });
     }
 
@@ -484,7 +622,7 @@ export const floorScreen = {
       const cause = state.outcome && state.outcome.cause;
       report(state.status === 'won' ? 'won' : 'lost');
       if (inRun) {
-        if (!saving) ctx.run = finishFloor(run, state); // else persist() did
+        if (!saving) ctx.run = addHints(finishFloor(run, state), floorNo, hintCount); // else persist() did
         // Cleared with more to come: the relic offer replaces the panel.
         if (ctx.run.offer) ctx.router.go('offer', params);
         else hud.showOutcome(runPanel(ctx, ctx.run, floorNo, cause, params));
@@ -532,6 +670,8 @@ export const floorScreen = {
       },
       onUndo: () => dispatch({ type: 'undo' }),
       onWait: () => dispatch({ type: 'wait' }),
+      onHint: () => askHint(),
+      onRestart: () => confirmRestart(),
       onMove: (dir) => dispatch({ type: 'move', dir }),
       onTap(cell) {
         // Tap an adjacent tile to step (or bump) there. Measured from where
@@ -544,14 +684,17 @@ export const floorScreen = {
 
     sync();
     persist();
-    if (actionLog.length) hud.notify('Run continued where you left off.', { info: true });
+    if (restartHints != null) hud.notify('Floor restarted.', { info: true });
+    else if (actionLog.length) hud.notify('Run continued where you left off.', { info: true });
     else if (restarted) hud.notify('This floor changed in an update, so it starts over.', { info: true });
     queueHints({ type: 'start' });
     return () => {
       // Leaving a saved floor mid-play keeps the run: Continue Run on the
       // title screen picks it up. An unsaved one (dev overrides) ends it.
       const keep = saving && state.status === 'playing';
-      report(keep ? 'left' : 'abandoned');
+      report(leaving || (keep ? 'left' : 'abandoned'));
+      gone = true;
+      search.destroy();
       if (!keep && inRun && state.status === 'playing' && ctx.run === run) ctx.endRun('abandoned');
       playback.finish();
       fx.destroy();
@@ -560,6 +703,13 @@ export const floorScreen = {
       hud.destroy();
     };
   },
+};
+
+/** The Hint button's words for a step (the board shows it too). */
+const STEP_TEXT = {
+  fold: () => 'Fold along the dashed line: drag across it the way the arrow points.',
+  move: (a) => `Move ${a.dir} (follow the arrow).`,
+  wait: () => 'Wait a turn (Wait, or Space).',
 };
 
 /** Why an action was refused, for the HUD (null = say nothing). */

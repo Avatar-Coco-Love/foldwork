@@ -141,9 +141,10 @@ Run events share a run tag: `seed`, `floor`, `hp`, `maxHp`, `relics`,
 | `relic.offer` | Relic choice shown after a floor | run tag, `cleared` (the floor just cleared), `offered` [relic ids, in card order], `rest` |
 | `relic.pick` | A choice taken | run tag (after taking it), `cleared`, `pick` (relic id, `rest`, or null when nothing was offered), `index` (card position), `offered` |
 | `floor.start` | Floor shown | floor tag, `map` (dev), `attempt`, `checked`, `size`, `charges`, `enemies` [{kind, col, row}], `resumedFrom` (continued from a save: the action codes replayed first; prepend them to this floor's `log` to replay it), `restarted` (the save no longer matched the floor, so it started over) |
-| `floor.end` | Won, lost, or left mid-floor: `left` (Menu; the run is saved and can continue) or `abandoned` (a dev floor) | floor tag, `outcome`, `cause`, `turn`, `chargesLeft`, `keys`, `hp`, `ms`, `turns`, `folds`, `undos`, `refused`, `previews`, `foldAttempts`, `previewsCancelled`, `hints`, `inputs` {source: count}, `log`, `resumedFrom` (as in floor.start) |
+| `floor.end` | Won, lost, or left mid-floor: `left` (Menu; the run is saved and can continue), `restart` (Restart Floor; a fresh `floor.start` follows) or `abandoned` (a dev floor) | floor tag, `outcome`, `cause`, `turn`, `chargesLeft`, `keys`, `hp`, `ms`, `turns`, `folds`, `undos`, `refused`, `previews`, `foldAttempts`, `previewsCancelled`, `hints`, `inputs` {source: count}, `log`, `resumedFrom` (as in floor.start) |
 | `hint.show` | Tutorial hint shown | floor tag, `id`, `turn` |
 | `hint.dismiss` | Hint closed | floor tag, `id`, `by` (`player` / `replaced`), `ms` shown |
+| `hint.ask` | Hint button pressed (free, unlimited) | floor tag, `level` (1 the floor's tip, 2 a next step or "can't be won from here"), `count` (presses on this floor so far, kept through Restart Floor), `turn` |
 | `settings.change` | Any setting changed | `patch`, `settings` |
 | `share` | Share Foldwork pressed (title screen) | `result`: `shared`, `copied`, `cancelled` or `manual` (link shown to copy) |
 | `error` | Uncaught error / rejection (≤ 20 per session) | `message`, `source`, `line`, `col`, `stack`, `rejection` |

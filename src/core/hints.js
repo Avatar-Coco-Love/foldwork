@@ -25,7 +25,7 @@ export const HINTS = Object.freeze({
   },
   'undo': {
     title: 'Free undo',
-    text: 'Undo Fold (U) takes back your latest fold and refunds its charge, until you take another action.',
+    text: 'Undo (U) takes back your latest fold and refunds its charge, until you take another action.',
     on: 'event:fold',
   },
   'mite-bump': {

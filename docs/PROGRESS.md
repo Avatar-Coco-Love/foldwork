@@ -4,23 +4,24 @@
 small. At the end of each conversation, update this file in the same PR.
 
 ## Next up
-**Playtest P2: Restart Floor + Hint button.** Read OPEN-QUESTIONS
-"Playtest round 1", `core/hints.js`, `core/solver.js`, `core/save.js`.
-- **Restart Floor**, always available (HUD and keyboard): the floor as it
-  started (floor-start HP and charges); the save's action log resets.
-- **Hint button**, three levels, one more per press:
-  1. a written nudge per template (new `tip` field on each template in
-     `core/floors.js`, the boss included). F2's says how to cross the void
-     by riding the fold: drag from your own tile across the void edge.
-  2. the next step of a winning line from the current state: `solve()` in
-     a module Web Worker (no build step), drawn on the board as the
-     crease (with the drag direction) or a move arrow. Not on the boss
-     (too big to solve; tip only).
-  3. when no line is found: "This floor can't be won from here", with
-     Undo / Restart Floor.
-- Hints are free and unlimited; count them per floor (telemetry
-  `hint.ask`) and show the count in the run summary later (6c).
-Then P3 (menus) to P6 (below), then back to Phase 6b (Crane phases 2-3).
+**Playtest P3: Menus.** Read OPEN-QUESTIONS "Menu redesign" (and "Back
+to Projects"), `ui/screens.js` (title, floor screen HUD wiring),
+`ui/hud.js`, `ui/settings.js`, `ui/share.js`, `index.html`.
+- Title: Continue Run / New Run, How to Play, Settings, as a
+  `TITLE_ROWS` table; icon corners: Back to Projects (top-left,
+  `https://avatar-coco-love.github.io/` from `src/config.js`) and Share
+  (top-right). Palette, Animation, Reduced motion, Share play data move
+  to Settings.
+- Settings screen, grouped (Display, Gameplay, Data, About), opened from
+  the title or the pause menu, Back returns there. New: text size,
+  left-handed layout. About: version and credits (feedback links wait for
+  telemetry).
+- Pause menu from the HUD Menu button: Resume, Restart Floor, How to
+  Play, Settings, Abandon Run (confirm), Save & Quit to Title. Consider
+  moving Restart off the HUD bar into it (the bar has five buttons now).
+- Share: `{title, url}` only plus a favicon drawn in code; check the
+  Android share sheet on the user's phone.
+Then P4 to P6 (below), then back to Phase 6b (Crane phases 2-3).
 
 ## Phase checklist
 Larger phases are split into PR-sized chunks so each conversation stays small.
@@ -48,7 +49,7 @@ Larger phases are split into PR-sized chunks so each conversation stays small.
 - [ ] **Playtest round 1** — fixes from the first playtests (user's
   priority, before 6b; decisions in OPEN-QUESTIONS "Playtest round 1")
   - [x] P1 Save and continue runs, Share button on the title (PR 19)
-  - [ ] P2 Restart Floor, Hint button (nudge, next step, can't-win notice)
+  - [x] P2 Restart Floor, Hint button (nudge, next step, can't-win notice) (PR 20)
   - [ ] P3 Menus: title with icon corners (Share, Back to Projects),
     Settings screen (options move off the title), pause menu from the HUD,
     share-sheet fix (OPEN-QUESTIONS "Menu redesign")
@@ -731,3 +732,35 @@ Larger phases are split into PR-sized chunks so each conversation stays small.
   through `bossFold` (turn.js), so pins, drops and swats share the rules.
 - Fold-time creature rules (pin, void drop) → `resolveFold` in `turn.js`;
   the per-cell rule is `coverEffect` (shared with the preview).
+
+### PR 20: Playtest P2 Restart Floor and Hint button; menu plan
+- Planned the user's menu redesign as P3 (OPEN-QUESTIONS "Menu
+  redesign"); old P3-P5 are now P4-P6. Back to Projects goes to
+  `https://avatar-coco-love.github.io/`; feedback waits for telemetry.
+- Every template has a `tip` (the boss too); `generateFloor` info carries
+  `tip` and `search` (false for stored-line floors: the boss).
+- `core/hintLine.js` (pure): `findLine` (clean line first via the new
+  solver option `noDamage`, then any; else `stuck` or `unknown` when
+  capped), `lineKeys` / `nextStep` walk a known line without a new
+  search, including after undoing back onto it.
+- `ui/hintWorker.js` (module worker) + `ui/hintSearch.js`: one search at
+  a time, a new one stops the old worker; main-thread fallback where
+  module workers fail.
+- Floor screen: Hint (H) shows the tip, then "Next step" (marked on the
+  board: dashed crease plus a drag arrow, a move arrow, or a dashed ring
+  for wait), or "This floor can't be won from here" with Undo / Restart
+  floor. Cleared by the next action. Restart (R) asks, then remounts the
+  floor fresh (floor-start HP and charges, empty log). HUD bar: Undo,
+  Wait, Hint, Restart, Menu; short landscape screens use two columns and
+  a scrolling hint card.
+- Hint count per floor: in the save (`floor.hints`), kept through
+  Restart, added to `run.hints[floor]` when the floor ends (6c summary).
+  Telemetry `hint.ask` {level, count, turn}; `floor.end` outcome
+  `restart` (replay-check treats it like `left`).
+- Worst step search from a floor's start (node, desktop): 2.5 s on F7,
+  under 1 s elsewhere; the search starts when the tip shows.
+- 7 new tests (298 total). Checked in headless Chromium: phone portrait
+  (tip, step arrow, restart dialog, Esc, restart), desktop F7 step via
+  keyboard, landscape boss (tip only), a 0-charge F1 ("can't be won").
+  No console errors.
+

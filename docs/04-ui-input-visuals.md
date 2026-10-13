@@ -8,7 +8,8 @@
 
 ## HUD
 - HP (paper hearts), fold charges (small folded-paper icons), floor number, relic tray.
-- **Undo Fold** button (free undo of the last fold, per mechanics doc). Disabled when not available.
+- **Undo** button (free undo of the last fold, per mechanics doc). Disabled when not available.
+- **Hint** button (free, unlimited): the floor's tip, then the next step of a winning line marked on the board, or "can't be won from here". **Restart** button: the floor as it started, after a confirm.
 - **Wait** button and a pause/menu button.
 - Fold preview panel text is minimal; the board itself carries the information.
 

@@ -18,6 +18,8 @@
 //   noFolds    search without folding (to check a floor needs a fold)
 //   noPins     skip folds that pin, strand or void-drop an enemy (to check
 //              a floor needs folds aimed at enemies, core/floors.js NEEDS)
+//   noDamage   skip lines where the player loses HP (the Hint button tries
+//              a clean line first)
 //
 // The search skips undo (it only returns to a state already seen) and
 // dedupes states by stateKey() without the player's HP: a state reached
@@ -29,7 +31,7 @@ import { act, PLAYER_ID } from './turn.js';
 import { DIRS, findCreature } from './board.js';
 import { AXES, SIDES, axesFor } from './fold.js';
 
-export const SOLVER_DEFAULTS = Object.freeze({ maxStates: 20000, maxTurns: 40, noFolds: false, noPins: false });
+export const SOLVER_DEFAULTS = Object.freeze({ maxStates: 20000, maxTurns: 40, noFolds: false, noPins: false, noDamage: false });
 
 /**
  * Every action worth trying on this board, in a fixed order. Diagonal
@@ -100,7 +102,7 @@ function playerHp(state) {
 }
 
 export function solve(start, options = {}) {
-  const { maxStates, maxTurns, noFolds, noPins } = { ...SOLVER_DEFAULTS, ...options };
+  const { maxStates, maxTurns, noFolds, noPins, noDamage } = { ...SOLVER_DEFAULTS, ...options };
   const actions = candidateActions(start.board, { noFolds, diagonal: !!(start.rules && start.rules.diagonal) });
   const fail = (explored, capped) => ({ solvable: false, actions: null, turns: null, folds: null, explored, capped });
   if (start.status === 'won') return { solvable: true, actions: [], turns: 0, folds: 0, explored: 0, capped: false };
@@ -108,7 +110,8 @@ export function solve(start, options = {}) {
 
   // Nodes: { state, parent, action, depth }. Parent links rebuild the line.
   // Search key (no player HP) → the most HP that state was reached with.
-  const seen = new Map([[stateKey(start, { playerHp: false }), playerHp(start)]]);
+  const startHp = playerHp(start);
+  const seen = new Map([[stateKey(start, { playerHp: false }), startHp]]);
   const queue = [{ state: start, parent: null, action: null, depth: 0 }];
   let capped = false;
   for (let q = 0; q < queue.length; q++) {
@@ -126,6 +129,7 @@ export function solve(start, options = {}) {
       const result = act(node.state, action);
       if (!result.ok || result.state.status === 'lost') continue;
       if (noPins && action.type === 'fold' && result.events.some(isPinEvent)) continue;
+      if (noDamage && playerHp(result.state) < startHp) continue;
       const child = { state: result.state, parent: node, action, depth: node.depth + 1 };
       if (result.state.status === 'won') return found(child, q + 1);
       const key = stateKey(result.state, { playerHp: false });

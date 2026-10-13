@@ -32,17 +32,27 @@ These belong to later phases and get decided when that phase is built.
   Frog's strength, prove templates with diagonals too, or block the
   shortcuts with thick card.
 
-- Menu links (P3, user to answer): where does **Back to Projects** go
-  (`https://avatar-coco-love.github.io/`? that page must exist), and where
-  do **Send Feedback / Report a Bug** go (GitHub issues need an account;
-  a form link doesn't)? Until answered, both addresses live in
-  `src/config.js` and their buttons are hidden while empty.
+- Send Feedback / Report a Bug (P3 About): deferred by the user to the
+  telemetry setup. Likely route: the same Google Sheets collector
+  (Apps Script web app) with a short free-text form, which needs its own
+  privacy note (docs/07 says "no free text" today). Hidden until then.
 - Share preview on Android (P3): if sharing only `{title, url}` with a
   drawn favicon still shows "Sharing text" and a mail icon on the user's
   phone, that sheet is the device's and we stop there (sharing an image
   file would load `share.png`, which the game must not).
 
 ## Resolved
+- Back to Projects (P3, user's choice): links to
+  `https://avatar-coco-love.github.io/` (in `src/config.js`).
+- Hint button (P2, decided while building): the step search tries a line
+  that loses no HP first (solver `noDamage`, also the faster search),
+  then any line, saying when every line costs HP. Caps are the floor
+  proofs' (40000 states, 40 turns), in a module Web Worker; the search
+  starts when the tip shows, so the step is usually ready. "Can't be won
+  from here" only when the search finished; if it hit the caps it says no
+  line turned up. Restart Floor asks first (it can't be undone); keys H
+  and R (R outside keyboard fold mode). The floor's hint count survives
+  Restart Floor and saves, and lands on the run as `run.hints`.
 - Menu redesign (user's proposal, reviewed against the code; built in
   P3, after the Hint button). Changes from the proposal are marked.
   - **Title**: Continue Run (only with a save), New Run, How to Play,

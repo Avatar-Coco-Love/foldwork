@@ -289,6 +289,19 @@ body {
 .hud-hint-title {
   font-size: 16px;
 }
+.hud-hint-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+/* Portrait: five actions fit a 360px-wide phone. */
+.hud-actions {
+  gap: 6px;
+}
+.hud-actions .btn {
+  padding: 0 12px;
+}
 
 /* How to Play: a scrolling list of every hint. */
 .howto {
@@ -363,6 +376,32 @@ body {
     align-items: stretch;
     margin: 0 8px;
     font-size: 14px;
+  }
+}
+
+/* Short landscape (phones): actions in two columns, and a long hint card
+   scrolls inside the panel so the buttons stay on screen. */
+@media (orientation: landscape) and (max-height: 500px) {
+  .hud {
+    gap: 8px;
+  }
+  .hud-status,
+  .hud-actions {
+    flex-shrink: 0;
+  }
+  .hud-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    padding: 0 8px;
+  }
+  .hud-actions .btn {
+    padding: 0 6px;
+    font-size: 15px;
+  }
+  .hud-hint {
+    min-height: 0;
+    flex-shrink: 1;
+    overflow-y: auto;
   }
 }
 

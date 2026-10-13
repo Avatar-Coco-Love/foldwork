@@ -22,6 +22,8 @@
 //                     a floor too big to solve (the boss arena): checkFloor
 //                     replays it instead of searching. One variant only.
 //     hints,          tutorial hint ids (core/hints.js) shown on this floor
+//     tip,            the Hint button's first level: a written nudge for
+//                     this floor (core/hintLine.js)
 //   }
 //
 // Validation (docs/05: every floor is proven solvable before it is shown).
@@ -68,6 +70,7 @@ export const FLOOR_TEMPLATES = Object.freeze([
     transforms: ['id', 'flipH'],
     enemies: [{ kind: 'mite', count: 1 }],
     needs: ['fold'],
+    tip: 'The void splits the floor. Drag across the board so one half folds over it: folded paper covers a void, and you can walk across.',
     hints: ['fold-drag', 'fold-bridge', 'mite-bump', 'undo'],
   },
   // Floor 2: pressure plates. The exit and its gate are thick card (3
@@ -95,6 +98,7 @@ export const FLOOR_TEMPLATES = Object.freeze([
     transforms: ['id', 'flipH'],
     enemies: [{ kind: 'mite', count: 2 }],
     needs: ['fold', 'plate'],
+    tip: 'Cross the void by riding the fold: drag from your own tile up across the void\'s edge. Your row folds over the void and carries you with it. Then step onto the plate and straight into the gate: it can\'t close while you stand in it.',
     hints: ['plate-gate', 'thick-stack', 'pin', 'pinned-self'],
   },
   // Floor 2 (alternate): plates plus the Paper Wasp. The same thick exit
@@ -122,6 +126,7 @@ export const FLOOR_TEMPLATES = Object.freeze([
     transforms: ['id', 'flipH'],
     enemies: [{ kind: 'wasp', count: 1 }],
     needs: ['fold', 'plate'],
+    tip: 'Ride your row across the void: drag from your own tile up across its edge. The Wasp watches the way up, so before you climb, fold more paper between you and it: a taller stack blocks its sting.',
     hints: ['wasp-sting', 'plate-gate', 'thick-stack'],
   },
   // Floor 3: keys and locks. A thick wall with one lock splits the board.
@@ -150,6 +155,7 @@ export const FLOOR_TEMPLATES = Object.freeze([
     vary: { '%': ['.', '#'] },
     enemies: [{ kind: 'mite', count: 2 }],
     needs: ['fold', 'key'],
+    tip: 'Pick up the key on your side first. Then ride your row across the void (drag from your tile up across its edge) and walk the key into the lock.',
     hints: ['key-lock', 'thick-stack'],
   },
   // Floor 3 (alternate): the key is across the void at the top. Fold it
@@ -177,6 +183,7 @@ export const FLOOR_TEMPLATES = Object.freeze([
     transforms: ['id', 'flipH'],
     enemies: [{ kind: 'mite', count: 1 }],
     needs: ['fold', 'key'],
+    tip: 'You don\'t have to cross for the key. Fold the top row down over the void and the key rides along with the paper. Then carry it down to the lock.',
     hints: ['key-lock', 'key-fold', 'thick-stack'],
   },
   // Floor 3 (alternate): the Card Brute waits by the lock across the void.
@@ -206,6 +213,7 @@ export const FLOOR_TEMPLATES = Object.freeze([
     transforms: ['id', 'flipH'],
     enemies: [{ kind: 'brute', count: 1 }],
     needs: ['fold', 'key'],
+    tip: 'The quick bridge would land on the Card Brute, and it\'s too heavy to pin. Bridge in two folds instead: the bottom row up, then the doubled paper over the void. Slip past the Brute while it rests.',
     hints: ['brute-heavy', 'key-lock', 'thick-stack'],
   },
   // Floor 4: plate + key, with the Creaseling. The exit row is thick card:
@@ -236,6 +244,7 @@ export const FLOOR_TEMPLATES = Object.freeze([
     transforms: ['id', 'flipH'],
     enemies: [{ kind: 'creaseling', count: 1 }],
     needs: ['fold', 'key', 'plate'],
+    tip: 'Bring the key to you: fold the top row down, then fold again so it lands on the void row within reach. Then stand on the plate, step into the gate and unlock the exit. Each fold slides the Creaseling toward you, so watch where it ends up.',
     hints: ['creaseling-slide', 'plate-gate', 'key-lock', 'thick-stack'],
   },
   // Floor 4 (alternate): the order flips. The plate sits behind the lock,
@@ -264,6 +273,7 @@ export const FLOOR_TEMPLATES = Object.freeze([
     transforms: ['id', 'flipH'],
     enemies: [{ kind: 'creaseling', count: 1 }],
     needs: ['fold', 'key', 'plate'],
+    tip: 'Fold the far rows down over the void, twice, to bring the key within reach. The plate is behind the lock this time: open the lock first, then hold the plate and step into the gate.',
     hints: ['creaseling-slide', 'key-lock', 'plate-gate', 'thick-stack'],
   },
   // Floor 5: pinning and stranding as the solution. The Wasp watches the
@@ -293,6 +303,7 @@ export const FLOOR_TEMPLATES = Object.freeze([
     ]),
     transforms: ['id', 'flipH'],
     needs: ['fold', 'pin'],
+    tip: 'Fold, don\'t fight. Step down a row, then fold your row onto the bottom row: you ride it, the paper pins the Wasp, and the empty row strands the Creaseling. Then bridge the void.',
     hints: ['fold-enemies', 'pin', 'strand', 'wasp-sting', 'creaseling-slide', 'thick-stack'],
   },
   // Floor 5 (alternate): a crowd. A Mite and a Creaseling share your row,
@@ -322,6 +333,7 @@ export const FLOOR_TEMPLATES = Object.freeze([
     ]),
     transforms: ['id', 'flipH'],
     needs: ['fold', 'pin'],
+    tip: 'Step up a row, then fold your row down onto the bottom row: it pins both enemies there, and the doubled paper you ride stands taller than the Wasp, so it can\'t see you. Then bridge the void.',
     hints: ['fold-enemies', 'pin', 'brute-heavy', 'thick-stack'],
   },
   // Floor 6: guarded keys. The only key is the one the Lockjaw holds, and
@@ -354,6 +366,7 @@ export const FLOOR_TEMPLATES = Object.freeze([
     transforms: ['id', 'flipH'],
     enemies: [{ kind: 'mite', count: 1 }],
     needs: ['fold', 'key'],
+    tip: 'Don\'t walk up to the Lockjaw: it bites twice before it dies. Fold the void row up onto it and it drops through, leaving its key on the nearest free tile. Line up under it before you fold.',
     hints: ['lockjaw-guard', 'key-lock', 'thick-stack'],
   },
   // Floor 6 (alternate): two locks in a row, two Lockjaws, two keys. Both
@@ -384,6 +397,7 @@ export const FLOOR_TEMPLATES = Object.freeze([
     transforms: ['id', 'flipH'],
     enemies: [{ kind: 'mite', count: 1 }],
     needs: ['fold', 'key'],
+    tip: 'Both Lockjaws stand on the void\'s far edge. One fold of the void row up onto them drops them both, and their keys land nearby. Then collect both keys, minding the Mite.',
     hints: ['lockjaw-guard', 'key-lock', 'thick-stack'],
   },
   // Floor 7: time pressure. You start in a pocket with a Spore Bloom, so
@@ -419,6 +433,7 @@ export const FLOOR_TEMPLATES = Object.freeze([
     ]),
     transforms: ['id', 'flipH'],
     needs: ['fold'],
+    tip: 'The Bloom keeps sprouting Mites, so be quick. Bridging with your two rows at once takes a bite. Fold your bottom row onto the row above first, then ride the doubled paper over the void.',
     hints: ['bloom-spawn', 'plate-gate', 'thick-stack'],
   },
   // Floor 8: everything at once, two charges. The F4 exit row (exit, lock,
@@ -452,6 +467,7 @@ export const FLOOR_TEMPLATES = Object.freeze([
     ]),
     transforms: ['id', 'flipH'],
     needs: ['fold', 'key', 'plate'],
+    tip: 'Step onto the key\'s row, then fold it down onto the bottom row: you and the key ride along. Then bridge on the doubled paper: it stands taller than the Wasp, so it can\'t see you climb up beside it.',
     hints: ['fold-enemies', 'key-lock', 'plate-gate', 'thick-stack'],
   },
   // Floor 8 (alternate): two Lockjaws and a loose key, same exit row.
@@ -483,6 +499,7 @@ export const FLOOR_TEMPLATES = Object.freeze([
     ]),
     transforms: ['id', 'flipH'],
     needs: ['fold', 'key', 'plate'],
+    tip: 'Weave past the near Lockjaw\'s bite to the key, then fold the row above down onto that Lockjaw: pinned, it can\'t bite while you cross. The doubled paper bridges the void on your second fold.',
     hints: ['fold-enemies', 'lockjaw-guard', 'key-lock', 'plate-gate'],
   },
   // Floor 9: the Great Crane (docs/03; rules in core/boss.js). No exit:
@@ -510,6 +527,7 @@ export const FLOOR_TEMPLATES = Object.freeze([
     ],
     line: ['u', 'fv6b', 'fv6a', 'u', 'u', 'fv1b', 'fv5b', 'fv3a', 'fv4b'],
     needs: ['fold'],
+    tip: 'Bumps only startle the Crane; only a void dropped on it hurts. When it marks a crease you get one action: step out of the marked strip, or fold first to spoil it. To hurt it, fold paper with a void onto it.',
     hints: ['crane-telegraph', 'crane-swat'],
   },
 ]);
@@ -698,6 +716,8 @@ function finish(built, attempt, rejected, checked) {
       rejected,
       checked, // 'tested' (proven by the test suite), 'runtime' or 'fallback'
       hints: template.hints || [],
+      tip: template.tip || null,
+      search: !template.line, // the Hint button can search for a next step
     },
   };
 }
