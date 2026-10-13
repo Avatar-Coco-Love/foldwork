@@ -25,3 +25,19 @@ export function el(tag, props = {}, ...children) {
   }
   return node;
 }
+
+const SVG_NS = 'http://www.w3.org/2000/svg';
+
+/** A 24x24 line icon from path data (one string or several), for buttons. */
+export function svgIcon(paths, cls = 'icon') {
+  const svg = document.createElementNS(SVG_NS, 'svg');
+  svg.setAttribute('viewBox', '0 0 24 24');
+  svg.setAttribute('class', cls);
+  svg.setAttribute('aria-hidden', 'true');
+  for (const d of [].concat(paths)) {
+    const p = document.createElementNS(SVG_NS, 'path');
+    p.setAttribute('d', d);
+    svg.append(p);
+  }
+  return svg;
+}

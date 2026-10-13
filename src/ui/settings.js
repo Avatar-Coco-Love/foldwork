@@ -2,8 +2,10 @@
 // normalizeSettings / resolveMotion are pure and tested; load/save take an
 // optional storage so tests (and private-mode browsers) never throw.
 //
-// Phase 7 adds the full settings screen; for now the title screen cycles
-// the animation options.
+// SETTINGS_GROUPS lays out the Settings screen (playtest P3) as data: a
+// later phase adds a row here, not mount code.
+
+import { PALETTES, DEFAULT_PALETTE_ID } from '../render/palette.js';
 
 export const SETTINGS_KEY = 'foldwork.settings';
 export const SETTINGS_VERSION = 1;
@@ -28,20 +30,89 @@ export const TELEMETRY_MODES = Object.freeze([
   { id: 'off', name: 'Off' },
 ]);
 
+/** Color palettes (render/palette.js); every one is colorblind-safe. */
+export const PALETTE_OPTIONS = Object.freeze(Object.values(PALETTES).map((p) => ({ id: p.id, name: p.name })));
+
+/** Text size for menus, the HUD and hint cards: a multiplier on font sizes. */
+export const TEXT_SIZES = Object.freeze([
+  { id: 'normal', name: 'Normal', scale: 1 },
+  { id: 'large', name: 'Large', scale: 1.2 },
+]);
+
+/** Which side the landscape HUD panel sits on. */
+export const HANDS = Object.freeze([
+  { id: 'right', name: 'Off' },
+  { id: 'left', name: 'On' },
+]);
+
 export const DEFAULT_SETTINGS = Object.freeze({
   version: SETTINGS_VERSION,
+  palette: DEFAULT_PALETTE_ID,
+  textSize: 'normal',
   animSpeed: 'normal',
   reducedMotion: 'system',
+  hand: 'right',
   telemetry: 'on',
 });
+
+/** The settings that are a choice from a list, and the list. */
+const CHOICES = Object.freeze({
+  palette: PALETTE_OPTIONS,
+  textSize: TEXT_SIZES,
+  animSpeed: ANIM_SPEEDS,
+  reducedMotion: MOTION_MODES,
+  hand: HANDS,
+  telemetry: TELEMETRY_MODES,
+});
+
+/**
+ * The Settings screen, in groups. A row is either a choice
+ * ({ id, label, key }: tapping cycles `settings[key]` through its list) or
+ * an action ({ id, label, action }: the screen runs `actions[action]`).
+ * `show(ctx)` hides a row; a group with no rows shown is hidden. The
+ * About group is drawn by the screen (version, credits).
+ */
+export const SETTINGS_GROUPS = Object.freeze([
+  {
+    id: 'display',
+    title: 'Display',
+    rows: [
+      { id: 'palette', label: 'Palette', key: 'palette' },
+      { id: 'text-size', label: 'Text size', key: 'textSize' },
+      { id: 'anim-speed', label: 'Animation', key: 'animSpeed' },
+      { id: 'reduced-motion', label: 'Reduced motion', key: 'reducedMotion' },
+      { id: 'left-handed', label: 'Left-handed layout', key: 'hand', note: 'Puts the side panel on the left in landscape.' },
+    ],
+  },
+  {
+    id: 'gameplay',
+    title: 'Gameplay',
+    rows: [
+      { id: 'reset-hints', label: 'Show tutorial hints again', action: 'resetHints' },
+    ],
+  },
+  {
+    id: 'data',
+    title: 'Data',
+    rows: [
+      // Hidden until collection is switched on (config TELEMETRY.collect).
+      { id: 'telemetry', label: 'Share play data', key: 'telemetry', show: (ctx) => !!ctx.telemetryOffered },
+    ],
+  },
+]);
+
+/** The option list for a choice setting (`palette`, `animSpeed`, …). */
+export function choicesFor(key) {
+  return CHOICES[key] || null;
+}
 
 /** Fill defaults and drop unknown values (bad or old saves reset per field). */
 export function normalizeSettings(raw) {
   const s = { ...DEFAULT_SETTINGS };
   if (!raw || typeof raw !== 'object') return s;
-  if (ANIM_SPEEDS.some((o) => o.id === raw.animSpeed)) s.animSpeed = raw.animSpeed;
-  if (MOTION_MODES.some((o) => o.id === raw.reducedMotion)) s.reducedMotion = raw.reducedMotion;
-  if (TELEMETRY_MODES.some((o) => o.id === raw.telemetry)) s.telemetry = raw.telemetry;
+  for (const [key, list] of Object.entries(CHOICES)) {
+    if (list.some((o) => o.id === raw[key])) s[key] = raw[key];
+  }
   return s;
 }
 
@@ -54,6 +125,11 @@ export function resolveMotion(settings, systemReduced = false) {
   const mode = settings.reducedMotion;
   const reducedMotion = mode === 'on' || (mode === 'system' && !!systemReduced);
   return { speed, reducedMotion };
+}
+
+/** Font-size multiplier for the text size setting. */
+export function textScale(settings) {
+  return (TEXT_SIZES.find((o) => o.id === settings.textSize) || TEXT_SIZES[0]).scale;
 }
 
 /** Next option id in a choices list, wrapping around. */
