@@ -4,16 +4,16 @@
 small. At the end of each conversation, update this file in the same PR.
 
 ## Next up
-**Playtest P4: Fold history.** Read OPEN-QUESTIONS "Playtest round 1"
-(the fold history item; the design is a proposal, confirm with the user
-first), `ui/screens.js` (floor screen), `ui/hud.js`, `core/replay.js`,
-`core/turn.js` (undo), `render/renderer.js` (passes).
+**Playtest P4a: crease marks + tap-to-confirm.** User confirmed all four
+fold-history parts, split into two PRs (P4a, P4b). Read OPEN-QUESTIONS
+"Playtest round 1" (fold history item), `ui/screens.js` (floor screen),
+`ui/input.js`, `ui/settings.js`, `render/renderer.js` (passes).
 - Numbered crease marks on the paper, one per fold still in effect.
-- A history strip listing the floor's folds; tapping one peeks at the
-  board as it was before it and the paper it moved; "Rewind to here"
-  replays the floor's log up to it.
 - Tap-to-confirm folds: a Gameplay row in `SETTINGS_GROUPS`
   (`ui/settings.js`), a new choice field in `DEFAULT_SETTINGS`/`CHOICES`.
+Then **P4b**: a history strip listing the floor's folds; tapping one
+peeks at the board as it was before it and the paper it moved; "Rewind
+to here" replays the floor's log up to it (`core/replay.js`).
 Then P5, P6, then back to Phase 6b (Crane phases 2-3).
 
 ## Phase checklist
@@ -46,8 +46,10 @@ Larger phases are split into PR-sized chunks so each conversation stays small.
   - [x] P3 Menus: title with icon corners (Share, Back to Projects),
     Settings screen (options move off the title), pause menu from the HUD,
     share-sheet fix (OPEN-QUESTIONS "Menu redesign") (PR 21)
-  - [ ] P4 Fold history: numbered crease marks, history strip with peek
-    and rewind, optional tap-to-confirm folds (a Settings row)
+  - [x] P3 follow-up: phone/browser Back button = in-game Back (PR 22)
+  - [ ] P4a Fold history: numbered crease marks, optional tap-to-confirm
+    folds (a Settings row)
+  - [ ] P4b Fold history: history strip with peek and rewind
   - [ ] P5 Lockjaw bite warning + tip rewrite; HP economy (rest heals 2,
     +1 HP for a floor cleared without damage); re-prove every floor
   - [ ] P6 Save code (move a run between devices, in Settings > Data),
@@ -795,7 +797,7 @@ Larger phases are split into PR-sized chunks so each conversation stays small.
   phone landscape (left-handed panel, Save & Quit, Continue). No console
   errors.
 
-### Playtest P3 follow-up: phone Back button
+### PR 22: Playtest P3 follow-up, phone Back button
 - `ui/backButton.js`: the browser / phone Back button acts as the in-game
   Back. Off the title screen one guard history entry is pushed; Back pops
   it, an Esc keydown goes to the open dialog (or focus), and the guard is
