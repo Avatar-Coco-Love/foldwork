@@ -794,3 +794,14 @@ Larger phases are split into PR-sized chunks so each conversation stays small.
   save, Esc order with a keyboard fold preview, dev floor menu) and
   phone landscape (left-handed panel, Save & Quit, Continue). No console
   errors.
+
+### Playtest P3 follow-up: phone Back button
+- `ui/backButton.js`: the browser / phone Back button acts as the in-game
+  Back. Off the title screen one guard history entry is pushed; Back pops
+  it, an Esc keydown goes to the open dialog (or focus), and the guard is
+  pushed again. Every Back button already answers Esc, so no screen
+  changed. On the floor: Back opens the pause menu, Back again resumes;
+  from a sheet (Settings, How to Play) it returns to the pause menu. On
+  the title screen the guard is dropped, so Back leaves the page as usual.
+- Checked in headless Chromium (menus, spirit pick, floor, pause sheets,
+  Quit to Title then Back leaves). 302 tests pass.
