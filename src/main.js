@@ -4,7 +4,7 @@
 //   ?screen=floor   jump straight to a screen
 //   ?size=7         board size for the floor screen (5–8)
 //   ?seed=abc       run seed (default: random)
-//   ?palette=night-ink
+//   ?palette=night-ink   palette for this session (else the saved setting)
 //   ?demo=1         seeded demo board with walls, voids and stacks
 //   ?speed=slow     animation speed for this session (slow|normal|fast)
 //   ?motion=on      reduced motion for this session (system|on|off)
@@ -26,13 +26,17 @@ import { createRenderer } from './render/renderer.js';
 import { HUD_METRICS } from './render/layout.js';
 import { getPalette, cssVarName } from './render/palette.js';
 import { createRouter } from './ui/router.js';
-import { titleScreen, floorScreen, howToScreen, offerScreen, spiritScreen } from './ui/screens.js';
+import {
+  titleScreen, floorScreen, howToScreen, offerScreen, spiritScreen, settingsScreen,
+} from './ui/screens.js';
 import { setupTelemetry, telemetryActive } from './telemetry/browser.js';
 import { TELEMETRY } from './config.js';
 import { createRun, runTag, rollOffer } from './core/run.js';
 import { RELIC_DEFS, isRelic } from './core/relics.js';
 import { isSpirit } from './core/spirits.js';
-import { loadSettings, saveSettings, normalizeSettings, resolveMotion } from './ui/settings.js';
+import {
+  loadSettings, saveSettings, normalizeSettings, resolveMotion, textScale,
+} from './ui/settings.js';
 import { createSave } from './core/save.js';
 import { createSaveStore } from './ui/saveStore.js';
 
@@ -53,6 +57,8 @@ const reducedMotionQuery = window.matchMedia('(prefers-reduced-motion: reduce)')
 // Saved settings, with dev URL overrides applied for this session only.
 const saved = loadSettings();
 const settingsOverride = normalizeSettings({
+  ...saved,
+  palette: params.palette || saved.palette,
   animSpeed: params.speed || saved.animSpeed,
   reducedMotion: params.motion || saved.reducedMotion,
 });
@@ -162,7 +168,7 @@ const ctx = {
     const before = ctx.settings;
     ctx.settings = normalizeSettings({ ...ctx.settings, ...patch });
     saveSettings(ctx.settings);
-    applyMotionClass();
+    applySettings();
     // Opting out drops anything unsent and records nothing more.
     if (before.telemetry !== ctx.settings.telemetry) {
       ctx.telemetry.setEnabled(telemetryActive(ctx.settings.telemetry === 'on', params.telemetry || ''));
@@ -192,14 +198,25 @@ function applyMotionClass() {
   document.documentElement.classList.toggle('reduce-motion', ctx.motion().reducedMotion);
 }
 reducedMotionQuery.addEventListener?.('change', applyMotionClass);
-applyMotionClass();
+
+/** Everything the settings change outside the game screens. */
+function applySettings() {
+  const s = ctx.settings;
+  if (renderer.palette.id !== s.palette) ctx.setPalette(s.palette);
+  const left = s.hand === 'left';
+  document.documentElement.toggleAttribute('data-left-handed', left);
+  renderer.setLeftHanded(left);
+  rootStyle.setProperty('--text-scale', String(textScale(s)));
+  applyMotionClass();
+}
 
 ctx.router
   .register('title', titleScreen)
   .register('floor', floorScreen)
   .register('offer', offerScreen)
   .register('spirit', spiritScreen)
-  .register('howto', howToScreen);
+  .register('howto', howToScreen)
+  .register('settings', settingsScreen);
 
 // --- Viewport tracking -----------------------------------------------------
 
@@ -240,7 +257,8 @@ document.addEventListener('dblclick', (e) => e.preventDefault());
 
 // --- Start -----------------------------------------------------------------
 
-ctx.setPalette(params.palette);
+ctx.setPalette(ctx.settings.palette);
+applySettings();
 onResize();
 ctx.telemetry.track('session.start', {
   device: tele.deviceInfo(),

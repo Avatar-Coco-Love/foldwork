@@ -1,6 +1,6 @@
 // Screen definitions. Each is registered with the router in main.js.
 
-import { el } from './dom.js';
+import { el, svgIcon } from './dom.js';
 import { createHud } from './hud.js';
 import { createFoldInput } from './input.js';
 import { dirToward } from './moveInput.js';
@@ -12,7 +12,8 @@ import {
 } from '../core/turn.js';
 import { scatterEnemies } from '../core/enemies.js';
 import { CREATURE_DEFS } from '../core/creatures.js';
-import { ANIM_SPEEDS, MOTION_MODES, TELEMETRY_MODES, cycleOption, optionName } from './settings.js';
+import { SETTINGS_GROUPS, choicesFor, cycleOption, optionName } from './settings.js';
+import { APP_VERSION, PROJECTS_URL } from '../config.js';
 import { createBoard, findCreature } from '../core/board.js';
 import { TILE } from '../core/tiles.js';
 import { parseMap, DEV_MAPS } from '../core/maps.js';
@@ -30,76 +31,60 @@ import { HINTS, hintDef, hintsFor } from '../core/hints.js';
 import { loadSeenHints, saveSeenHints } from './hintStore.js';
 import { createFloorRecorder } from '../telemetry/floorRecorder.js';
 import { createRng, fork, nextInt, chance } from '../core/rng.js';
-import { PALETTES } from '../render/palette.js';
+
+/**
+ * Title menu rows (OPEN-QUESTIONS "Menu redesign"): { id, label, show(c),
+ * note(c), go(ctx, c) }, where c is { save, confirmNewRun }. The first row
+ * shown is the primary button. Later phases add rows here (Daily Seed,
+ * Unlocks, Stats & History).
+ */
+export const TITLE_ROWS = [
+  {
+    id: 'continue',
+    label: 'Continue Run',
+    show: (c) => !!c.save,
+    note: (c) => saveText(c.save),
+    go: (ctx) => ctx.continueRun(),
+  },
+  // With a saved run, New Run asks before it replaces it.
+  { id: 'new-run', label: 'New Run', go: (ctx, c) => (c.save ? c.confirmNewRun() : startNewRun(ctx)) },
+  { id: 'howto', label: 'How to Play', go: (ctx) => ctx.router.go('howto') },
+  { id: 'settings', label: 'Settings', go: (ctx) => ctx.router.go('settings', { from: 'title' }) },
+];
+
+// Corner icons (24x24 line art). Back: an arrow out of a door frame.
+// Share: a box with an arrow leaving it.
+const ICON_BACK = ['M10 5H5v14h5', 'M20 12H9', 'M13 8l-4 4 4 4'];
+const ICON_SHARE = ['M8 10H6v10h12V10h-2', 'M12 15V3', 'M8 7l4-4 4 4'];
 
 export const titleScreen = {
   mount(root, ctx) {
     ctx.renderer.setScene(null);
-    const paletteIds = Object.keys(PALETTES);
-    const paletteBtn = el('button', { class: 'btn btn-secondary', type: 'button' });
-    const syncPaletteLabel = () => {
-      paletteBtn.textContent = `Palette: ${ctx.renderer.palette.name}`;
-    };
-    paletteBtn.addEventListener('click', () => {
-      const i = paletteIds.indexOf(ctx.renderer.palette.id);
-      ctx.setPalette(paletteIds[(i + 1) % paletteIds.length]);
-      syncPaletteLabel();
-    });
-    syncPaletteLabel();
-
-    // Animation options (Phase 7 moves these to a full settings screen).
-    const speedBtn = el('button', { class: 'btn btn-secondary', type: 'button' });
-    const motionBtn = el('button', { class: 'btn btn-secondary', type: 'button' });
-    const syncMotionLabels = () => {
-      speedBtn.textContent = `Animation: ${optionName(ANIM_SPEEDS, ctx.settings.animSpeed)}`;
-      motionBtn.textContent = `Reduced motion: ${optionName(MOTION_MODES, ctx.settings.reducedMotion)}`;
-    };
-    speedBtn.addEventListener('click', () => {
-      ctx.updateSettings({ animSpeed: cycleOption(ANIM_SPEEDS, ctx.settings.animSpeed) });
-      syncMotionLabels();
-    });
-    motionBtn.addEventListener('click', () => {
-      ctx.updateSettings({ reducedMotion: cycleOption(MOTION_MODES, ctx.settings.reducedMotion) });
-      syncMotionLabels();
-    });
-    syncMotionLabels();
-
-    const dataBtn = el('button', { class: 'btn btn-secondary', type: 'button' });
-    const syncDataLabel = () => {
-      dataBtn.textContent = `Share play data: ${optionName(TELEMETRY_MODES, ctx.settings.telemetry)}`;
-    };
-    dataBtn.addEventListener('click', () => {
-      ctx.updateSettings({ telemetry: cycleOption(TELEMETRY_MODES, ctx.settings.telemetry) });
-      syncDataLabel();
-    });
-    syncDataLabel();
-    // Hidden until collection is switched on (config TELEMETRY.collect).
-    dataBtn.hidden = !ctx.telemetryOffered;
-
-    // A saved run (core/save.js) puts Continue first; New Run then asks
-    // before it replaces the saved run.
     const save = ctx.savedRun();
+    const c = { save, confirmNewRun };
+    const rows = TITLE_ROWS.filter((r) => !r.show || r.show(c));
     const buttons = el('div', { class: 'menu-buttons' },
-      save ? el('button', {
-        class: 'btn btn-primary',
-        type: 'button',
-        'aria-label': `Continue run. ${saveText(save)}`,
-        onclick: () => ctx.continueRun(),
-      }, 'Continue Run') : null,
-      save ? el('p', { class: 'save-summary', text: saveText(save) }) : null,
-      el('button', {
-        class: `btn ${save ? 'btn-secondary' : 'btn-primary'}`,
-        type: 'button',
-        onclick: () => (save ? confirmNewRun() : startNewRun(ctx)),
-      }, 'New Run'),
-      el('button', { class: 'btn btn-secondary', type: 'button', onclick: () => ctx.router.go('howto') }, 'How to Play'),
-      shareGameButton(ctx),
-      paletteBtn,
-      speedBtn,
-      motionBtn,
-      dataBtn,
+      rows.flatMap((r, i) => {
+        const note = r.note && r.note(c);
+        return [
+          el('button', {
+            class: `btn ${i === 0 ? 'btn-primary' : 'btn-secondary'}`,
+            type: 'button',
+            'data-row': r.id,
+            'aria-label': note ? `${r.label}. ${note}` : null,
+            onclick: () => r.go(ctx, c),
+          }, r.label),
+          note ? el('p', { class: 'save-summary', text: note }) : null,
+        ];
+      }),
     );
     const menu = el('div', { class: 'menu title-menu' },
+      el('div', { class: 'title-corners' },
+        el('a', {
+          class: 'btn icon-btn', href: PROJECTS_URL, 'aria-label': 'Back to Projects', title: 'Back to Projects',
+        }, svgIcon(ICON_BACK)),
+        shareGameButton(ctx),
+      ),
       el('h1', { class: 'title', text: 'Foldwork' }),
       el('p', { class: 'subtitle', text: 'Fold the paper dungeon.' }),
       buttons,
@@ -134,58 +119,146 @@ function saveText(save) {
 }
 
 /**
- * Share Foldwork (title screen): the system share sheet, else the link is
- * copied. When neither works, the link shows in a box to copy by hand.
+ * Share Foldwork (title corner icon): the system share sheet, else the
+ * link is copied ("Link copied" by the icon). When neither works, the
+ * link shows in a box by the icon to copy by hand.
  */
 function shareGameButton(ctx) {
-  const label = 'Share Foldwork';
-  const btn = el('button', { class: 'btn btn-secondary', type: 'button' }, label);
+  const btn = el('button', {
+    class: 'btn icon-btn', type: 'button', 'aria-label': 'Share Foldwork', title: 'Share Foldwork',
+  }, svgIcon(ICON_SHARE));
+  const toast = el('span', { class: 'share-toast', role: 'status', hidden: true });
+  const wrap = el('span', { class: 'share-wrap' }, btn, toast);
   let reset = 0;
   btn.addEventListener('click', async () => {
     const url = shareUrl();
     const result = await shareGame(url);
     ctx.telemetry.track('share', { result });
     if (result === 'copied') {
-      btn.textContent = 'Link copied!';
+      toast.replaceChildren('Link copied');
+      toast.hidden = false;
       clearTimeout(reset);
       reset = setTimeout(() => {
-        btn.textContent = label;
+        toast.hidden = true;
       }, 2000);
-    } else if (result === 'manual' && !btn.nextElementSibling?.classList.contains('share-link')) {
+    } else if (result === 'manual' && !wrap.querySelector('.share-link')) {
       const field = el('input', {
         class: 'share-link', type: 'text', readonly: true, value: url, 'aria-label': 'Link to Foldwork',
       });
       field.addEventListener('focus', () => field.select());
-      btn.after(field);
+      clearTimeout(reset);
+      toast.replaceChildren(field);
+      toast.hidden = false;
       field.focus();
     }
   });
-  return btn;
+  return wrap;
 }
 
-/** How to Play (docs/04): every tutorial hint, re-viewable any time. */
+/**
+ * How to Play (docs/04): every tutorial hint, re-viewable any time. A
+ * screen from the title, a sheet over the board from the pause menu.
+ */
+function howToPanel(onBack) {
+  const items = Object.values(HINTS).map((h) => el('li', {}, el('strong', { text: h.title }), h.text));
+  return el('div', { class: 'menu howto' },
+    el('h2', { class: 'outcome-title', text: 'How to Play' }),
+    el('p', { class: 'subtitle', text: 'Reach the stairs on each floor. Folds cost charges; moves are free.' }),
+    el('ul', { class: 'howto-list' }, items),
+    el('div', { class: 'menu-buttons' },
+      el('button', { class: 'btn btn-primary', type: 'button', onclick: onBack }, 'Back'),
+    ),
+  );
+}
+
 export const howToScreen = {
   mount(root, ctx) {
     ctx.renderer.setScene(null);
-    const items = Object.values(HINTS).map((h) => el('li', {}, el('strong', { text: h.title }), h.text));
-    const reset = el('button', { class: 'btn btn-secondary', type: 'button' }, 'Show hints again in play');
-    reset.addEventListener('click', () => {
-      saveSeenHints(new Set());
-      reset.textContent = 'Hints will show again';
-      reset.disabled = true;
-    });
-    root.append(
-      el('div', { class: 'menu howto' },
-        el('h2', { class: 'outcome-title', text: 'How to Play' }),
-        el('p', { class: 'subtitle', text: 'Reach the stairs on each floor. Folds cost charges; moves are free.' }),
-        el('ul', { class: 'howto-list' }, items),
-        el('div', { class: 'menu-buttons' },
-          reset,
-          el('button', { class: 'btn btn-primary', type: 'button', onclick: () => ctx.router.go('title') }, 'Back'),
-        ),
-      ),
-    );
+    root.append(howToPanel(() => ctx.router.go('title')));
     root.querySelector('.btn-primary')?.focus({ preventScroll: true });
+    return escapeTo(() => ctx.router.go('title'));
+  },
+};
+
+/** Esc runs `back` (screens with a Back button). Returns the cleanup. */
+function escapeTo(back) {
+  const onKey = (e) => {
+    if (e.key !== 'Escape' || e.defaultPrevented) return;
+    e.preventDefault();
+    back();
+  };
+  window.addEventListener('keydown', onKey);
+  return () => window.removeEventListener('keydown', onKey);
+}
+
+/** About (Settings): who made it. */
+const CREDITS = 'Made by Avatar Coco Love. Every picture is drawn in code, so there are no image files.';
+
+/**
+ * Settings (OPEN-QUESTIONS "Menu redesign"), built from SETTINGS_GROUPS
+ * (ui/settings.js). Choices apply at once. A screen from the title, a
+ * sheet over the board from the pause menu; Back returns there.
+ */
+function settingsPanel(ctx, onBack) {
+  const actions = {
+    resetHints(btn) {
+      saveSeenHints(new Set());
+      btn.querySelector('.setting-label').textContent = 'Tutorial hints will show again';
+      btn.disabled = true;
+    },
+  };
+  const row = (r) => {
+    const label = el('span', { class: 'setting-label', text: r.label });
+    const note = r.note ? el('span', { class: 'setting-note', text: r.note }) : null;
+    if (r.action) {
+      const btn = el('button', { class: 'btn setting-row', type: 'button', 'data-setting': r.id }, el('span', { class: 'setting-text' }, label, note));
+      btn.addEventListener('click', () => actions[r.action](btn));
+      return btn;
+    }
+    const list = choicesFor(r.key);
+    const value = el('span', { class: 'setting-value' });
+    const btn = el('button', { class: 'btn setting-row', type: 'button', 'data-setting': r.id },
+      el('span', { class: 'setting-text' }, label, note), value);
+    const syncValue = () => {
+      const name = optionName(list, ctx.settings[r.key]);
+      value.textContent = name;
+      btn.setAttribute('aria-label', `${r.label}: ${name}`);
+    };
+    btn.addEventListener('click', () => {
+      ctx.updateSettings({ [r.key]: cycleOption(list, ctx.settings[r.key]) });
+      syncValue();
+    });
+    syncValue();
+    return btn;
+  };
+  const group = (id, title, children) => el('section', { class: 'settings-group', 'aria-labelledby': `settings-${id}` },
+    el('h3', { class: 'settings-heading', id: `settings-${id}`, text: title }),
+    children);
+  const groups = SETTINGS_GROUPS.map((g) => {
+    const rows = g.rows.filter((r) => !r.show || r.show(ctx));
+    return rows.length ? group(g.id, g.title, rows.map(row)) : null;
+  });
+  return el('div', { class: 'menu settings' },
+    el('h2', { class: 'outcome-title', text: 'Settings' }),
+    el('div', { class: 'settings-groups' },
+      groups,
+      group('about', 'About', [
+        el('p', { class: 'settings-about', text: `Foldwork version ${APP_VERSION}` }),
+        el('p', { class: 'settings-about', text: CREDITS }),
+      ]),
+    ),
+    el('div', { class: 'menu-buttons' },
+      el('button', { class: 'btn btn-primary', type: 'button', onclick: onBack }, 'Back')),
+  );
+}
+
+export const settingsScreen = {
+  mount(root, ctx, params) {
+    ctx.renderer.setScene(null);
+    const back = () => ctx.router.go(params.from || 'title');
+    root.append(settingsPanel(ctx, back));
+    root.querySelector('.setting-row')?.focus({ preventScroll: true });
+    return escapeTo(back);
   },
 };
 
@@ -365,12 +438,11 @@ export const floorScreen = {
     const hud = createHud(root, {
       floor: floorNo,
       lastFloor: inRun ? run.lastFloor : null,
-      onMenu: () => ctx.router.go('title'),
+      onMenu: () => openPause(),
       onUndo: () => dispatch({ type: 'undo' }),
       onWait: () => dispatch({ type: 'wait' }),
       onCancel: () => input.cancel(),
       onHint: () => askHint(),
-      onRestart: () => confirmRestart(),
     });
 
     // Runs one action through the turn engine, then plays its events back.
@@ -597,6 +669,64 @@ export const floorScreen = {
       });
     }
 
+    // Pause menu (HUD Menu button, or Esc): board input pauses while it,
+    // or anything opened from it, is over the board. The run autosaves
+    // after every action, so Save & Quit just leaves.
+    let abandoning = false;
+    function openPause() {
+      if (state.status !== 'playing') return;
+      input.cancel();
+      input.setEnabled(false);
+      const runFloor = inRun && floorNo === run.floor;
+      hud.showOutcome({
+        title: 'Paused',
+        text: runFloor ? `Floor ${floorNo} of ${run.lastFloor}` : `Floor ${floorNo}`,
+        actions: [
+          { label: 'Resume', primary: true, onclick: resumePlay },
+          { label: 'Restart Floor', onclick: confirmRestart },
+          { label: 'How to Play', onclick: () => hud.showSheet(howToPanel(openPause), { onEscape: openPause }) },
+          { label: 'Settings', onclick: openSettings },
+          inRun ? { label: 'Abandon Run', onclick: confirmAbandon } : null,
+          { label: saving ? 'Save & Quit to Title' : 'Quit to Title', onclick: () => ctx.router.go('title') },
+        ].filter(Boolean),
+        onEscape: resumePlay,
+      });
+    }
+
+    function resumePlay() {
+      hud.hideOutcome();
+      input.setEnabled(true);
+    }
+
+    function openSettings() {
+      const back = () => {
+        // "Show tutorial hints again" may have cleared the seen list.
+        seenHints.clear();
+        for (const id of loadSeenHints()) seenHints.add(id);
+        openPause();
+      };
+      hud.showSheet(settingsPanel(ctx, back), { onEscape: back });
+    }
+
+    function confirmAbandon() {
+      hud.showOutcome({
+        title: 'Abandon run?',
+        text: 'The run ends here and its save is deleted. This can\'t be undone.',
+        actions: [
+          { label: 'Keep my run', primary: true, onclick: openPause },
+          {
+            label: 'Abandon run',
+            onclick: () => {
+              leaving = 'abandoned';
+              abandoning = true;
+              ctx.router.go('title');
+            },
+          },
+        ],
+        onEscape: openPause,
+      });
+    }
+
     /** floor.end, once per floor: won, lost, or abandoned (left mid-floor). */
     function report(outcome) {
       if (reported) return;
@@ -682,6 +812,24 @@ export const floorScreen = {
       },
     });
 
+    // Esc opens the pause menu, once a fold preview has had its turn to
+    // cancel (input.js marks the key handled). Open panels handle their
+    // own Esc while focus is in them; this covers focus elsewhere.
+    const onEscape = (e) => {
+      if (e.key !== 'Escape' || e.defaultPrevented || e.repeat) return;
+      if (hud.overlayShown) {
+        if (state.status === 'playing') {
+          e.preventDefault();
+          openPause();
+        }
+        return;
+      }
+      if (state.status !== 'playing' || input.active) return;
+      e.preventDefault();
+      openPause();
+    };
+    window.addEventListener('keydown', onEscape);
+
     sync();
     persist();
     if (restartHints != null) hud.notify('Floor restarted.', { info: true });
@@ -694,8 +842,9 @@ export const floorScreen = {
       const keep = saving && state.status === 'playing';
       report(leaving || (keep ? 'left' : 'abandoned'));
       gone = true;
+      window.removeEventListener('keydown', onEscape);
       search.destroy();
-      if (!keep && inRun && state.status === 'playing' && ctx.run === run) ctx.endRun('abandoned');
+      if ((abandoning || !keep) && inRun && state.status === 'playing' && ctx.run === run) ctx.endRun('abandoned');
       playback.finish();
       fx.destroy();
       ctx.renderer.setFx(null);

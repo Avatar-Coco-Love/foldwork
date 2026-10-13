@@ -80,7 +80,7 @@ function createRelicTray() {
 }
 
 export function createHud(root, {
-  floor, lastFloor = null, onMenu, onUndo, onCancel, onWait, onHint = null, onRestart = null,
+  floor, lastFloor = null, onMenu, onUndo, onCancel, onWait, onHint = null,
 }) {
   const hp = createMeter('hud-hp', HEART, 'HP');
   const charges = createMeter('hud-charges', CHARGE, 'Fold charges');
@@ -115,16 +115,15 @@ export function createHud(root, {
   const hintBtn = onHint && el('button', {
     class: 'btn', type: 'button', onclick: onHint, 'aria-keyshortcuts': 'H',
   }, 'Hint');
-  const restartBtn = onRestart && el('button', {
-    class: 'btn', type: 'button', onclick: onRestart, 'aria-keyshortcuts': 'R', 'aria-label': 'Restart floor',
-  }, 'Restart');
   const actions = el('div', { class: 'hud-actions' },
     undoBtn,
     waitBtn,
     cancelBtn,
     hintBtn,
-    restartBtn,
-    el('button', { class: 'btn', type: 'button', onclick: onMenu, 'aria-label': 'Menu' }, 'Menu'),
+    // Opens the pause menu (Resume, Restart Floor, Settings, …).
+    el('button', {
+      class: 'btn', type: 'button', onclick: onMenu, 'aria-keyshortcuts': 'Escape', 'aria-haspopup': 'dialog',
+    }, 'Menu'),
   );
   // Pointer-down (not click) so a second finger can cancel mid-drag.
   cancelBtn.addEventListener('pointerdown', (e) => {
@@ -139,6 +138,20 @@ export function createHud(root, {
   let noteTimer = 0;
   let overlay = null;
   let hintCard = null;
+
+  function show(node, onEscape) {
+    overlay?.remove();
+    overlay = node;
+    if (onEscape) {
+      node.addEventListener('keydown', (e) => {
+        if (e.key !== 'Escape') return;
+        e.preventDefault();
+        e.stopPropagation();
+        onEscape();
+      });
+    }
+    root.append(node);
+  }
 
   function syncMessage() {
     const shown = foldText || note;
@@ -184,35 +197,42 @@ export function createHud(root, {
       }, ms);
     },
     /**
-     * End-of-floor panel, or a question over the board (Restart Floor).
-     * actions: [{ label, onclick, primary }]. `onEscape` lets Esc close it.
+     * A panel over the board: end of floor, the pause menu, or a question
+     * (Restart Floor). actions: [{ label, onclick, primary }]. `onEscape`
+     * lets Esc close it.
      */
-    showOutcome({ title, text, actions: buttons, onEscape = null }) {
-      overlay?.remove();
+    showOutcome({ title, text = '', actions: buttons, onEscape = null }) {
       const btns = buttons.map((b) => el('button', {
         class: b.primary ? 'btn btn-primary' : 'btn', type: 'button', onclick: b.onclick,
       }, b.label));
-      overlay = el('div', { class: 'menu hud-outcome', role: 'dialog', 'aria-modal': 'true', 'aria-labelledby': 'outcome-title' },
+      show(el('div', { class: 'menu hud-outcome', role: 'dialog', 'aria-modal': 'true', 'aria-labelledby': 'outcome-title' },
         el('div', { class: 'panel' },
           el('h2', { class: 'outcome-title', id: 'outcome-title', text: title }),
-          el('p', { class: 'subtitle', text }),
+          text ? el('p', { class: 'subtitle', text }) : null,
           el('div', { class: 'menu-buttons' }, btns),
         ),
-      );
-      if (onEscape) {
-        overlay.addEventListener('keydown', (e) => {
-          if (e.key !== 'Escape') return;
-          e.preventDefault();
-          e.stopPropagation();
-          onEscape();
-        });
-      }
-      root.append(overlay);
+      ), onEscape);
       btns[0]?.focus();
+    },
+    /**
+     * A full screen over the board (Settings, How to Play from the pause
+     * menu): `node` is a `.menu` built by the screen. Focuses its first
+     * button.
+     */
+    showSheet(node, { onEscape = null } = {}) {
+      node.classList.add('hud-sheet');
+      node.setAttribute('role', 'dialog');
+      node.setAttribute('aria-modal', 'true');
+      show(node, onEscape);
+      node.querySelector('button')?.focus({ preventScroll: true });
     },
     hideOutcome() {
       overlay?.remove();
       overlay = null;
+    },
+    /** Whether a panel or sheet is over the board. */
+    get overlayShown() {
+      return !!overlay;
     },
     /**
      * Tutorial hint card (docs/04): non-blocking, so play continues while
