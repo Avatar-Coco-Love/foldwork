@@ -129,6 +129,30 @@ body {
   width: min(280px, 100%);
 }
 
+/* Title: scrolls on short screens (phone landscape) instead of clipping. */
+.title-menu {
+  justify-content: safe center;
+  overflow-y: auto;
+}
+/* A saved run under Continue, and the new-run confirmation. */
+.save-summary {
+  margin: -4px 0 4px;
+  color: var(--c-ink-soft);
+  font-size: 15px;
+  line-height: 1.35;
+}
+/* The game's link, when it can't be shared or copied automatically. */
+.share-link {
+  min-height: var(--touch);
+  padding: 0 12px;
+  border: 2px solid var(--c-ui-border);
+  border-radius: var(--radius);
+  background: var(--c-ui-surface);
+  color: var(--c-ink);
+  font: 15px/1 var(--font);
+  pointer-events: auto;
+}
+
 /* --- HUD ---------------------------------------------------------------- */
 /* Portrait: status bar on top, action bar on bottom. */
 

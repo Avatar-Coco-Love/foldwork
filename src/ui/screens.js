@@ -18,6 +18,9 @@ import { TILE } from '../core/tiles.js';
 import { parseMap, DEV_MAPS } from '../core/maps.js';
 import { generateFloor, templateFloors } from '../core/floors.js';
 import { floorSetupFor, finishFloor, takeOffer, runTag } from '../core/run.js';
+import { encodeAction } from '../core/replay.js';
+import { resumeFloor, saveSummary } from '../core/save.js';
+import { shareGame, shareUrl } from './share.js';
 import { relicDef } from '../core/relics.js';
 import { SPIRIT_DEFS, spiritDef } from '../core/spirits.js';
 import { HINTS, hintDef, hintsFor } from '../core/hints.js';
@@ -58,38 +61,104 @@ export const titleScreen = {
     });
     syncMotionLabels();
 
-    const shareBtn = el('button', { class: 'btn btn-secondary', type: 'button' });
-    const syncShareLabel = () => {
-      shareBtn.textContent = `Share play data: ${optionName(TELEMETRY_MODES, ctx.settings.telemetry)}`;
+    const dataBtn = el('button', { class: 'btn btn-secondary', type: 'button' });
+    const syncDataLabel = () => {
+      dataBtn.textContent = `Share play data: ${optionName(TELEMETRY_MODES, ctx.settings.telemetry)}`;
     };
-    shareBtn.addEventListener('click', () => {
+    dataBtn.addEventListener('click', () => {
       ctx.updateSettings({ telemetry: cycleOption(TELEMETRY_MODES, ctx.settings.telemetry) });
-      syncShareLabel();
+      syncDataLabel();
     });
-    syncShareLabel();
+    syncDataLabel();
     // Hidden until collection is switched on (config TELEMETRY.collect).
-    shareBtn.hidden = !ctx.telemetryOffered;
+    dataBtn.hidden = !ctx.telemetryOffered;
 
-    root.append(
-      el('div', { class: 'menu' },
-        el('h1', { class: 'title', text: 'Foldwork' }),
-        el('p', { class: 'subtitle', text: 'Fold the paper dungeon.' }),
-        el('div', { class: 'menu-buttons' },
-          el('button', {
-            class: 'btn btn-primary',
-            type: 'button',
-            onclick: () => startNewRun(ctx),
-          }, 'New Run'),
-          el('button', { class: 'btn btn-secondary', type: 'button', onclick: () => ctx.router.go('howto') }, 'How to Play'),
-          paletteBtn,
-          speedBtn,
-          motionBtn,
-          shareBtn,
-        ),
-      ),
+    // A saved run (core/save.js) puts Continue first; New Run then asks
+    // before it replaces the saved run.
+    const save = ctx.savedRun();
+    const buttons = el('div', { class: 'menu-buttons' },
+      save ? el('button', {
+        class: 'btn btn-primary',
+        type: 'button',
+        'aria-label': `Continue run. ${saveText(save)}`,
+        onclick: () => ctx.continueRun(),
+      }, 'Continue Run') : null,
+      save ? el('p', { class: 'save-summary', text: saveText(save) }) : null,
+      el('button', {
+        class: `btn ${save ? 'btn-secondary' : 'btn-primary'}`,
+        type: 'button',
+        onclick: () => (save ? confirmNewRun() : startNewRun(ctx)),
+      }, 'New Run'),
+      el('button', { class: 'btn btn-secondary', type: 'button', onclick: () => ctx.router.go('howto') }, 'How to Play'),
+      shareGameButton(ctx),
+      paletteBtn,
+      speedBtn,
+      motionBtn,
+      dataBtn,
     );
+    const menu = el('div', { class: 'menu title-menu' },
+      el('h1', { class: 'title', text: 'Foldwork' }),
+      el('p', { class: 'subtitle', text: 'Fold the paper dungeon.' }),
+      buttons,
+    );
+    root.append(menu);
+
+    function confirmNewRun() {
+      const keep = el('button', { class: 'btn btn-primary', type: 'button' }, 'Keep my run');
+      const panel = el('div', { class: 'menu-buttons', role: 'alertdialog', 'aria-labelledby': 'confirm-new-run' },
+        el('p', { class: 'save-summary', id: 'confirm-new-run', text: `Start a new run? Your run on floor ${save.run.floor} will be lost.` }),
+        el('button', { class: 'btn btn-secondary', type: 'button', onclick: () => startNewRun(ctx) }, 'Start new run'),
+        keep);
+      keep.addEventListener('click', () => {
+        panel.replaceWith(buttons);
+        buttons.querySelector('.btn')?.focus({ preventScroll: true });
+      });
+      buttons.replaceWith(panel);
+      keep.focus({ preventScroll: true });
+    }
   },
 };
+
+/** One line about a saved run, for the title screen. */
+function saveText(save) {
+  const sum = saveSummary(save);
+  const parts = [`Floor ${sum.floor} of ${sum.lastFloor}`];
+  if (sum.spirit) parts.push(spiritDef(sum.spirit).name);
+  parts.push(`${sum.hp}/${sum.maxHp} HP`);
+  if (sum.relics) parts.push(`${sum.relics} relic${sum.relics === 1 ? '' : 's'}`);
+  if (sum.offer) parts.push('relic choice waiting');
+  return parts.join(' · ');
+}
+
+/**
+ * Share Foldwork (title screen): the system share sheet, else the link is
+ * copied. When neither works, the link shows in a box to copy by hand.
+ */
+function shareGameButton(ctx) {
+  const label = 'Share Foldwork';
+  const btn = el('button', { class: 'btn btn-secondary', type: 'button' }, label);
+  let reset = 0;
+  btn.addEventListener('click', async () => {
+    const url = shareUrl();
+    const result = await shareGame(url);
+    ctx.telemetry.track('share', { result });
+    if (result === 'copied') {
+      btn.textContent = 'Link copied!';
+      clearTimeout(reset);
+      reset = setTimeout(() => {
+        btn.textContent = label;
+      }, 2000);
+    } else if (result === 'manual' && !btn.nextElementSibling?.classList.contains('share-link')) {
+      const field = el('input', {
+        class: 'share-link', type: 'text', readonly: true, value: url, 'aria-label': 'Link to Foldwork',
+      });
+      field.addEventListener('focus', () => field.select());
+      btn.after(field);
+      field.focus();
+    }
+  });
+  return btn;
+}
 
 /** How to Play (docs/04): every tutorial hint, re-viewable any time. */
 export const howToScreen = {
@@ -118,11 +187,11 @@ export const howToScreen = {
 };
 
 /**
- * New Run: end any run in progress and pick a spirit; the spirit select
- * screen starts the run on its first floor.
+ * New Run: pick a spirit. The spirit select screen ends any run still in
+ * progress (or saved) and starts the new one on its first floor, so Back
+ * from it keeps the old run.
  */
 function startNewRun(ctx) {
-  ctx.endRun('abandoned');
   ctx.router.go('spirit');
 }
 
@@ -136,6 +205,7 @@ export const spiritScreen = {
     ctx.renderer.setScene(null);
     const spirits = Object.values(SPIRIT_DEFS);
     const choose = (id, index) => {
+      ctx.abandonRun(); // the title screen already asked
       ctx.startRun({ spirit: id });
       ctx.telemetry.track('spirit.pick', { ...runTag(ctx.run), index, offered: spirits.map((d) => d.id) });
       ctx.router.go('floor', { floor: ctx.run.floor });
@@ -179,7 +249,10 @@ export const spiritScreen = {
 };
 
 export const floorScreen = {
-  mount(root, ctx, params) {
+  mount(root, ctx, routeParams) {
+    // A save to continue from (Continue Run) applies to this mount only:
+    // Retry and Next floor reuse params, and must start fresh.
+    const { resume, ...params } = routeParams;
     const floorNo = params.floor || 1;
     if (!ctx.run) ctx.startRun();
     const run = ctx.run;
@@ -190,6 +263,18 @@ export const floorScreen = {
     const inRun = info.source === 'template' && run.floor === floorNo;
     const setup = floorSetupFor(run, base);
     let state = createFloorState(setup);
+    // Run floors are saved after every action (core/save.js): the floor is
+    // rebuilt from the run seed and the accepted actions are replayed.
+    // Floors changed by dev overrides can't be rebuilt, so aren't saved.
+    const saving = inRun && !info.overrides;
+    let actionLog = [];
+    let restarted = false;
+    if (saving && resume) {
+      ({ state, actions: actionLog, restarted } = resumeFloor(resume, state, info));
+    }
+    // Continued from a save: the actions replayed first, so analysis can
+    // replay this session's log after them (floor.start and floor.end).
+    const resumeTag = actionLog.length ? { resumedFrom: actionLog.slice() } : {};
     let shownBoard = state.board; // what the renderer shows (lags during playback)
     let preview = null;
     let queued = null; // one action pressed during playback (docs/04 input buffer)
@@ -218,7 +303,23 @@ export const floorScreen = {
       size: state.board.w,
       charges: state.maxCharges,
       enemies: setup.enemies.map((e) => ({ kind: e.kind, col: e.col, row: e.row })),
+      // Continued from a save: the actions replayed before this floor.end's
+      // log, or that the save no longer matched and the floor started over.
+      ...resumeTag,
+      ...(restarted ? { restarted: true } : {}),
     });
+
+    function persist() {
+      if (!saving) return;
+      if (state.status === 'playing') {
+        ctx.saveRun({ floor: floorNo, templateId: info.templateId, variant: info.variant, actions: actionLog });
+        return;
+      }
+      // Decided the moment the action lands, not after playback, so closing
+      // the tab mid-animation can't undo a defeat (or lose a win).
+      ctx.run = finishFloor(run, state);
+      ctx.saveRun();
+    }
 
     // Tutorial hints: one card at a time, each shown once per player.
     const seenHints = loadSeenHints();
@@ -281,6 +382,8 @@ export const floorScreen = {
       }
       recorder.action(action, src, { ok: true, tookTurn: action.type !== 'undo' });
       state = result.state;
+      actionLog.push(encodeAction(action));
+      persist();
       preview = null;
       announce(result.events);
       queueHints({ type: 'events', events: result.events });
@@ -369,6 +472,7 @@ export const floorScreen = {
         chargesLeft: state.charges,
         keys: state.keys,
         hp: me ? me.hp : 0,
+        ...resumeTag,
         ...recorder.summary(),
       });
       ctx.telemetry.flush(); // a floor is a natural checkpoint
@@ -380,7 +484,7 @@ export const floorScreen = {
       const cause = state.outcome && state.outcome.cause;
       report(state.status === 'won' ? 'won' : 'lost');
       if (inRun) {
-        ctx.run = finishFloor(run, state);
+        if (!saving) ctx.run = finishFloor(run, state); // else persist() did
         // Cleared with more to come: the relic offer replaces the panel.
         if (ctx.run.offer) ctx.router.go('offer', params);
         else hud.showOutcome(runPanel(ctx, ctx.run, floorNo, cause, params));
@@ -439,11 +543,16 @@ export const floorScreen = {
     });
 
     sync();
+    persist();
+    if (actionLog.length) hud.notify('Run continued where you left off.', { info: true });
+    else if (restarted) hud.notify('This floor changed in an update, so it starts over.', { info: true });
     queueHints({ type: 'start' });
     return () => {
-      report('abandoned');
-      // Leaving mid-floor ends the run (until Phase 7 saves runs to resume).
-      if (inRun && state.status === 'playing' && ctx.run === run) ctx.endRun('abandoned');
+      // Leaving a saved floor mid-play keeps the run: Continue Run on the
+      // title screen picks it up. An unsaved one (dev overrides) ends it.
+      const keep = saving && state.status === 'playing';
+      report(keep ? 'left' : 'abandoned');
+      if (!keep && inRun && state.status === 'playing' && ctx.run === run) ctx.endRun('abandoned');
       playback.finish();
       fx.destroy();
       ctx.renderer.setFx(null);
@@ -638,10 +747,8 @@ export const offerScreen = {
           el('button', {
             class: 'btn btn-secondary',
             type: 'button',
-            onclick: () => {
-              ctx.endRun('abandoned');
-              ctx.router.go('title');
-            },
+            // The run stays saved on this offer; Continue Run returns here.
+            onclick: () => ctx.router.go('title'),
           }, 'Menu'),
         ),
       ),
