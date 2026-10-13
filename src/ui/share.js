@@ -1,8 +1,10 @@
 // Share the game (title screen). Phones and most desktop browsers open
 // the system share sheet; elsewhere the link is copied to the clipboard.
 // When neither works, the caller shows the link for the player to copy.
-
-export const SHARE_TEXT = 'Foldwork: a free paper-folding roguelike you play in the browser. Fold the dungeon floor to solve puzzles and beat enemies.';
+//
+// Only a title and the link are shared: Chrome on Android joins any text
+// with the url into one plain-text share (the sheet then says "Sharing
+// text"). Link previews take the blurb from index.html's og:description.
 
 /**
  * The address to share: the live site named in the link-preview tags
@@ -14,13 +16,18 @@ export function shareUrl(doc = document, loc = location) {
   return (meta && meta.getAttribute('content')) || `${loc.origin}${loc.pathname}`;
 }
 
+/** What navigator.share is given. */
+export function shareData(url) {
+  return { title: 'Foldwork', url };
+}
+
 /**
  * Share `url`. Resolves to how it went: 'shared', 'copied', 'cancelled'
  * (the player closed the share sheet) or 'manual' (nothing worked; show
  * the link).
  */
 export async function shareGame(url, nav = navigator) {
-  const data = { title: 'Foldwork', text: SHARE_TEXT, url };
+  const data = shareData(url);
   if (typeof nav.share === 'function' && (!nav.canShare || nav.canShare(data))) {
     try {
       await nav.share(data);

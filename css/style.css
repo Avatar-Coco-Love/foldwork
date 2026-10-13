@@ -21,6 +21,8 @@
   --hud-side: 168px;
 
   --touch: 44px;
+  /* Text size setting (ui/settings.js TEXT_SIZES), set by main.js. */
+  --text-scale: 1;
   --radius: 10px;
   --font: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
 }
@@ -77,7 +79,7 @@ body {
   border-radius: var(--radius);
   background: var(--c-ui-surface);
   color: var(--c-ink);
-  font: 600 16px/1 var(--font);
+  font: 600 calc(16px * var(--text-scale))/1 var(--font);
   cursor: pointer;
   touch-action: manipulation;
 }
@@ -120,7 +122,7 @@ body {
 .subtitle {
   margin: 0 0 24px;
   color: var(--c-ink-soft);
-  font-size: 18px;
+  font-size: calc(18px * var(--text-scale));
 }
 .menu-buttons {
   display: flex;
@@ -138,8 +140,60 @@ body {
 .save-summary {
   margin: -4px 0 4px;
   color: var(--c-ink-soft);
-  font-size: 15px;
+  font-size: calc(15px * var(--text-scale));
   line-height: 1.35;
+}
+/* Title corner icons: Back to Projects (left) and Share (right). */
+.title-corners {
+  position: absolute;
+  top: calc(var(--safe-top) + 12px);
+  left: calc(var(--safe-left) + 12px);
+  right: calc(var(--safe-right) + 12px);
+  display: flex;
+  justify-content: space-between;
+  pointer-events: none;
+}
+.title-corners > * {
+  pointer-events: auto;
+}
+.icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--touch);
+  padding: 0;
+  text-decoration: none;
+}
+.icon {
+  width: 24px;
+  height: 24px;
+  fill: none;
+  stroke: var(--c-ink);
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.share-wrap {
+  position: relative;
+}
+/* "Link copied", or the link to copy by hand, under the Share icon. */
+.share-toast {
+  position: absolute;
+  top: calc(var(--touch) + 6px);
+  right: 0;
+  padding: 6px 10px;
+  border: 2px solid var(--c-ui-border);
+  border-radius: var(--radius);
+  background: var(--c-ui-surface);
+  font-size: calc(14px * var(--text-scale));
+  font-weight: 600;
+  white-space: nowrap;
+}
+.share-toast[hidden] {
+  display: none;
+}
+.share-toast .share-link {
+  width: min(260px, 70vw);
 }
 /* The game's link, when it can't be shared or copied automatically. */
 .share-link {
@@ -149,7 +203,7 @@ body {
   border-radius: var(--radius);
   background: var(--c-ui-surface);
   color: var(--c-ink);
-  font: 15px/1 var(--font);
+  font: calc(15px * var(--text-scale))/1 var(--font);
   pointer-events: auto;
 }
 
@@ -177,7 +231,7 @@ body {
   justify-content: center;
   gap: 2px;
   font-weight: 700;
-  font-size: 18px;
+  font-size: calc(18px * var(--text-scale));
 }
 .hud-meters {
   display: flex;
@@ -214,7 +268,7 @@ body {
   fill: var(--c-accent);
 }
 .hud-count {
-  font-size: 15px;
+  font-size: calc(15px * var(--text-scale));
 }
 .hud-relics {
   display: inline-flex;
@@ -234,7 +288,7 @@ body {
   border: 1.5px solid var(--c-ink);
   border-radius: 5px;
   background: var(--c-panel, transparent);
-  font-size: 13px;
+  font-size: calc(13px * var(--text-scale));
   line-height: 1;
 }
 /* Spent: hollow and dashed, so it never relies on color alone. */
@@ -249,7 +303,7 @@ body {
 }
 .hud-fold {
   min-height: 18px;
-  font-size: 14px;
+  font-size: calc(14px * var(--text-scale));
   font-weight: 600;
   color: var(--c-ink-soft);
 }
@@ -276,7 +330,7 @@ body {
   border: 2px dashed var(--c-ink-soft);
   border-radius: var(--radius);
   background: var(--c-ui-surface);
-  font-size: 15px;
+  font-size: calc(15px * var(--text-scale));
   line-height: 1.35;
   pointer-events: auto;
 }
@@ -287,7 +341,7 @@ body {
   flex: 1;
 }
 .hud-hint-title {
-  font-size: 16px;
+  font-size: calc(16px * var(--text-scale));
 }
 .hud-hint-actions {
   display: flex;
@@ -301,6 +355,77 @@ body {
 }
 .hud-actions .btn {
   padding: 0 12px;
+}
+
+/* Settings: grouped rows, each a button showing its current value. */
+.settings {
+  justify-content: flex-start;
+  overflow-y: auto;
+  pointer-events: auto;
+}
+.settings > .outcome-title {
+  margin-top: auto;
+}
+.settings > .menu-buttons {
+  margin-bottom: auto;
+}
+.settings-groups {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  width: min(420px, 100%);
+  margin: 8px 0 16px;
+  text-align: left;
+}
+.settings-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.settings-heading {
+  margin: 0;
+  color: var(--c-ink-soft);
+  font-size: calc(13px * var(--text-scale));
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.setting-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 14px;
+  line-height: 1.25;
+  text-align: left;
+}
+.setting-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.setting-note {
+  color: var(--c-ink-soft);
+  font-size: calc(13px * var(--text-scale));
+  font-weight: 400;
+}
+/* The value reads as a tag (shape, not only color, marks it). */
+.setting-value {
+  flex-shrink: 0;
+  padding: 4px 8px;
+  border: 1.5px solid var(--c-ink-soft);
+  border-radius: 6px;
+  font-weight: 700;
+}
+.settings-about {
+  margin: 0;
+  color: var(--c-ink-soft);
+  font-size: calc(15px * var(--text-scale));
+  line-height: 1.4;
+}
+/* Settings or How to Play opened over the board from the pause menu. */
+.hud-sheet {
+  background: var(--c-background);
 }
 
 /* How to Play: a scrolling list of every hint. */
@@ -347,7 +472,7 @@ body {
 }
 .outcome-title {
   margin: 0;
-  font-size: 28px;
+  font-size: calc(28px * var(--text-scale));
 }
 
 /* Landscape: one side panel holding both regions. */
@@ -375,7 +500,7 @@ body {
     flex-direction: column;
     align-items: stretch;
     margin: 0 8px;
-    font-size: 14px;
+    font-size: calc(14px * var(--text-scale));
   }
 }
 
@@ -396,7 +521,7 @@ body {
   }
   .hud-actions .btn {
     padding: 0 6px;
-    font-size: 15px;
+    font-size: calc(15px * var(--text-scale));
   }
   .hud-hint {
     min-height: 0;
@@ -407,7 +532,7 @@ body {
 
 .noscript {
   padding: 24px;
-  font-size: 18px;
+  font-size: calc(18px * var(--text-scale));
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -454,7 +579,7 @@ body {
   border-radius: var(--radius);
   background: var(--c-ui-surface);
   color: var(--c-ink);
-  font: 400 15px/1.35 var(--font);
+  font: 400 calc(15px * var(--text-scale))/1.35 var(--font);
   text-align: center;
   cursor: pointer;
   touch-action: manipulation;
@@ -485,7 +610,7 @@ body {
   top: 6px;
   left: 8px;
   color: var(--c-ink-soft);
-  font-size: 12px;
+  font-size: calc(12px * var(--text-scale));
   font-weight: 700;
 }
 .offer-glyph {
@@ -498,15 +623,15 @@ body {
   border: 2px solid var(--c-ink);
   border-radius: 8px;
   background: var(--c-panel, transparent);
-  font-size: 22px;
+  font-size: calc(22px * var(--text-scale));
   line-height: 1;
 }
 .offer-name {
-  font-size: 17px;
+  font-size: calc(17px * var(--text-scale));
 }
 .offer-tags {
   color: var(--c-ink-soft);
-  font-size: 12px;
+  font-size: calc(12px * var(--text-scale));
   font-weight: 600;
   letter-spacing: 0.04em;
   text-transform: uppercase;
@@ -517,13 +642,13 @@ body {
     gap: 4px;
   }
   .offer > .outcome-title {
-    font-size: 22px;
+    font-size: calc(22px * var(--text-scale));
   }
   .offer-cards {
     grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
   }
   .offer-text {
-    font-size: 13px;
+    font-size: calc(13px * var(--text-scale));
   }
 }
 
@@ -531,6 +656,6 @@ body {
 
 .spirit-hearts {
   color: var(--c-ink);
-  font-size: 16px;
+  font-size: calc(16px * var(--text-scale));
   letter-spacing: 0.15em;
 }

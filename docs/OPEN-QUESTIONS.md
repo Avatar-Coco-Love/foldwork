@@ -54,7 +54,10 @@ These belong to later phases and get decided when that phase is built.
   and R (R outside keyboard fold mode). The floor's hint count survives
   Restart Floor and saves, and lands on the run as `run.hints`.
 - Menu redesign (user's proposal, reviewed against the code; built in
-  P3, after the Hint button). Changes from the proposal are marked.
+  P3, PR 21). Changes from the proposal are marked. Left-handed layout
+  moves only the landscape side panel (portrait has no side to swap).
+  Credits (user's wording): "Made by Cody Joshua Clements, built with
+  Claude."
   - **Title**: Continue Run (only with a save), New Run, How to Play,
     Settings. Later phases add rows: Daily Seed, Unlocks (the proposal's
     "Collection"), Stats & History (Phase 7). Corner icon buttons, no

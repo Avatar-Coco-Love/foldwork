@@ -4,24 +4,17 @@
 small. At the end of each conversation, update this file in the same PR.
 
 ## Next up
-**Playtest P3: Menus.** Read OPEN-QUESTIONS "Menu redesign" (and "Back
-to Projects"), `ui/screens.js` (title, floor screen HUD wiring),
-`ui/hud.js`, `ui/settings.js`, `ui/share.js`, `index.html`.
-- Title: Continue Run / New Run, How to Play, Settings, as a
-  `TITLE_ROWS` table; icon corners: Back to Projects (top-left,
-  `https://avatar-coco-love.github.io/` from `src/config.js`) and Share
-  (top-right). Palette, Animation, Reduced motion, Share play data move
-  to Settings.
-- Settings screen, grouped (Display, Gameplay, Data, About), opened from
-  the title or the pause menu, Back returns there. New: text size,
-  left-handed layout. About: version and credits (feedback links wait for
-  telemetry).
-- Pause menu from the HUD Menu button: Resume, Restart Floor, How to
-  Play, Settings, Abandon Run (confirm), Save & Quit to Title. Consider
-  moving Restart off the HUD bar into it (the bar has five buttons now).
-- Share: `{title, url}` only plus a favicon drawn in code; check the
-  Android share sheet on the user's phone.
-Then P4 to P6 (below), then back to Phase 6b (Crane phases 2-3).
+**Playtest P4: Fold history.** Read OPEN-QUESTIONS "Playtest round 1"
+(the fold history item; the design is a proposal, confirm with the user
+first), `ui/screens.js` (floor screen), `ui/hud.js`, `core/replay.js`,
+`core/turn.js` (undo), `render/renderer.js` (passes).
+- Numbered crease marks on the paper, one per fold still in effect.
+- A history strip listing the floor's folds; tapping one peeks at the
+  board as it was before it and the paper it moved; "Rewind to here"
+  replays the floor's log up to it.
+- Tap-to-confirm folds: a Gameplay row in `SETTINGS_GROUPS`
+  (`ui/settings.js`), a new choice field in `DEFAULT_SETTINGS`/`CHOICES`.
+Then P5, P6, then back to Phase 6b (Crane phases 2-3).
 
 ## Phase checklist
 Larger phases are split into PR-sized chunks so each conversation stays small.
@@ -50,9 +43,9 @@ Larger phases are split into PR-sized chunks so each conversation stays small.
   priority, before 6b; decisions in OPEN-QUESTIONS "Playtest round 1")
   - [x] P1 Save and continue runs, Share button on the title (PR 19)
   - [x] P2 Restart Floor, Hint button (nudge, next step, can't-win notice) (PR 20)
-  - [ ] P3 Menus: title with icon corners (Share, Back to Projects),
+  - [x] P3 Menus: title with icon corners (Share, Back to Projects),
     Settings screen (options move off the title), pause menu from the HUD,
-    share-sheet fix (OPEN-QUESTIONS "Menu redesign")
+    share-sheet fix (OPEN-QUESTIONS "Menu redesign") (PR 21)
   - [ ] P4 Fold history: numbered crease marks, history strip with peek
     and rewind, optional tap-to-confirm folds (a Settings row)
   - [ ] P5 Lockjaw bite warning + tip rewrite; HP economy (rest heals 2,
@@ -705,7 +698,7 @@ Larger phases are split into PR-sized chunks so each conversation stays small.
 - Animations: model + timing in `render/fx.js`, painting in a renderer pass
   reading `r.fx`; durations always go through `ctx.motion()` (speed + reduced
   motion), and logic state is final before playback starts.
-- Settings: add fields to `DEFAULT_SETTINGS` + `normalizeSettings`.
+- Settings: a choice field goes in `DEFAULT_SETTINGS` + `CHOICES` (`ui/settings.js`), its row in `SETTINGS_GROUPS`; side effects in `applySettings` (main.js). Title rows → `TITLE_ROWS` (`ui/screens.js`).
 - HUD sizes live only in `HUD_METRICS` (layout.js); CSS reads them as variables.
 - Player actions → `ACTIONS` in `turn.js`; per-turn systems → `TURN_PHASES`.
   Logic emits events; anything visible needs a case in `clipFor`
@@ -764,3 +757,40 @@ Larger phases are split into PR-sized chunks so each conversation stays small.
   keyboard, landscape boss (tip only), a 0-charge F1 ("can't be won").
   No console errors.
 
+### PR 21: Playtest P3 menus (title, Settings, pause menu, share fix)
+- Title: `TITLE_ROWS` (`ui/screens.js`, `{ id, label, show, note, go }`):
+  Continue Run (with a save; its summary under it), New Run, How to
+  Play, Settings. The first row shown is primary. Corner icons (44px,
+  aria-label, line art via `svgIcon` in `ui/dom.js`): Back to Projects
+  (a link to `PROJECTS_URL`) and Share.
+- Share: `shareData(url)` is `{ title, url }` only (no text, so Android
+  shows a link share, not "Sharing text"). Copied: a "Link copied" toast
+  under the icon; neither works: the link box shows there instead.
+  Favicon: an inline SVG data URI in `index.html` (a sheet with a folded
+  corner and a dashed crease). Still to check on the user's Android phone.
+- Settings (`settingsScreen`, `settingsPanel`): built from
+  `SETTINGS_GROUPS` (`ui/settings.js`). A row is a choice (`key`, cycles
+  through `choicesFor(key)`) or an action (`action`), with an optional
+  `show(ctx)` and `note`; empty groups hide. Display: Palette, Text size
+  (new, Normal / Large: `--text-scale` on every font size), Animation,
+  Reduced motion, Left-handed layout (new: landscape side panel on the
+  left, `data-left-handed` + `renderer.setLeftHanded`). Gameplay: Show
+  tutorial hints again (moved off How to Play). Data: Share play data
+  (only when offered). About: version, credits.
+- Settings fields `palette`, `textSize`, `hand`. The palette is saved
+  now (it reset every visit); `?palette=` still overrides for a session.
+  `applySettings` in main.js applies them all. Fixed: a saved "Share
+  play data: Off" was ignored on load.
+- Pause menu (HUD Menu, or Esc once a fold preview has cancelled):
+  Resume, Restart Floor, How to Play, Settings, Abandon Run (run floors;
+  asks first, ends the run and clears the save), Save & Quit to Title
+  ("Quit to Title" on unsaved floors). Board input is off while it is
+  open. How to Play and Settings open over the board (`hud.showSheet`),
+  so the floor isn't torn down; Back returns to the pause menu. Restart
+  moved off the HUD bar (R still works): Undo, Wait, Hint, Menu.
+- 4 new tests (302 total). Checked in headless Chromium: phone portrait
+  (title rows, Settings changes saved and applied, Esc back, pause menu,
+  Settings over the board and back, Esc resume, Abandon Run clears the
+  save, Esc order with a keyboard fold preview, dev floor menu) and
+  phone landscape (left-handed panel, Save & Quit, Continue). No console
+  errors.
