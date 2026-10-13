@@ -26,6 +26,7 @@ import { createRenderer } from './render/renderer.js';
 import { HUD_METRICS } from './render/layout.js';
 import { getPalette, cssVarName } from './render/palette.js';
 import { createRouter } from './ui/router.js';
+import { createBackButton } from './ui/backButton.js';
 import {
   titleScreen, floorScreen, howToScreen, offerScreen, spiritScreen, settingsScreen,
 } from './ui/screens.js';
@@ -189,8 +190,12 @@ const ctx = {
     document.querySelector('meta[name="theme-color"]')?.setAttribute('content', palette.background);
   },
 };
+const backButton = createBackButton();
 ctx.router = createRouter(uiRoot, ctx, {
-  onGo: (name, p) => ctx.telemetry.track('screen.view', { name, floor: p.floor ?? null }),
+  onGo: (name, p) => {
+    backButton.screenChanged(name);
+    ctx.telemetry.track('screen.view', { name, floor: p.floor ?? null });
+  },
 });
 
 // CSS honors the in-game reduced-motion setting too, not just the OS query.
