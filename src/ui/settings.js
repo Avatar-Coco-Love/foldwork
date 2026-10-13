@@ -45,6 +45,12 @@ export const HANDS = Object.freeze([
   { id: 'left', name: 'On' },
 ]);
 
+/** Tap-to-confirm folds: a drag stops at its preview until Fold is tapped. */
+export const CONFIRM_FOLDS = Object.freeze([
+  { id: 'off', name: 'Off' },
+  { id: 'on', name: 'On' },
+]);
+
 export const DEFAULT_SETTINGS = Object.freeze({
   version: SETTINGS_VERSION,
   palette: DEFAULT_PALETTE_ID,
@@ -52,6 +58,7 @@ export const DEFAULT_SETTINGS = Object.freeze({
   animSpeed: 'normal',
   reducedMotion: 'system',
   hand: 'right',
+  confirmFolds: 'off',
   telemetry: 'on',
 });
 
@@ -62,6 +69,7 @@ const CHOICES = Object.freeze({
   animSpeed: ANIM_SPEEDS,
   reducedMotion: MOTION_MODES,
   hand: HANDS,
+  confirmFolds: CONFIRM_FOLDS,
   telemetry: TELEMETRY_MODES,
 });
 
@@ -88,6 +96,7 @@ export const SETTINGS_GROUPS = Object.freeze([
     id: 'gameplay',
     title: 'Gameplay',
     rows: [
+      { id: 'confirm-folds', label: 'Tap to confirm folds', key: 'confirmFolds', note: 'After a drag, tap Fold to play it.' },
       { id: 'reset-hints', label: 'Show tutorial hints again', action: 'resetHints' },
     ],
   },

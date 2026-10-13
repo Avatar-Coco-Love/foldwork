@@ -4,16 +4,13 @@
 small. At the end of each conversation, update this file in the same PR.
 
 ## Next up
-**Playtest P4a: crease marks + tap-to-confirm.** User confirmed all four
-fold-history parts, split into two PRs (P4a, P4b). Read OPEN-QUESTIONS
-"Playtest round 1" (fold history item), `ui/screens.js` (floor screen),
-`ui/input.js`, `ui/settings.js`, `render/renderer.js` (passes).
-- Numbered crease marks on the paper, one per fold still in effect.
-- Tap-to-confirm folds: a Gameplay row in `SETTINGS_GROUPS`
-  (`ui/settings.js`), a new choice field in `DEFAULT_SETTINGS`/`CHOICES`.
-Then **P4b**: a history strip listing the floor's folds; tapping one
-peeks at the board as it was before it and the paper it moved; "Rewind
-to here" replays the floor's log up to it (`core/replay.js`).
+**Playtest P4b: fold history strip.** Read OPEN-QUESTIONS "Playtest
+round 1" (fold history item), `core/foldHistory.js` (folds in effect,
+with their log index `at`), `ui/screens.js` (floor screen), `ui/hud.js`,
+`core/replay.js`, `render/renderer.js` (drawCreaseMarks).
+- A history strip listing the floor's folds (numbers match the crease
+  tags); tapping one peeks at the board as it was before it and the
+  paper it moved; "Rewind to here" replays the floor's log up to it.
 Then P5, P6, then back to Phase 6b (Crane phases 2-3).
 
 ## Phase checklist
@@ -47,8 +44,8 @@ Larger phases are split into PR-sized chunks so each conversation stays small.
     Settings screen (options move off the title), pause menu from the HUD,
     share-sheet fix (OPEN-QUESTIONS "Menu redesign") (PR 21)
   - [x] P3 follow-up: phone/browser Back button = in-game Back (PR 22)
-  - [ ] P4a Fold history: numbered crease marks, optional tap-to-confirm
-    folds (a Settings row)
+  - [x] P4a Fold history: numbered crease marks, optional tap-to-confirm
+    folds (a Settings row) (PR 23)
   - [ ] P4b Fold history: history strip with peek and rewind
   - [ ] P5 Lockjaw bite warning + tip rewrite; HP economy (rest heals 2,
     +1 HP for a floor cleared without damage); re-prove every floor
@@ -807,3 +804,23 @@ Larger phases are split into PR-sized chunks so each conversation stays small.
   the title screen the guard is dropped, so Back leaves the page as usual.
 - Checked in headless Chromium (menus, spirit pick, floor, pause sheets,
   Quit to Title then Back leaves). 302 tests pass.
+
+### PR 23: Playtest P4a crease marks and tap-to-confirm folds
+- `core/foldHistory.js` `foldsInEffect(log)`: the player's folds still in
+  effect, from the floor's action log (a fold pushes, an undo pops):
+  `{ fold, n, at }`. P4b's strip and rewind build on it.
+- Crease marks: `render/preview.js` `buildCreaseMarks` (line + slot per
+  fold, rebuilt only when the log grows) and the renderer pass
+  `drawCreaseMarks` (thin ink line, numbered square tag near the line's
+  start, side by side when folds share a line; hidden mid-animation).
+  Square tags so they don't read as the preview's round height badges.
+- Tap to confirm folds (Settings, Gameplay, off by default): a released
+  drag on a valid crease is held (`input.js` pending state) with its
+  preview up; the HUD shows Cancel and a Fold button (in Hint's place).
+  Fold or Enter plays it; Cancel, Esc, phone Back or a tap on the board
+  drops it. F on a held fold hands it to keyboard fold mode. Invalid
+  drags are refused at once, as before. Any action dispatched drops a
+  held fold.
+- 2 new tests (304 total). Checked in headless Chromium (phone
+  portrait, open 5x5 dev board): marks 1-3 appear and undo removes the
+  latest; hold, Fold button, Enter, tap/Esc/Back drop. No console errors.

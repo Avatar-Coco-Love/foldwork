@@ -4,7 +4,7 @@ import { el, svgIcon } from './dom.js';
 import { createHud } from './hud.js';
 import { createFoldInput } from './input.js';
 import { dirToward } from './moveInput.js';
-import { buildFoldPreview, slidePreview, bossForecast, buildHintMark } from '../render/preview.js';
+import { buildFoldPreview, slidePreview, bossForecast, buildHintMark, buildCreaseMarks } from '../render/preview.js';
 import { createFxPlayer } from '../render/fx.js';
 import { createPlayback, buildClips } from '../render/playback.js';
 import {
@@ -20,6 +20,7 @@ import { parseMap, DEV_MAPS } from '../core/maps.js';
 import { generateFloor, templateFloors } from '../core/floors.js';
 import { floorSetupFor, finishFloor, takeOffer, runTag, addHints } from '../core/run.js';
 import { encodeAction } from '../core/replay.js';
+import { foldsInEffect } from '../core/foldHistory.js';
 import { resumeFloor, saveSummary, savedHints } from '../core/save.js';
 import { lineKeys, nextStep } from '../core/hintLine.js';
 import { stateKey } from '../core/solver.js';
@@ -418,8 +419,15 @@ export const floorScreen = {
       },
     });
 
+    // Crease marks for the folds still in effect, rebuilt when the log grows.
+    let creases = [];
+    let creasesFor = -1;
     const sync = () => {
-      ctx.renderer.setScene({ board: shownBoard, preview, hint: hintMark });
+      if (creasesFor !== actionLog.length) {
+        creasesFor = actionLog.length;
+        creases = buildCreaseMarks(state.board, foldsInEffect(actionLog));
+      }
+      ctx.renderer.setScene({ board: shownBoard, preview, hint: hintMark, creases });
       const me = playerOf(state);
       hud.setHp(me ? me.hp : 0, me ? me.maxHp : CREATURE_DEFS.player.hp);
       hud.setCharges(state.charges, state.maxCharges);
@@ -443,6 +451,7 @@ export const floorScreen = {
       onWait: () => dispatch({ type: 'wait' }),
       onCancel: () => input.cancel(),
       onHint: () => askHint(),
+      onConfirmFold: () => input.confirmPending(),
     });
 
     // Runs one action through the turn engine, then plays its events back.
@@ -454,6 +463,7 @@ export const floorScreen = {
         queued = action;
         return;
       }
+      if (input.active) input.cancel(); // a held or dragged fold was for this board
       const before = state;
       const result = act(state, action, { snapshots: true });
       const src = ctx.inputSource();
@@ -777,6 +787,9 @@ export const floorScreen = {
       getLayout: () => ctx.renderer.layout,
       getBoard: () => state.board,
       foldOptions: () => ({ diagonal: !!state.rules.diagonal }),
+      confirmFolds: () => ctx.settings.confirmFolds === 'on',
+      isValid: (crease) => !!foldPreview(state, crease)?.ok,
+      onPending: (on) => hud.setFoldPending(on),
       onPreview(crease) {
         recorder.preview(crease);
         preview = crease ? foldPreview(state, crease) : null;

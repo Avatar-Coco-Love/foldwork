@@ -121,12 +121,19 @@ These belong to later phases and get decided when that phase is built.
     it; it bites only if you're still adjacent next turn) and a tip that
     says to drop it into a void. HP: rest heals 2, +1 HP for a floor
     cleared without damage.
-  - Fold history (P4, proposed design, user to confirm when built): each
-    fold leaves a numbered crease mark on the paper; a history strip
+  - Fold history (P4, user confirmed all four parts, split P4a / P4b):
+    each fold leaves a numbered crease mark on the paper; a history strip
     lists the folds; tapping one shows the board as it was before it
     and the paper it moved; "Rewind to here" replays the floor's log up
     to it (no new power: Restart Floor plus the same moves does the
     same). A tap-to-confirm fold setting for players who mis-drag.
+    Decided while building P4a: marks are the player's folds only (a
+    boss's fold isn't numbered); an undone fold loses its mark and the
+    next fold takes its number; the mark stays where the crease was
+    made. Tap-to-confirm holds only a valid drag (an invalid one is
+    refused at once, as before); Fold or Enter plays it, and Cancel,
+    Esc, Back or a tap on the board drops it (the tap doesn't move).
+    Keyboard fold mode already confirms with Enter, so it is unchanged.
 - Great Crane bumps (6a part 2, user's choice after a solver check): on
   the draft arena a no-fold search won at 1 HP (dodge every marked strip,
   bump 6 times; its own folds pile the paper to full stacks, then it has

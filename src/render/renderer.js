@@ -33,7 +33,7 @@ export function createRenderer(canvas, { paletteId = DEFAULT_PALETTE_ID } = {}) 
     insets: { top: 0, right: 0, bottom: 0, left: 0 },
     leftHanded: false,
     palette: getPalette(paletteId),
-    scene: null, // { board, preview? } — extended by later phases
+    scene: null, // { board, preview?, hint?, creases? } — extended by later phases
     fx: null, // fx player (render/fx.js): foldAnim, actor, shake
     layout: null,
     frameRequested: false,
@@ -112,7 +112,7 @@ export function createRenderer(canvas, { paletteId = DEFAULT_PALETTE_ID } = {}) 
 // ---------------------------------------------------------------------------
 // Draw passes
 
-const PASSES = [drawBackground, drawBoardBase, drawTiles, drawSightLanes, drawSpawnMarks, drawTelegraph, drawFoldPreview, drawHintStep, drawFoldAnim, drawActor, drawFlash];
+const PASSES = [drawBackground, drawBoardBase, drawTiles, drawCreaseMarks, drawSightLanes, drawSpawnMarks, drawTelegraph, drawFoldPreview, drawHintStep, drawFoldAnim, drawActor, drawFlash];
 
 function draw(r) {
   const { ctx } = r;
@@ -294,6 +294,59 @@ function drawTelegraph(r, ctx) {
     }
   }
   ctx.restore();
+}
+
+// Crease marks (playtest P4a): every player fold still in effect leaves a
+// thin ink line where it was made and a numbered square tag near the
+// line's start, so the order reads without color. scene.creases is
+// [{ n, line, slot }] (line: preview.js creaseSegment; slot: how many
+// earlier marks share the line, so their badges sit side by side). Hidden
+// while a fold animates, since the paper is mid-air.
+function drawCreaseMarks(r, ctx) {
+  const L = r.layout;
+  const marks = r.scene && r.scene.creases;
+  if (!L || !marks || !marks.length || (r.fx && r.fx.foldAnim)) return;
+  const p = r.palette;
+  const size = L.cellSize;
+  const lineW = Math.max(1, Math.round(size * 0.035));
+  const rad = Math.max(7, size * 0.15);
+  ctx.save();
+  ctx.strokeStyle = p.ink;
+  ctx.lineWidth = lineW;
+  ctx.globalAlpha = 0.45;
+  ctx.beginPath();
+  for (const m of marks) {
+    ctx.moveTo(L.boardX + m.line.x0 * size, L.boardY + m.line.y0 * size);
+    ctx.lineTo(L.boardX + m.line.x1 * size, L.boardY + m.line.y1 * size);
+  }
+  ctx.stroke();
+  ctx.globalAlpha = 0.9;
+  for (const m of marks) {
+    const { x0, y0, x1, y1 } = m.line;
+    const len = Math.hypot(x1 - x0, y1 - y0) * size || 1;
+    const along = rad * 1.3 + m.slot * rad * 2.3;
+    const t = Math.min(along, len / 2) / len;
+    const cx = L.boardX + (x0 + (x1 - x0) * t) * size;
+    const cy = L.boardY + (y0 + (y1 - y0) * t) * size;
+    creaseTag(ctx, p, cx, cy, rad, String(m.n));
+  }
+  ctx.restore();
+}
+
+// A crease number: a light square tag with an ink outline, so it is not
+// mistaken for the preview's round stack-height badges.
+function creaseTag(ctx, p, cx, cy, rad, text) {
+  ctx.fillStyle = p.tileFace;
+  ctx.strokeStyle = p.ink;
+  ctx.lineWidth = Math.max(1.5, rad * 0.18);
+  roundRect(ctx, cx - rad, cy - rad, rad * 2, rad * 2, rad * 0.35);
+  ctx.fill();
+  ctx.stroke();
+  ctx.fillStyle = p.ink;
+  ctx.font = `700 ${Math.round(rad * (text.length > 1 ? 1.1 : 1.35))}px system-ui, sans-serif`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(text, cx, cy + 1);
 }
 
 // The Hint button's next step (scene.hint, render/preview.js buildHintMark):
