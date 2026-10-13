@@ -4,14 +4,23 @@
 small. At the end of each conversation, update this file in the same PR.
 
 ## Next up
-**Phase 6b: Crane phases 2–3.** Phase 1 plays end to end on floor 9 (PR
-18). Read OPEN-QUESTIONS "Great Crane core rules" and "Great Crane bumps",
-docs/03 Boss, and `core/boss.js`. Phase 2: spawns Scrap Mites on its fold,
-its folds carry minions; phase 3: per docs/03 (double creases, shrinking
-arena). Ask before inventing details the doc leaves open. `phaseOf`
-already reports the phase. Keep the `f9-crane` stored line winning (re-find
-it with a beam search over act(); a full solve runs out of memory), and
-re-check the 6 charges.
+**Playtest P2: Restart Floor + Hint button.** Read OPEN-QUESTIONS
+"Playtest round 1", `core/hints.js`, `core/solver.js`, `core/save.js`.
+- **Restart Floor**, always available (HUD and keyboard): the floor as it
+  started (floor-start HP and charges); the save's action log resets.
+- **Hint button**, three levels, one more per press:
+  1. a written nudge per template (new `tip` field on each template in
+     `core/floors.js`, the boss included). F2's says how to cross the void
+     by riding the fold: drag from your own tile across the void edge.
+  2. the next step of a winning line from the current state: `solve()` in
+     a module Web Worker (no build step), drawn on the board as the
+     crease (with the drag direction) or a move arrow. Not on the boss
+     (too big to solve; tip only).
+  3. when no line is found: "This floor can't be won from here", with
+     Undo / Restart Floor.
+- Hints are free and unlimited; count them per floor (telemetry
+  `hint.ask`) and show the count in the run summary later (6c).
+Then P3 to P5 (below), then back to Phase 6b (Crane phases 2-3).
 
 ## Phase checklist
 Larger phases are split into PR-sized chunks so each conversation stays small.
@@ -36,6 +45,15 @@ Larger phases are split into PR-sized chunks so each conversation stays small.
   - [x] 5b Creaseling + F4 templates (PR 13)
   - [x] 5c Lockjaw + Spore Bloom, F6/F7 templates (PR 14)
   - [x] 5d Floors 5 and 8 (mixes) (PR 15)
+- [ ] **Playtest round 1** — fixes from the first playtests (user's
+  priority, before 6b; decisions in OPEN-QUESTIONS "Playtest round 1")
+  - [x] P1 Save and continue runs, Share button on the title (PR 19)
+  - [ ] P2 Restart Floor, Hint button (nudge, next step, can't-win notice)
+  - [ ] P3 Fold history: numbered crease marks, history strip with peek
+    and rewind, optional tap-to-confirm folds
+  - [ ] P4 Lockjaw bite warning + tip rewrite; HP economy (rest heals 2,
+    +1 HP for a floor cleared without damage); re-prove every floor
+  - [ ] P5 Save code (move a run between devices), Challenge-a-friend link
 - [ ] **Phase 6** — Great Crane boss, run summary
   - [x] 6a Great Crane phase 1, telegraphed crease, floor 9 arena
     - [x] core rules: crane def, aimed strip crease, swat, drop, flee (PR 17)
@@ -603,6 +621,43 @@ Larger phases are split into PR-sized chunks so each conversation stays small.
   dropped). Hints `crane-telegraph`, `crane-swat`.
 - Checked in headless Chromium, phone (390x844) and desktop (1280x800).
 
+### PR 19: Playtest P1 save and continue, Share button
+- Playtest feedback round 1 (OPEN-QUESTIONS "Playtest round 1"): the
+  user's plan is P1 to P5 in the checklist, before Phase 6b.
+- `core/save.js` (pure): `Save = { v, logic, at, runId, run, floor }`,
+  where `floor` is `{ floor, templateId, variant, actions }`: how the
+  floor was built plus its accepted action codes, not a board. Small at
+  any floor length. `parseSave` rejects other save/run versions and
+  finished runs. `resumeFloor` replays the log when the floor still
+  matches (same floor, template, variant, `LOGIC_VERSION`) and it leaves
+  the floor in play; otherwise the floor starts over (the run is kept,
+  notice "This floor changed in an update").
+- `ui/saveStore.js`: one save under `foldwork.run` (docs/05), every access
+  guarded; blocked storage keeps it in memory for the session.
+- Saved after every accepted action, at floor start, and between floors
+  (run with its relic offer). A finished floor is settled into the run
+  the moment the action lands (`persist` in the floor screen), so closing
+  the tab mid-animation can't undo a defeat. Run over: save cleared.
+- Menu mid-floor or on the relic offer keeps the run. Title: **Continue
+  Run** (with "Floor 4 of 9 · Fox · 2/3 HP · 1 relic") goes back to the
+  floor (replayed) or the offer. **New Run** with a save asks first
+  ("Keep my run" / "Start new run"); the old run ends only when a spirit
+  is picked, so Back from spirit select keeps it.
+- Runs started with dev URL params (`DEV_RUN_PARAMS` in main.js) never
+  save or clear the save.
+- `ui/share.js`: **Share Foldwork** on the title opens the share sheet
+  (`navigator.share`), else copies the link ("Link copied!"), else shows
+  it in a box. The link is index.html's `og:url`.
+- Title menu scrolls on short screens (phone landscape).
+- Telemetry (docs/07): `run.resume`, `share`; floor.end outcome `left`;
+  `resumedFrom` on floor.start/end, which `tools/replay-check.js`
+  replays first.
+- 11 new tests (291 total). Checked in headless Chromium (phone): play,
+  Menu, reload, Continue to the same board; win, Menu on the offer,
+  Continue to the offer; New Run confirm, Keep, Back; defeat clears the
+  save at once; Share copies the link; landscape title scrolls. No
+  console errors.
+
 ## Conventions worth remembering
 - Dev URL params: `?screen=offer&cleared=4`, `?spirit=frog`, `?screen=floor&floor=2&map=courier&size=7&seed=abc&palette=night-ink&demo=1&speed=slow&motion=on&charges=3&mites=2&relics=all&telemetry=console`.
 - New draw layers → add a pass to `PASSES` in `renderer.js`.
@@ -612,6 +667,9 @@ Larger phases are split into PR-sized chunks so each conversation stays small.
 - Environment rules (plates, gates, locks) → `core/environment.js`, run
   from the `environment` turn phase; fold-time tile rules go in
   `resolveFold` next to the creature rules.
+- Anything a floor needs to rebuild after Continue must come from the
+  run seed, the template + variant, or the action log (`core/save.js`).
+  New action types need a code in `core/replay.js`, or saves lose them.
 - Hand-made layouts → `parseMap` rows (`core/maps.js`); new symbols go in
   `MAP_LEGEND`.
 - Floors → a template in `FLOOR_TEMPLATES` (`core/floors.js`). `npm test`

@@ -33,6 +33,32 @@ These belong to later phases and get decided when that phase is built.
   shortcuts with thick card.
 
 ## Resolved
+- Playtest round 1 (user's choices, before Phase 6b). Feedback: Lockjaws
+  felt unbeatable (fighting one costs 2 HP: it bites on arrival and
+  again after the first hit; two cost 4, max HP is 2-4); floor 2's void
+  crossing (riding your own row's fold, then stepping off the plate into
+  the open gate) wasn't discoverable; folds were hard to read back or
+  unwind after a wrong drag; runs ended on Menu. Every floor is already
+  proven winnable with no damage, so the fixes are mostly about teaching.
+  Decided, built in order P1-P5 (docs/PROGRESS.md):
+  - Saves: **one autosave slot** (no save-scumming), after every action.
+    Plus a save code to move a run between devices (P5).
+  - Share button on the title; later a Challenge-a-friend seed link (P5).
+  - Hints: **free and unlimited**, three levels (written nudge, next step
+    from the solver, "can't be won from here"); the count shows in the run
+    summary.
+  - **Restart Floor always available** (hints say when a floor can't be
+    won from where you are).
+  - Lockjaw: a visible **bite warning** (jaws open when you step next to
+    it; it bites only if you're still adjacent next turn) and a tip that
+    says to drop it into a void. HP: rest heals 2, +1 HP for a floor
+    cleared without damage.
+  - Fold history (P3, proposed design, user to confirm when built): each
+    fold leaves a numbered crease mark on the paper; a history strip
+    lists the folds; tapping one shows the board as it was before it
+    and the paper it moved; "Rewind to here" replays the floor's log up
+    to it (no new power: Restart Floor plus the same moves does the
+    same). A tap-to-confirm fold setting for players who mis-drag.
 - Great Crane bumps (6a part 2, user's choice after a solver check): on
   the draft arena a no-fold search won at 1 HP (dodge every marked strip,
   bump 6 times; its own folds pile the paper to full stacks, then it has

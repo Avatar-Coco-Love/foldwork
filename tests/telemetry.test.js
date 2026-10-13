@@ -11,6 +11,7 @@ import { LOGIC_VERSION, TELEMETRY } from '../src/config.js';
 import { telemetryActive } from '../src/telemetry/browser.js';
 import { parseCsv, rowsToEvents } from '../tools/sheet-to-ndjson.js';
 import { floorSetupFor } from '../src/core/run.js';
+import { encodeAction } from '../src/core/replay.js';
 
 function memoryStorage() {
   const m = new Map();
@@ -214,6 +215,31 @@ test('replay check: a recorded floor.end rebuilds and replays identically', () =
   assert.ok(checkFloorEnd({ ...ev, logic: LOGIC_VERSION + 1 }).skip);
   assert.ok(checkFloorEnd({ ...ev, data: { ...data, source: 'dev' } }).skip);
   assert.ok(checkFloorEnd({ ...ev, data: { ...data, overrides: { charges: 9 } } }).skip);
+});
+
+test('replay check: a floor continued from a save replays its saved actions first', () => {
+  const template = FLOOR_TEMPLATES[0];
+  const variant = { transform: 'id', picks: [], anchors: [0] };
+  const start = createFloorState(buildFloor(template, variant));
+  const line = solve(start).actions;
+  const [first, ...rest] = line;
+  let state = act(start, first).state;
+  const rec = createFloorRecorder(() => 0);
+  for (const action of [{ type: 'move', dir: 'down' }, ...rest]) { // first one refused (edge)
+    const r = act(state, action);
+    rec.action(action, 'key', { ok: r.ok, reason: r.reason, tookTurn: r.ok });
+    if (r.ok) state = r.state;
+  }
+  const data = {
+    source: 'template', templateId: template.id, variant, outcome: 'won', turn: state.turn, resumedFrom: [encodeAction(first)], ...rec.summary(),
+  };
+  const ev = { type: 'floor.end', logic: LOGIC_VERSION, data };
+  assert.equal(state.status, 'won');
+  assert.equal(checkFloorEnd(ev).ok, true);
+  assert.equal(checkFloorEnd({ ...ev, data: { ...data, resumedFrom: [] } }).ok, false);
+  // Left mid-floor (Menu, run saved): replays to a floor still in play.
+  const partial = { ...data, outcome: 'left', turn: 1, log: [] };
+  assert.equal(checkFloorEnd({ ...ev, data: partial }).ok, true);
 });
 
 test('replay check: floors replay with the loadout (relics, HP) they started with', () => {

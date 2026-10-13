@@ -26,9 +26,13 @@ export function checkFloorEnd(ev) {
   // HP, which is what an empty loadout gives.
   const loadout = { relics: [], ...d.loadout };
   const start = createFloorState(floorSetupFor(loadout, buildFloor(template, d.variant)));
-  const { state, refused } = replay(start, d.log.map((entry) => entry[1]));
-  const loggedRefused = d.log.flatMap((entry, i) => (entry.length > 3 ? [i] : []));
-  const outcome = state.status === 'playing' ? 'abandoned' : state.status;
+  // A floor continued from a save logs only what came after; the save's
+  // own (accepted) actions come first.
+  const prior = d.resumedFrom || [];
+  const { state, refused } = replay(start, [...prior, ...d.log.map((entry) => entry[1])]);
+  const loggedRefused = d.log.flatMap((entry, i) => (entry.length > 3 ? [prior.length + i] : []));
+  const left = d.outcome === 'left' ? 'left' : 'abandoned';
+  const outcome = state.status === 'playing' ? left : state.status;
   const problems = [];
   if (outcome !== d.outcome) problems.push(`outcome ${outcome} ≠ logged ${d.outcome}`);
   if (state.turn !== d.turn) problems.push(`turn ${state.turn} ≠ logged ${d.turn}`);

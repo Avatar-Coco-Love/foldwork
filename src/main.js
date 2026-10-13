@@ -33,6 +33,8 @@ import { createRun, runTag, rollOffer } from './core/run.js';
 import { RELIC_DEFS, isRelic } from './core/relics.js';
 import { isSpirit } from './core/spirits.js';
 import { loadSettings, saveSettings, normalizeSettings, resolveMotion } from './ui/settings.js';
+import { createSave } from './core/save.js';
+import { createSaveStore } from './ui/saveStore.js';
 
 const params = Object.fromEntries(new URLSearchParams(location.search));
 const canvas = document.getElementById('board');
@@ -61,11 +63,19 @@ const devRelics = params.relics === 'all'
   ? Object.keys(RELIC_DEFS)
   : String(params.relics || '').split(',').filter(isRelic);
 const devSpirit = isSpirit(params.spirit) ? params.spirit : null;
+// Dev params that change how runs start or play. Such runs are never
+// saved, so testing with them can't overwrite the player's run.
+const DEV_RUN_PARAMS = ['screen', 'floor', 'seed', 'relics', 'spirit', 'charges', 'mites', 'map', 'size', 'demo'];
+const devRun = DEV_RUN_PARAMS.some((k) => k in params);
+const saves = createSaveStore();
+const newRunId = () => `r_${Date.now().toString(36)}${Math.floor(Math.random() * 1e6).toString(36)}`;
 
 const ctx = {
   seed: newSeed(),
   /** The run in progress (core/run.js), or null. Screens replace it as it advances. */
   run: null,
+  /** Telemetry id of the run in progress (kept in its save). */
+  runId: null,
   telemetry: tele.telemetry,
   /** How the latest input was made: 'key', 'mouse', 'touch', 'pen'. */
   inputSource: tele.inputSource,
@@ -78,17 +88,69 @@ const ctx = {
   startRun({ floor = 1, spirit = devSpirit } = {}) {
     ctx.seed = newSeed();
     ctx.run = createRun({ seed: ctx.seed, relics: devRelics, floor, spirit });
-    ctx.telemetry.setRun(`r_${Date.now().toString(36)}${Math.floor(Math.random() * 1e6).toString(36)}`);
+    ctx.runId = newRunId();
+    ctx.telemetry.setRun(ctx.runId);
     ctx.telemetry.track('run.start', { ...runTag(ctx.run), daily: false, lastFloor: ctx.run.lastFloor });
+    ctx.saveRun();
   },
   /**
-   * Record the run's end (won, lost, or abandoned when the player leaves
-   * mid-run) and clear it. Safe to call more than once.
+   * Save the run in progress (core/save.js), with the floor being played:
+   * { floor, templateId, variant, actions } or null between floors. A run
+   * that is over clears the save. Dev runs are never saved.
+   */
+  saveRun(floor = null) {
+    if (devRun) return;
+    if (!ctx.run || ctx.run.status !== 'playing') {
+      saves.clear();
+      return;
+    }
+    saves.write(createSave({ run: ctx.run, runId: ctx.runId, floor, at: Date.now() }));
+  },
+  /** The saved run to continue (title screen), or null. */
+  savedRun() {
+    return devRun ? null : saves.load();
+  },
+  /**
+   * Continue the saved run: on its relic offer if one is waiting, else on
+   * its floor, replaying the floor's saved actions (floor screen).
+   */
+  continueRun() {
+    const save = ctx.savedRun();
+    if (!save) return false;
+    ctx.run = save.run;
+    ctx.seed = save.run.seed;
+    ctx.runId = save.runId || newRunId();
+    ctx.telemetry.setRun(ctx.runId);
+    ctx.telemetry.track('run.resume', {
+      ...runTag(ctx.run), cleared: ctx.run.cleared, lastFloor: ctx.run.lastFloor, offer: !!ctx.run.offer, savedMs: Date.now() - save.at,
+    });
+    if (ctx.run.offer) ctx.router.go('offer', { floor: ctx.run.floor });
+    else ctx.router.go('floor', { floor: ctx.run.floor, resume: save });
+    return true;
+  },
+  /**
+   * Give up the run in progress, or the saved one, to start a new run:
+   * reported as abandoned, save cleared.
+   */
+  abandonRun() {
+    const save = !ctx.run && ctx.savedRun();
+    if (save) {
+      ctx.run = save.run;
+      ctx.runId = save.runId;
+      ctx.telemetry.setRun(save.runId);
+    }
+    ctx.endRun('abandoned');
+  },
+  /**
+   * Record the run's end (won, lost, or abandoned when the player starts a
+   * new run over it), clear it and its save. Safe to call more than once.
    */
   endRun(outcome) {
+    if (!devRun) saves.clear();
     const run = ctx.run;
     if (!run) return;
     ctx.run = null;
+    ctx.runId = null;
     ctx.telemetry.track('run.end', { ...runTag(run), outcome, cause: run.cause, cleared: run.cleared, lastFloor: run.lastFloor });
     ctx.telemetry.flush();
     ctx.telemetry.setRun(null);
