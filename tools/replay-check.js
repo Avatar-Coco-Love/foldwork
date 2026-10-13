@@ -31,7 +31,7 @@ export function checkFloorEnd(ev) {
   const prior = d.resumedFrom || [];
   const { state, refused } = replay(start, [...prior, ...d.log.map((entry) => entry[1])]);
   const loggedRefused = d.log.flatMap((entry, i) => (entry.length > 3 ? [prior.length + i] : []));
-  const left = d.outcome === 'left' ? 'left' : 'abandoned';
+  const left = d.outcome === 'left' || d.outcome === 'restart' ? d.outcome : 'abandoned';
   const outcome = state.status === 'playing' ? left : state.status;
   const problems = [];
   if (outcome !== d.outcome) problems.push(`outcome ${outcome} ≠ logged ${d.outcome}`);

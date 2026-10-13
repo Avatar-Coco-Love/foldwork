@@ -8,7 +8,8 @@
 
 ## HUD
 - HP (paper hearts), fold charges (small folded-paper icons), floor number, relic tray.
-- **Undo Fold** button (free undo of the last fold, per mechanics doc). Disabled when not available.
+- **Undo** button (free undo of the last fold, per mechanics doc). Disabled when not available.
+- **Hint** button (free, unlimited): the floor's tip, then the next step of a winning line marked on the board, or "can't be won from here". **Restart** button: the floor as it started, after a confirm.
 - **Wait** button and a pause/menu button.
 - Fold preview panel text is minimal; the board itself carries the information.
 
@@ -47,13 +48,14 @@
 - Controls: master volume, music volume, SFX volume, mute. Saved in settings.
 
 ## Screens
-1. Title (New Run, Daily Seed, Unlocks, Settings, How to Play)
+1. Title (Continue Run, New Run, Daily Seed, Unlocks, Stats & History, How to Play, Settings; icon corners: Back to Projects top-left, Share top-right)
 2. Spirit select
 3. Floor (gameplay)
 4. Relic choice (3 cards; 4th rest option on floors 4 and 7)
 5. Run summary (floors cleared, scraps earned, unlocks)
 6. Unlocks shop (relics, spirits, palettes)
-7. Settings (audio, animation speed, palette, reduced motion, left-handed layout toggle)
+7. Settings, in groups: Display (palette, text size, animation speed, reduced motion, left-handed layout), Gameplay (tap-to-confirm folds, tutorial hints), Data (share play data, save code, reset progress), Audio, About (version, credits, feedback / bug report)
+8. Pause menu, from the floor's Menu button (Resume, Restart Floor, How to Play, Settings, Abandon Run, Save & Quit to Title)
 
 ## Tutorial
 - Floors 1–2 are scripted guided puzzles with short on-screen hints:

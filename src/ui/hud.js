@@ -79,7 +79,9 @@ function createRelicTray() {
   };
 }
 
-export function createHud(root, { floor, lastFloor = null, onMenu, onUndo, onCancel, onWait }) {
+export function createHud(root, {
+  floor, lastFloor = null, onMenu, onUndo, onCancel, onWait, onHint = null, onRestart = null,
+}) {
   const hp = createMeter('hud-hp', HEART, 'HP');
   const charges = createMeter('hud-charges', CHARGE, 'Fold charges');
   const keys = createCounter('hud-keys', KEY, 'Keys');
@@ -100,8 +102,8 @@ export function createHud(root, { floor, lastFloor = null, onMenu, onUndo, onCan
     message,
   );
   const undoBtn = el('button', {
-    class: 'btn', type: 'button', onclick: onUndo, disabled: true, 'aria-keyshortcuts': 'U Z',
-  }, 'Undo Fold');
+    class: 'btn', type: 'button', onclick: onUndo, disabled: true, 'aria-keyshortcuts': 'U Z', 'aria-label': 'Undo fold',
+  }, 'Undo');
   const waitBtn = el('button', {
     class: 'btn', type: 'button', onclick: onWait, 'aria-keyshortcuts': 'Space',
   }, 'Wait');
@@ -110,10 +112,18 @@ export function createHud(root, { floor, lastFloor = null, onMenu, onUndo, onCan
   const cancelBtn = el('button', {
     class: 'btn hud-cancel', type: 'button', onclick: onCancel, hidden: true, 'aria-keyshortcuts': 'Escape',
   }, 'Cancel');
+  const hintBtn = onHint && el('button', {
+    class: 'btn', type: 'button', onclick: onHint, 'aria-keyshortcuts': 'H',
+  }, 'Hint');
+  const restartBtn = onRestart && el('button', {
+    class: 'btn', type: 'button', onclick: onRestart, 'aria-keyshortcuts': 'R', 'aria-label': 'Restart floor',
+  }, 'Restart');
   const actions = el('div', { class: 'hud-actions' },
     undoBtn,
     waitBtn,
     cancelBtn,
+    hintBtn,
+    restartBtn,
     el('button', { class: 'btn', type: 'button', onclick: onMenu, 'aria-label': 'Menu' }, 'Menu'),
   );
   // Pointer-down (not click) so a second finger can cancel mid-drag.
@@ -173,8 +183,11 @@ export function createHud(root, { floor, lastFloor = null, onMenu, onUndo, onCan
         syncMessage();
       }, ms);
     },
-    /** End-of-floor panel. actions: [{ label, onclick, primary }]. */
-    showOutcome({ title, text, actions: buttons }) {
+    /**
+     * End-of-floor panel, or a question over the board (Restart Floor).
+     * actions: [{ label, onclick, primary }]. `onEscape` lets Esc close it.
+     */
+    showOutcome({ title, text, actions: buttons, onEscape = null }) {
       overlay?.remove();
       const btns = buttons.map((b) => el('button', {
         class: b.primary ? 'btn btn-primary' : 'btn', type: 'button', onclick: b.onclick,
@@ -186,21 +199,36 @@ export function createHud(root, { floor, lastFloor = null, onMenu, onUndo, onCan
           el('div', { class: 'menu-buttons' }, btns),
         ),
       );
+      if (onEscape) {
+        overlay.addEventListener('keydown', (e) => {
+          if (e.key !== 'Escape') return;
+          e.preventDefault();
+          e.stopPropagation();
+          onEscape();
+        });
+      }
       root.append(overlay);
       btns[0]?.focus();
+    },
+    hideOutcome() {
+      overlay?.remove();
+      overlay = null;
     },
     /**
      * Tutorial hint card (docs/04): non-blocking, so play continues while
      * it shows. "Got it" calls onDismiss. Replaces any card shown.
      */
-    showHint({ title, text, onDismiss }) {
+    showHint({ title, text, onDismiss, actions: extra = [] }) {
       hintCard?.remove();
       hintCard = el('aside', { class: 'hud-hint', role: 'note', 'aria-live': 'polite', 'aria-label': `Hint: ${title}` },
         el('div', { class: 'hud-hint-body' },
           el('strong', { class: 'hud-hint-title', text: title }),
           el('span', { text }),
         ),
-        el('button', { class: 'btn', type: 'button', onclick: onDismiss }, 'Got it'),
+        el('div', { class: 'hud-hint-actions' },
+          ...extra.map((b) => el('button', { class: 'btn', type: 'button', onclick: b.onclick }, b.label)),
+          el('button', { class: 'btn', type: 'button', onclick: onDismiss }, 'Got it'),
+        ),
       );
       hud.insertBefore(hintCard, actions);
     },

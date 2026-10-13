@@ -112,7 +112,7 @@ export function createRenderer(canvas, { paletteId = DEFAULT_PALETTE_ID } = {}) 
 // ---------------------------------------------------------------------------
 // Draw passes
 
-const PASSES = [drawBackground, drawBoardBase, drawTiles, drawSightLanes, drawSpawnMarks, drawTelegraph, drawFoldPreview, drawFoldAnim, drawActor, drawFlash];
+const PASSES = [drawBackground, drawBoardBase, drawTiles, drawSightLanes, drawSpawnMarks, drawTelegraph, drawFoldPreview, drawHintStep, drawFoldAnim, drawActor, drawFlash];
 
 function draw(r) {
   const { ctx } = r;
@@ -294,6 +294,76 @@ function drawTelegraph(r, ctx) {
     }
   }
   ctx.restore();
+}
+
+// The Hint button's next step (scene.hint, render/preview.js buildHintMark):
+// a fold is its crease, dashed, with an arrow showing which way to drag; a
+// move is an arrow from the player; a wait is a dashed ring with "…".
+// Shape cues, so it never relies on color. Hidden while the player
+// previews a fold of their own.
+function drawHintStep(r, ctx) {
+  const L = r.layout;
+  const mark = r.scene && r.scene.hint;
+  if (!L || !mark || r.scene.preview || (r.fx && r.fx.foldAnim)) return;
+  const board = r.scene.board;
+  const p = r.palette;
+  const size = L.cellSize;
+  const lift = layerLift(size);
+  const lineW = Math.max(2, Math.round(size * 0.06));
+  const centre = (c) => {
+    const o = cellOrigin(L, c.col, c.row);
+    const level = Math.max(0, stackHeight(board, c.col, c.row) - 1);
+    return { x: o.x + size / 2, y: o.y + size / 2 - level * lift };
+  };
+  ctx.save();
+  if (mark.kind === 'fold') drawCrease(ctx, p, L, mark.pv, lineW, { color: p.accent, dashed: true });
+  if (mark.kind === 'wait') {
+    const c = centre(mark.at);
+    ctx.strokeStyle = p.accent;
+    ctx.lineWidth = lineW;
+    ctx.setLineDash([lineW * 2, lineW * 1.5]);
+    ctx.beginPath();
+    ctx.arc(c.x, c.y, size * 0.46, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    badge(ctx, p, c.x + size * 0.32, c.y - size * 0.32, size * 0.17, '…', false);
+  } else {
+    const a = centre(mark.from);
+    const b = centre(mark.to);
+    drawArrow(ctx, a.x, a.y, b.x, b.y, lineW * 1.4, p.accent, p.tileFace);
+  }
+  ctx.restore();
+}
+
+// An arrow with a contrasting outline, so it reads on any tile.
+function drawArrow(ctx, x0, y0, x1, y1, w, color, edge) {
+  const len = Math.hypot(x1 - x0, y1 - y0) || 1;
+  const ux = (x1 - x0) / len;
+  const uy = (y1 - y0) / len;
+  const head = w * 3;
+  const ex = x1 - ux * head;
+  const ey = y1 - uy * head;
+  const path = () => {
+    ctx.beginPath();
+    ctx.moveTo(x0, y0);
+    ctx.lineTo(ex, ey);
+    ctx.moveTo(x1, y1);
+    ctx.lineTo(ex - uy * head * 0.7, ey + ux * head * 0.7);
+    ctx.lineTo(ex + uy * head * 0.7, ey - ux * head * 0.7);
+    ctx.closePath();
+  };
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  ctx.strokeStyle = edge;
+  ctx.lineWidth = w + 4;
+  path();
+  ctx.stroke();
+  ctx.strokeStyle = color;
+  ctx.fillStyle = color;
+  ctx.lineWidth = w;
+  path();
+  ctx.stroke();
+  ctx.fill();
 }
 
 // Diagonal hatching across one cell, clipped to it.

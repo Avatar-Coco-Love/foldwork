@@ -15,6 +15,7 @@
 //     cleared,    floors cleared
 //     offer,      null, or the relic offer waiting to be taken after a
 //                 floor: { floor, relics: [ids], rest } (rollOffer)
+//     hints,      optional { [floor]: Hint button presses } (run summary)
 //     status,     'playing' | 'won' | 'lost'
 //     cause,      why it was lost ('hp', 'fall'), else null
 //   }
@@ -170,6 +171,14 @@ export function takeOffer(run, choice) {
   if (offer.relics.includes(choice)) return addRelic({ ...run, offer: null }, choice);
   if (choice == null && !offer.relics.length && !offer.rest) return { ...run, offer: null };
   return run;
+}
+
+/** The run with `count` Hint button presses recorded for `floor`. */
+export function addHints(run, floor, count) {
+  if (!count) return run;
+  const hints = { ...(run.hints || {}) };
+  hints[floor] = (hints[floor] || 0) + count;
+  return { ...run, hints };
 }
 
 /** What telemetry (and the HUD) report about a run. */

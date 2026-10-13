@@ -12,6 +12,8 @@
 //   onMove(dir)               arrows / WASD (outside fold mode)
 //   onTap(cell)               a tap on a board cell
 //   onWait()                  Space
+//   onHint()                  H
+//   onRestart()               R (outside fold mode; the owner confirms)
 //   foldOptions() → { diagonal }  whether diagonal creases are unlocked
 //
 // setBusy(true) (during animations) blocks starting a fold, since its
@@ -31,7 +33,7 @@ import { dirForKey, isTap } from './moveInput.js';
 import { cellAtPoint } from '../render/layout.js';
 
 export function createFoldInput({
-  canvas, getLayout, getBoard, onPreview, onConfirm, onInvalid, onUndo, onMove, onTap, onWait,
+  canvas, getLayout, getBoard, onPreview, onConfirm, onInvalid, onUndo, onMove, onTap, onWait, onHint, onRestart,
   foldOptions = () => ({}),
 }) {
   let enabled = true;
@@ -164,6 +166,12 @@ export function createFoldInput({
       e.preventDefault();
     } else if (key === ' ') {
       if (onWait) onWait();
+      e.preventDefault();
+    } else if ((key === 'h' || key === 'H') && onHint && !e.repeat) {
+      onHint();
+      e.preventDefault();
+    } else if ((key === 'r' || key === 'R') && onRestart && !e.repeat) {
+      onRestart();
       e.preventDefault();
     }
   }

@@ -3,7 +3,7 @@
 // pass only reads typed arrays.
 
 import { validateFold, AXES } from '../core/fold.js';
-import { cellIndex, topLayer } from '../core/board.js';
+import { cellIndex, topLayer, findCreature, DIRS } from '../core/board.js';
 import { coverEffect, PLAYER_ID, act } from '../core/turn.js';
 import { keyMeetsLock } from '../core/environment.js';
 import { bossMarks, bossIds } from '../core/boss.js';
@@ -167,4 +167,43 @@ export function creaseSegment(board, fold) {
   }
   if (!(t1 > t0)) return null;
   return { x0: px + dx * t0, y0: py + dy * t0, x1: px + dx * t1, y1: py + dy * t1, nx, ny, offset };
+}
+
+/**
+ * The Hint button's next step, as a board mark (renderer drawHintStep):
+ *   { kind: 'fold', pv, from, to }  pv = buildFoldPreview(); the arrow
+ *                                   runs from a moving cell to where it
+ *                                   lands: the player's own cell when it
+ *                                   rides the fold, else the one nearest it
+ *   { kind: 'move', from, to }      the player's step
+ *   { kind: 'wait', at }            the player's cell
+ * Null when the player isn't on the board or the step doesn't apply.
+ */
+export function buildHintMark(board, action) {
+  const me = findCreature(board, PLAYER_ID);
+  if (!me || !action) return null;
+  const at = { col: me.col, row: me.row };
+  if (action.type === 'wait') return { kind: 'wait', at };
+  if (action.type === 'move') {
+    const d = DIRS[action.dir];
+    return d ? { kind: 'move', from: at, to: { col: at.col + d.dc, row: at.row + d.dr } } : null;
+  }
+  if (action.type !== 'fold') return null;
+  const pv = buildFoldPreview(board, action.fold);
+  if (!pv) return null;
+  let best = null;
+  let bestD = Infinity;
+  for (let to = 0; to < pv.source.length; to++) {
+    const from = pv.source[to];
+    if (from < 0) continue;
+    const fc = from % board.w;
+    const fr = (from - fc) / board.w;
+    const d = Math.abs(fc - at.col) + Math.abs(fr - at.row);
+    if (d < bestD) {
+      bestD = d;
+      const tc = to % board.w;
+      best = { from: { col: fc, row: fr }, to: { col: tc, row: (to - tc) / board.w } };
+    }
+  }
+  return best ? { kind: 'fold', pv, ...best } : null;
 }

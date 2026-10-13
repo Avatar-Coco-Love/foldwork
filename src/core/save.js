@@ -9,7 +9,9 @@
 //     runId,   telemetry run id, so a resumed run reports as the same run
 //     run,     RunState (core/run.js); run.offer set = resume on the offer
 //     floor,   null, or the floor in progress:
-//              { floor, templateId, variant, actions: [action codes] }
+//              { floor, templateId, variant, actions: [action codes],
+//                hints }  hints = Hint button presses on this floor so
+//                far (kept through Restart Floor)
 //   }
 //
 // A floor is saved as how it was built plus its action log (core/replay.js),
@@ -37,6 +39,7 @@ export function createSave({ run, runId = null, floor = null, at = 0 }) {
       templateId: floor.templateId,
       variant: floor.variant,
       actions: floor.actions.slice(),
+      hints: floor.hints || 0,
     },
   };
 }
@@ -76,6 +79,13 @@ export function resumeFloor(save, start, info) {
     if (!refused.length && state.status === 'playing') return { state, actions: saved.actions.slice(), restarted: false };
   }
   return { state: start, actions: [], restarted: true };
+}
+
+/** Hint button presses saved for the floor `info` describes (0 if none). */
+export function savedHints(save, info) {
+  const saved = save && save.floor;
+  if (!saved || saved.floor !== info.floor || !Number.isInteger(saved.hints) || saved.hints < 0) return 0;
+  return saved.hints;
 }
 
 /** What the title screen says about a save. */

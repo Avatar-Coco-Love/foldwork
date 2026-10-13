@@ -3,6 +3,9 @@
 /** Shown to players and sent with telemetry. Bump with each release. */
 export const APP_VERSION = '0.4.0';
 
+/** Back to Projects (title screen, playtest P3): the author's project page. */
+export const PROJECTS_URL = 'https://avatar-coco-love.github.io/';
+
 /**
  * Game-rule version. Bump it whenever a rule change would make an old
  * action log replay differently (core/replay.js), so analysis replays each
