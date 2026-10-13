@@ -135,6 +135,23 @@ export function bossForecast(state, action) {
 }
 
 /**
+ * Crease marks for the renderer (drawCreaseMarks), from
+ * core/foldHistory.js foldsInEffect(): [{ n, line, slot }], where `slot`
+ * counts earlier marks on the same line. Folds whose line misses the
+ * board are left out. Built once per action, not per frame.
+ */
+export function buildCreaseMarks(board, folds) {
+  const out = [];
+  for (const f of folds) {
+    const line = creaseSegment(board, f.fold);
+    if (!line) continue;
+    const slot = out.filter((m) => m.axis === f.fold.axis && m.index === f.fold.index).length;
+    out.push({ n: f.n, line, slot, axis: f.fold.axis, index: f.fold.index });
+  }
+  return out;
+}
+
+/**
  * Where a crease line crosses the board, in cell units (cell (c,r) spans
  * c..c+1): the segment { x0, y0, x1, y1 }, plus the unit normal { nx, ny }
  * pointing from the 'before' half to the 'after' half and `offset` (n·p on

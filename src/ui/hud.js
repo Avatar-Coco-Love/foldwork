@@ -80,7 +80,7 @@ function createRelicTray() {
 }
 
 export function createHud(root, {
-  floor, lastFloor = null, onMenu, onUndo, onCancel, onWait, onHint = null,
+  floor, lastFloor = null, onMenu, onUndo, onCancel, onWait, onHint = null, onConfirmFold = null,
 }) {
   const hp = createMeter('hud-hp', HEART, 'HP');
   const charges = createMeter('hud-charges', CHARGE, 'Fold charges');
@@ -112,6 +112,11 @@ export function createHud(root, {
   const cancelBtn = el('button', {
     class: 'btn hud-cancel', type: 'button', onclick: onCancel, hidden: true, 'aria-keyshortcuts': 'Escape',
   }, 'Cancel');
+  // Tap-to-confirm (Settings): plays the held fold. Takes Hint's place.
+  const foldBtn = el('button', {
+    class: 'btn btn-primary hud-confirm', type: 'button', onclick: () => onConfirmFold && onConfirmFold(), hidden: true,
+    'aria-keyshortcuts': 'Enter',
+  }, 'Fold');
   const hintBtn = onHint && el('button', {
     class: 'btn', type: 'button', onclick: onHint, 'aria-keyshortcuts': 'H',
   }, 'Hint');
@@ -119,6 +124,7 @@ export function createHud(root, {
     undoBtn,
     waitBtn,
     cancelBtn,
+    foldBtn,
     hintBtn,
     // Opens the pause menu (Resume, Restart Floor, Settings, …).
     el('button', {
@@ -182,6 +188,12 @@ export function createHud(root, {
       cancelBtn.hidden = text == null;
       waitBtn.hidden = text != null;
       syncMessage();
+    },
+    /** Whether a held fold waits for the Fold button (tap-to-confirm). */
+    setFoldPending(on) {
+      foldBtn.hidden = !on;
+      if (hintBtn) hintBtn.hidden = !!on;
+      if (on) foldBtn.focus({ preventScroll: true });
     },
     /**
      * Short-lived notice (cleared after `ms`, or by the next notice). Shown
