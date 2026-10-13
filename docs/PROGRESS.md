@@ -20,7 +20,7 @@ small. At the end of each conversation, update this file in the same PR.
      Undo / Restart Floor.
 - Hints are free and unlimited; count them per floor (telemetry
   `hint.ask`) and show the count in the run summary later (6c).
-Then P3 to P5 (below), then back to Phase 6b (Crane phases 2-3).
+Then P3 (menus) to P6 (below), then back to Phase 6b (Crane phases 2-3).
 
 ## Phase checklist
 Larger phases are split into PR-sized chunks so each conversation stays small.
@@ -49,11 +49,15 @@ Larger phases are split into PR-sized chunks so each conversation stays small.
   priority, before 6b; decisions in OPEN-QUESTIONS "Playtest round 1")
   - [x] P1 Save and continue runs, Share button on the title (PR 19)
   - [ ] P2 Restart Floor, Hint button (nudge, next step, can't-win notice)
-  - [ ] P3 Fold history: numbered crease marks, history strip with peek
-    and rewind, optional tap-to-confirm folds
-  - [ ] P4 Lockjaw bite warning + tip rewrite; HP economy (rest heals 2,
+  - [ ] P3 Menus: title with icon corners (Share, Back to Projects),
+    Settings screen (options move off the title), pause menu from the HUD,
+    share-sheet fix (OPEN-QUESTIONS "Menu redesign")
+  - [ ] P4 Fold history: numbered crease marks, history strip with peek
+    and rewind, optional tap-to-confirm folds (a Settings row)
+  - [ ] P5 Lockjaw bite warning + tip rewrite; HP economy (rest heals 2,
     +1 HP for a floor cleared without damage); re-prove every floor
-  - [ ] P5 Save code (move a run between devices), Challenge-a-friend link
+  - [ ] P6 Save code (move a run between devices, in Settings > Data),
+    Challenge-a-friend link
 - [ ] **Phase 6** — Great Crane boss, run summary
   - [x] 6a Great Crane phase 1, telegraphed crease, floor 9 arena
     - [x] core rules: crane def, aimed strip crease, swat, drop, flee (PR 17)

@@ -45,7 +45,7 @@ Build one phase at a time. Finish, test, and summarize before moving on. Each ph
 - Paper scraps, unlocks shop, remaining relics (24 total), spirit unlocks, palettes.
 - Daily seed mode.
 - Persistence for meta, settings, and in-progress runs.
-- Settings screen includes the "Share play data" toggle; telemetry for unlocks and daily runs.
+- Settings screen (built in playtest P3) gains Reset progress; the title gains Daily Seed, Unlocks and Stats & History rows (`TITLE_ROWS`). Telemetry for unlocks and daily runs.
 - **Done when:** progress persists across sessions and the daily seed is identical across devices.
 
 ## Phase 8 — Audio and polish

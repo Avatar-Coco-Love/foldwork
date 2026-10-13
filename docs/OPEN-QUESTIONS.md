@@ -32,7 +32,61 @@ These belong to later phases and get decided when that phase is built.
   Frog's strength, prove templates with diagonals too, or block the
   shortcuts with thick card.
 
+- Menu links (P3, user to answer): where does **Back to Projects** go
+  (`https://avatar-coco-love.github.io/`? that page must exist), and where
+  do **Send Feedback / Report a Bug** go (GitHub issues need an account;
+  a form link doesn't)? Until answered, both addresses live in
+  `src/config.js` and their buttons are hidden while empty.
+- Share preview on Android (P3): if sharing only `{title, url}` with a
+  drawn favicon still shows "Sharing text" and a mail icon on the user's
+  phone, that sheet is the device's and we stop there (sharing an image
+  file would load `share.png`, which the game must not).
+
 ## Resolved
+- Menu redesign (user's proposal, reviewed against the code; built in
+  P3, after the Hint button). Changes from the proposal are marked.
+  - **Title**: Continue Run (only with a save), New Run, How to Play,
+    Settings. Later phases add rows: Daily Seed, Unlocks (the proposal's
+    "Collection"), Stats & History (Phase 7). Corner icon buttons, no
+    visible words (aria-label, 44px): top-left **Back to Projects**,
+    top-right **Share**. Palette, Animation, Reduced motion and Share play
+    data leave the title for Settings.
+  - **Rows are data**: a `TITLE_ROWS` table (`{id, label, show(ctx),
+    go}`) and Settings groups of rows built from the option tables already
+    in `ui/settings.js`, so a later phase adds a row, not mount code.
+  - **Share**: it already sends title, text and url. Chrome on Android
+    joins text + url into one text share, so the sheet says "Sharing
+    text" with a generic mail icon, and the page has no icon
+    (`<link rel="icon" href="data:,">`). Fix: share only `{title, url}`
+    (link previews take the blurb from `og:description`) and draw a
+    favicon in code (inline SVG data URI, no file). Desktop keeps the
+    copy-link fallback, with a short "Link copied" toast by the icon.
+  - **Pause menu**: the HUD Menu button opens it instead of leaving the
+    floor. Resume, Restart Floor (P2), How to Play, Settings, Abandon Run
+    (confirm), Save & Quit to Title. The run already autosaves after
+    every action (P1), so Save & Quit just leaves. Board input pauses
+    while it is open; Esc cancels a fold preview first, else toggles the
+    menu. Back to Projects is on the title only.
+  - **Settings screen** (from the title or the pause menu; Back returns
+    to where it was opened):
+    - Display: Palette, Text size (new: Normal / Large), Animation
+      speed, Reduced motion, Left-handed layout (in docs/04 already;
+      `layout.js` supports it).
+    - Gameplay: Tap to confirm folds (P4), Show tutorial hints again.
+    - Data: Share play data (when offered). Later: save code export /
+      import (P6), reset progress (Phase 7).
+    - Audio: Phase 8 (master, music, effects, mute).
+    - About: version (`APP_VERSION`), credits, Send Feedback, Report a
+      Bug.
+  - **Dropped from the proposal**: an Undo on/off setting (every fold
+    is reversible by design, CLAUDE.md; undo is a rule, not an option);
+    a separate colorblind toggle (every palette is colorblind-safe and
+    never relies on color alone, hard rule 8; High Contrast is the
+    stronger choice); a changelog screen (the version is enough for now;
+    revisit in Phase 9).
+  - **Why P3**: P2 adds Restart Floor and Hint to an already full HUD;
+    the pause menu gives them room. P4's tap-to-confirm and P6's save
+    code need a Settings screen to live in.
 - Playtest round 1 (user's choices, before Phase 6b). Feedback: Lockjaws
   felt unbeatable (fighting one costs 2 HP: it bites on arrival and
   again after the first hit; two cost 4, max HP is 2-4); floor 2's void
@@ -40,10 +94,11 @@ These belong to later phases and get decided when that phase is built.
   the open gate) wasn't discoverable; folds were hard to read back or
   unwind after a wrong drag; runs ended on Menu. Every floor is already
   proven winnable with no damage, so the fixes are mostly about teaching.
-  Decided, built in order P1-P5 (docs/PROGRESS.md):
+  Decided, built in order P1-P6 (docs/PROGRESS.md; P3 menus was added
+  later, see "Menu redesign"):
   - Saves: **one autosave slot** (no save-scumming), after every action.
-    Plus a save code to move a run between devices (P5).
-  - Share button on the title; later a Challenge-a-friend seed link (P5).
+    Plus a save code to move a run between devices (P6).
+  - Share button on the title; later a Challenge-a-friend seed link (P6).
   - Hints: **free and unlimited**, three levels (written nudge, next step
     from the solver, "can't be won from here"); the count shows in the run
     summary.
@@ -53,7 +108,7 @@ These belong to later phases and get decided when that phase is built.
     it; it bites only if you're still adjacent next turn) and a tip that
     says to drop it into a void. HP: rest heals 2, +1 HP for a floor
     cleared without damage.
-  - Fold history (P3, proposed design, user to confirm when built): each
+  - Fold history (P4, proposed design, user to confirm when built): each
     fold leaves a numbered crease mark on the paper; a history strip
     lists the folds; tapping one shows the board as it was before it
     and the paper it moved; "Rewind to here" replays the floor's log up
