@@ -4,14 +4,16 @@
 small. At the end of each conversation, update this file in the same PR.
 
 ## Next up
-**Playtest P4b: fold history strip.** Read OPEN-QUESTIONS "Playtest
-round 1" (fold history item), `core/foldHistory.js` (folds in effect,
-with their log index `at`), `ui/screens.js` (floor screen), `ui/hud.js`,
-`core/replay.js`, `render/renderer.js` (drawCreaseMarks).
-- A history strip listing the floor's folds (numbers match the crease
-  tags); tapping one peeks at the board as it was before it and the
-  paper it moved; "Rewind to here" replays the floor's log up to it.
-Then P5, P6, then back to Phase 6b (Crane phases 2-3).
+**Playtest P5: Lockjaw bite warning + HP economy.** Read OPEN-QUESTIONS
+"Playtest round 1" (Lockjaw and HP items), `core/enemies.js` (Lockjaw),
+`core/run.js` (rest, floor clear), `render/creatures.js`, the Lockjaw
+tip in `core/hints.js` / floor templates, and `core/solver.js` for the
+re-proofs.
+- Bite warning: jaws open when you step next to a Lockjaw; it bites only
+  if you're still adjacent next turn. Tip says to drop it into a void.
+- HP: rest heals 2; +1 HP for a floor cleared without damage.
+- Re-prove every floor (templates' `needs` and winning lines).
+Then P6, then back to Phase 6b (Crane phases 2-3).
 
 ## Phase checklist
 Larger phases are split into PR-sized chunks so each conversation stays small.
@@ -46,7 +48,7 @@ Larger phases are split into PR-sized chunks so each conversation stays small.
   - [x] P3 follow-up: phone/browser Back button = in-game Back (PR 22)
   - [x] P4a Fold history: numbered crease marks, optional tap-to-confirm
     folds (a Settings row) (PR 23)
-  - [ ] P4b Fold history: history strip with peek and rewind
+  - [x] P4b Fold history: list (pause menu) with peek and rewind (PR 24)
   - [ ] P5 Lockjaw bite warning + tip rewrite; HP economy (rest heals 2,
     +1 HP for a floor cleared without damage); re-prove every floor
   - [ ] P6 Save code (move a run between devices, in Settings > Data),
@@ -824,3 +826,31 @@ Larger phases are split into PR-sized chunks so each conversation stays small.
 - 2 new tests (304 total). Checked in headless Chromium (phone
   portrait, open 5x5 dev board): marks 1-3 appear and undo removes the
   latest; hold, Fold button, Enter, tap/Esc/Back drop. No console errors.
+
+### PR 24: Playtest P4b fold history list, peek and rewind
+- Pause menu row "Fold history" (between How to Play and Settings) opens
+  a full-screen sheet: the folds still in effect, numbered like the
+  crease tags (number in a square tag + a text description from
+  `core/foldHistory.js` `foldText`, e.g. "Top 2 rows folded down"),
+  rows 56px+ tall. With none, a "No folds yet" note.
+- Tap a row to peek (`hud.showPeek`): the board just before that fold,
+  the fold preview drawn on it (dashed outline on the paper it moved,
+  landing badges, crease and arrow), earlier crease marks, and the
+  meters as they were then. Title and buttons cover only the HUD (status
+  bar + action bar in portrait, the side panel in landscape), so the
+  board stays in view; the hint card hides under it.
+- "Rewind to here": `core/foldHistory.js` `rewindTo(start, log, at)`
+  replays the first `at` actions from the floor's start (null if out of
+  range or no longer replayable). The saved log is cut; telemetry logs
+  `x<n>` (`core/replay.js` replays it: keep the first n accepted
+  actions), a `floor.rewind` event and a `rewinds` count. Free, keeps
+  the Hint count, not a restart (user's choice).
+- Back / Esc / phone Back: peek → list → pause menu. Opening the list
+  finishes any running playback first, so its last frame can't replace
+  the peek.
+- Phone landscape: panels over the board (pause menu now 7 rows) lay
+  buttons out in two columns and scroll instead of clipping.
+- 4 new tests (308 total). Checked in headless Chromium, phone portrait
+  and landscape, on the open 5x5 dev board: empty note, two folds
+  listed, peek, phone Back to the list, rewind leaves fold 1 only. No
+  console errors.

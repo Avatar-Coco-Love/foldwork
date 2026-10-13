@@ -134,6 +134,21 @@ These belong to later phases and get decided when that phase is built.
     refused at once, as before); Fold or Enter plays it, and Cancel,
     Esc, Back or a tap on the board drops it (the tap doesn't move).
     Keyboard fold mode already confirms with Enter, so it is unchanged.
+    Decided for P4b (user's choices): the list is a "Fold history" row
+    in the pause menu (between How to Play and Settings), opening a
+    full-screen sheet, not an always-visible strip, so it takes no room
+    in play. It lists the folds still in effect, numbered like the
+    square crease tags, each row a big touch target with a text
+    description (number in a square tag, text, never color alone); with
+    none it says "No folds yet". Tapping a row peeks: the board as it was
+    just before that fold, with the fold preview showing the paper it
+    moved (the title and buttons cover only the HUD). "Rewind to here"
+    replays the floor's log up to that fold (`core/foldHistory.js`
+    `rewindTo`). Back, Esc and the phone Back button go peek → list →
+    pause menu. A rewind is **free**, keeps the Hint count, and is not a
+    restart: the floor goes on as one attempt, with a `floor.rewind`
+    event and an `x<n>` code in the telemetry log so replays stay exact.
+    The saved log is cut to the rewind point.
 - Great Crane bumps (6a part 2, user's choice after a solver check): on
   the draft arena a no-fold search won at 1 HP (dodge every marked strip,
   bump 6 times; its own folds pile the paper to full stacks, then it has

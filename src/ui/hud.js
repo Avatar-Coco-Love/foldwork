@@ -148,6 +148,8 @@ export function createHud(root, {
   function show(node, onEscape) {
     overlay?.remove();
     overlay = node;
+    // A peek leaves the board in view; the hint card waits under it.
+    hud.classList.toggle('hud-peeking', node.classList.contains('hud-peek'));
     if (onEscape) {
       node.addEventListener('keydown', (e) => {
         if (e.key !== 'Escape') return;
@@ -238,9 +240,29 @@ export function createHud(root, {
       show(node, onEscape);
       node.querySelector('button')?.focus({ preventScroll: true });
     },
+    /**
+     * A look at the board (fold history peek): the title and text take the
+     * status bar's place and the buttons the action bar's (in landscape,
+     * the side panel), so the board stays in view. Modal like a panel:
+     * `onEscape` lets Esc (and the phone Back button) close it.
+     */
+    showPeek({ title, text = '', actions: buttons, onEscape = null }) {
+      const btns = buttons.map((b) => el('button', {
+        class: b.primary ? 'btn btn-primary' : 'btn', type: 'button', onclick: b.onclick,
+      }, b.label));
+      show(el('div', { class: 'hud-peek', role: 'dialog', 'aria-modal': 'true', 'aria-labelledby': 'peek-title' },
+        el('div', { class: 'hud-peek-head' },
+          el('strong', { class: 'hud-peek-title', id: 'peek-title', text: title }),
+          text ? el('span', { class: 'hud-peek-text', text }) : null,
+        ),
+        el('div', { class: 'hud-peek-actions' }, btns),
+      ), onEscape);
+      btns[0]?.focus({ preventScroll: true });
+    },
     hideOutcome() {
       overlay?.remove();
       overlay = null;
+      hud.classList.remove('hud-peeking');
     },
     /** Whether a panel or sheet is over the board. */
     get overlayShown() {
