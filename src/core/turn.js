@@ -69,7 +69,7 @@
 //   { type: 'swat', id, by, from, to }           a boss fold landed on the
 //                                                player: moved from `from`
 //                                                to `to` (a damage follows)
-//   { type: 'flee', id, creature, from, to }     a hit boss flew away
+//   { type: 'flee', id, creature, from, to }     a hit or bumped boss flew away
 //                                                (core/boss.js fleeSpot)
 //   { type: 'pickup', id, item, at }             the player took an item
 //   { type: 'unlock', at, by }                   by: 'walk' | 'fold' |
@@ -235,6 +235,7 @@ export function coverEffect(board, from, to) {
  */
 export function resolveFold(s, landings, emit, { swat = null } = {}) {
   for (const l of landings) {
+    if (s.status !== 'playing') break; // a boss drop won (or a fall lost) the floor
     const cell = getCell(s.board, l.to.col, l.to.row);
     const at = { col: l.to.col, row: l.to.row };
     const lower = l.baseHeight > 0 ? cell.layers[l.baseHeight - 1] : null;
@@ -339,6 +340,10 @@ function runMove(s, action, emit) {
   const dest = topLayer(s.board, to.col, to.row);
   if (dest && dest.creature) {
     emit({ type: 'bump', id: PLAYER_ID, target: dest.creature.id, from, to });
+    if (isBoss(dest.creature) && !creatureDef(dest.creature.kind).boss.bump) {
+      startle(s, dest, to, emit); // no damage: it only flees
+      return null;
+    }
     const stacked = getCell(s.board, to.col, to.row).layers.length >= 2;
     damageAt(s, to, BUMP_DAMAGE + (stacked ? s.rules.stackBump : 0), emit);
     return null;
@@ -563,6 +568,13 @@ export function damageAt(s, at, amount, emit, { blockable = true } = {}) {
     dropItem(s, creature, at, emit);
     if (isBoss(creature)) win(s, 'boss', emit);
   }
+}
+
+// A bumped boss that takes no bump damage (def boss.bump 0) flees anyway.
+function startle(s, layer, at, emit) {
+  const creature = layer.creature;
+  layer.creature = null;
+  flee(s, creature, at, emit);
 }
 
 // A hit boss (already off its cell) flies to fleeSpot, mark cleared.

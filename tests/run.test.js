@@ -4,8 +4,9 @@ import { createBoard, findCreature } from '../src/core/board.js';
 import { TILE } from '../src/core/tiles.js';
 import { createFloorState, act, canUndo, playerOf, PLAYER_ID, DEFAULT_RULES } from '../src/core/turn.js';
 import { RELIC_DEFS, relicDef, rulesFor, applyRelics, runHooks } from '../src/core/relics.js';
-import { createRun, addRelic, floorSetupFor, finishFloor, runLength, runTag, RUN_FLOORS } from '../src/core/run.js';
-import { generateFloor, templateFloors } from '../src/core/floors.js';
+import { createRun, addRelic, floorSetupFor, finishFloor, runLength, runTag, RUN_FLOORS, BOSS_FLOOR } from '../src/core/run.js';
+import { generateFloor, templateFloors, templateById } from '../src/core/floors.js';
+import { decodeAction } from '../src/core/replay.js';
 import { solve } from '../src/core/solver.js';
 
 const types = (r) => r.events.map((e) => e.type);
@@ -125,12 +126,14 @@ test('Thick Paper allows a fourth layer in play', () => {
 
 // --- Run state ------------------------------------------------------------
 
-test('run: length follows the floors that have templates, up to the first gap, capped at 8', () => {
+test('run: length follows the floors that have templates, up to the first gap, ending on the boss', () => {
   const floors = templateFloors();
   let n = 0;
   while (floors.includes(n + 1)) n += 1;
-  assert.equal(runLength(), Math.min(n, RUN_FLOORS));
-  assert.equal(runLength([1, 2, 3, 4, 5, 6, 7, 8, 9]), RUN_FLOORS);
+  assert.equal(runLength(), Math.min(n, BOSS_FLOOR));
+  assert.equal(runLength(), BOSS_FLOOR, 'every floor has a template: the run ends on the boss');
+  assert.equal(runLength([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]), BOSS_FLOOR);
+  assert.equal(runLength([1, 2, 3, 4, 5, 6, 7, 8]), RUN_FLOORS);
   assert.equal(runLength([1, 2, 3, 4, 6, 7]), 4, 'a missing floor 5 ends the run after 4');
   assert.equal(runLength([2, 3]), 0);
   const run = createRun({ seed: 'abc' });
@@ -160,9 +163,11 @@ test('run: winning floors carries HP forward and wins after the last floor', () 
   let run = createRun({ seed: 'carry' });
   for (let floor = 1; floor <= run.lastFloor; floor++) {
     assert.equal(run.floor, floor);
-    const { setup } = generateFloor(floor, run.seed);
+    const { setup, info } = generateFloor(floor, run.seed);
     let s = createFloorState(floorSetupFor(run, setup));
-    const line = solve(s).actions;
+    // The boss arena is too big to search: it carries its winning line.
+    const stored = templateById(info.templateId).line;
+    const line = stored ? stored.map(decodeAction) : solve(s).actions;
     for (const a of line) s = act(s, a).state;
     assert.equal(s.status, 'won');
     run = finishFloor(run, s);
@@ -170,6 +175,7 @@ test('run: winning floors carries HP forward and wins after the last floor', () 
   }
   assert.equal(run.status, 'won');
   assert.equal(run.cleared, run.lastFloor);
+  assert.equal(run.lastFloor, BOSS_FLOOR, 'the run ends on the boss');
   assert.equal(finishFloor(run, { status: 'lost' }), run, 'a finished run stays finished');
 });
 

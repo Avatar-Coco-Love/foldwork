@@ -50,8 +50,10 @@ export const CREATURE_DEFS = Object.freeze({
   bloom: { kind: 'bloom', name: 'Spore Bloom', team: 'enemy', hp: 2, ai: 'spore', fixed: true, spawn: { kind: 'mite', every: 3 } },
   // Boss (floor 9): marks a crease, then folds it on its next turn. Its
   // fold is its only attack. Never walks (so never stranded); not heavy.
+  // `boss.bump` is what a bump deals it: 0, so a bump only startles it
+  // (it flees) and only folds hurt it (a void drop deals `boss.drop`).
   crane: {
-    kind: 'crane', name: 'Great Crane', team: 'enemy', hp: 6, ai: 'crane', fixed: true, boss: { phases: 3, drop: 2 },
+    kind: 'crane', name: 'Great Crane', team: 'enemy', hp: 6, ai: 'crane', fixed: true, boss: { phases: 3, drop: 2, bump: 0 },
   },
 });
 

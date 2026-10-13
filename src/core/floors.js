@@ -18,6 +18,9 @@
 //                     floor must be unsolvable ('fold', 'key', 'plate',
 //                     'pin')
 //     checkAtRuntime, solve each rolled variant before showing it (see below)
+//     line,           optional stored winning line (core/replay.js codes) for
+//                     a floor too big to solve (the boss arena): checkFloor
+//                     replays it instead of searching. One variant only.
 //     hints,          tutorial hint ids (core/hints.js) shown on this floor
 //   }
 //
@@ -35,6 +38,7 @@ import { parseMap, transformRows, toGrid } from './maps.js';
 import { createFloorState } from './turn.js';
 import { creatureDef } from './creatures.js';
 import { solve } from './solver.js';
+import { replay, decodeAction } from './replay.js';
 import { TILE, ITEM } from './tiles.js';
 import { createRng, fork, pick, pickWeighted, nextInt, shuffle } from './rng.js';
 
@@ -481,6 +485,33 @@ export const FLOOR_TEMPLATES = Object.freeze([
     needs: ['fold', 'key', 'plate'],
     hints: ['fold-enemies', 'lockjaw-guard', 'key-lock', 'plate-gate'],
   },
+  // Floor 9: the Great Crane (docs/03; rules in core/boss.js). No exit:
+  // the floor is won when the Crane dies. Bumps only startle it, so every
+  // point of damage is a void dropped on it (2 each, 3 drops). The voids
+  // sit at the corners and on the edges, off the centre lines, so its
+  // first strip creases carry voids and the player has sheets to aim.
+  // Too big to search (the solver runs out of memory), so the proof is a
+  // stored line, replayed by the tests: spoil its first fold, herd it with
+  // a bump, then three drops, spoiling one more fold on the way. It takes
+  // no hit, so it wins at 1 HP. 6 charges: no line with 5 or fewer turned
+  // up (a beam search stalled at two drops each time).
+  {
+    id: 'f9-crane',
+    floor: 9,
+    charges: 6,
+    rows: [
+      'o . o . o . o',
+      '. . . . . . .',
+      'o . . . . . o',
+      '. . . G . . .',
+      'o . . . . . o',
+      '. . . . . . .',
+      'o . o @ o . o',
+    ],
+    line: ['u', 'fv6b', 'fv6a', 'u', 'u', 'fv1b', 'fv5b', 'fv3a', 'fv4b'],
+    needs: ['fold'],
+    hints: ['crane-telegraph', 'crane-swat'],
+  },
 ]);
 
 /**
@@ -603,7 +634,7 @@ export function allVariants(template) {
  * 'unsolvable', 'capped' (not proven either way) or 'needless:<id>'.
  */
 export function checkFloor(built, solveOpts = RUNTIME_SOLVE, { needs = true } = {}) {
-  const solution = solve(createFloorState(built), solveOpts);
+  const solution = built.template.line ? replayLine(built) : solve(createFloorState(built), solveOpts);
   if (!solution.solvable) return { ok: false, solution, reason: solution.capped ? 'capped' : 'unsolvable' };
   for (const id of needs ? built.template.needs || [] : []) {
     const without = NEEDS[id](built);
@@ -611,6 +642,24 @@ export function checkFloor(built, solveOpts = RUNTIME_SOLVE, { needs = true } = 
     if (result.solvable || result.capped) return { ok: false, solution, reason: `needless:${id}` };
   }
   return { ok: true, solution, reason: null };
+}
+
+/**
+ * A template's stored line as a solve() result: solvable when replaying it
+ * from the built floor wins with no action refused.
+ */
+function replayLine(built) {
+  const actions = built.template.line.map(decodeAction);
+  const { state, refused } = replay(createFloorState(built), actions);
+  const solvable = state.status === 'won' && !refused.length;
+  return {
+    solvable,
+    actions: solvable ? actions : null,
+    turns: solvable ? actions.length : null,
+    folds: solvable ? actions.filter((a) => a.type === 'fold').length : null,
+    explored: 0,
+    capped: false,
+  };
 }
 
 /**

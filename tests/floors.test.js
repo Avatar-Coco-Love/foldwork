@@ -35,8 +35,8 @@ test('map transforms mirror and rotate rows', () => {
   assert.throws(() => transformRows(rows, 'spin'));
 });
 
-test('templates: well-formed data covering floors 1–8', () => {
-  assert.deepEqual(templateFloors(), [1, 2, 3, 4, 5, 6, 7, 8]);
+test('templates: well-formed data covering floors 1–9', () => {
+  assert.deepEqual(templateFloors(), [1, 2, 3, 4, 5, 6, 7, 8, 9]);
   const ids = new Set();
   for (const t of FLOOR_TEMPLATES) {
     assert.ok(!ids.has(t.id), `duplicate id ${t.id}`);
@@ -50,8 +50,10 @@ test('templates: well-formed data covering floors 1–8', () => {
   // docs/03: F1–2 are 5x5, F3–5 are 6x6.
   for (const t of templatesFor(1).concat(templatesFor(2))) assert.equal(buildFloor(t).board.w, 5);
   for (const n of [3, 4, 5]) for (const t of templatesFor(n)) assert.equal(buildFloor(t).board.w, 6);
-  // F6–8 are 7x7.
-  for (const n of [6, 7, 8]) for (const t of templatesFor(n)) assert.equal(buildFloor(t).board.w, 7);
+  // F6–8 and the boss arena are 7x7.
+  for (const n of [6, 7, 8, 9]) for (const t of templatesFor(n)) assert.equal(buildFloor(t).board.w, 7);
+  // A stored line proves exactly one variant.
+  for (const t of FLOOR_TEMPLATES.filter((x) => x.line)) assert.equal(allVariants(t).length, 1, t.id);
 });
 
 // docs/05: every floor shown must be solvable. Variants are finite, so this
@@ -78,6 +80,25 @@ for (const template of FLOOR_TEMPLATES) {
     }
   });
 }
+
+// The boss arena (6a): its stored line wins by killing the Crane, with no
+// hit taken, so at any HP; every hit is a fold (no-fold search can't win,
+// checked by its `fold` need above); a broken line is caught.
+test('template f9-crane: the stored line beats the Crane at 1 HP, and a broken line fails', () => {
+  const t = templateById('f9-crane');
+  const built = buildFloor(t);
+  const r = replay(createFloorState({ ...built, hp: 1 }), t.line);
+  assert.deepEqual(r.refused, []);
+  assert.equal(r.state.status, 'won');
+  assert.deepEqual(r.state.outcome, { cause: 'boss' });
+  assert.ok(!built.board.cells.some((c) => c.layers.some((l) => l.tile === TILE.EXIT)), 'no exit');
+  const check = checkFloor(built, PROOF);
+  assert.ok(check.ok);
+  assert.equal(check.solution.explored, 0, 'replayed, not searched');
+  const broken = checkFloor({ ...built, template: { ...t, line: t.line.slice(0, -1) } }, PROOF);
+  assert.deepEqual([broken.ok, broken.reason], [false, 'unsolvable']);
+  assert.equal(solve(createFloorState(built), { ...PROOF, noFolds: true }).solvable, false);
+});
 
 test('variants: rolls are seeded and always among allVariants', () => {
   for (const t of FLOOR_TEMPLATES) {

@@ -6,6 +6,7 @@ import { validateFold, AXES } from '../core/fold.js';
 import { cellIndex, topLayer } from '../core/board.js';
 import { coverEffect, PLAYER_ID, act } from '../core/turn.js';
 import { keyMeetsLock } from '../core/environment.js';
+import { bossMarks, bossIds } from '../core/boss.js';
 
 export const CELL = Object.freeze({
   NONE: 0,
@@ -86,6 +87,51 @@ export function slidePreview(state, fold) {
   if (!result.ok) return [];
   return result.events.filter((ev) => ev.type === 'slide')
     .map(({ id, from, to, path }) => ({ id, from, to, path }));
+}
+
+/**
+ * The telegraph (docs/03 Great Crane): each boss's marked crease as it
+ * would fold on this board, [{ id, at, fold, pv, fizzle, hits }]. `pv` is
+ * buildFoldPreview() of the mark; `fizzle` is true when it's invalid now;
+ * `hits` is true when it lands on the player (a swat). Built once per
+ * board, not per frame.
+ */
+export function buildTelegraph(board) {
+  const out = [];
+  for (const m of bossMarks(board)) {
+    const pv = buildFoldPreview(board, m.fold);
+    if (!pv) continue;
+    let hits = false;
+    for (let i = 0; i < pv.state.length && pv.ok; i++) {
+      if (pv.state[i] !== CELL.LANDING) continue;
+      const top = board.cells[i].layers.at(-1);
+      if (top && top.creature && top.creature.id === PLAYER_ID) hits = true;
+    }
+    out.push({ ...m, pv, fizzle: !pv.ok, hits });
+  }
+  return out;
+}
+
+/**
+ * What a boss's marked fold will do if the player takes `action` now, from
+ * the real turn (like slidePreview): 'dropped' (the action void-drops the
+ * boss), 'pinned' (it pins the boss: no fold), 'swat' (its fold lands on
+ * the player), 'fizzle' (invalid when due), 'miss' (it folds, missing the
+ * player), or null (no boss fold due this turn, or the action is refused).
+ * The name is the boss's def name.
+ */
+export function bossForecast(state, action) {
+  const ids = bossIds(state.board);
+  if (!ids.length) return null;
+  const result = act(state, action);
+  if (!result.ok) return null;
+  const ofBoss = (type, key = 'id') => result.events.some((ev) => ev.type === type && ids.includes(ev[key]));
+  if (ofBoss('fall')) return 'dropped';
+  if (ofBoss('pin')) return 'pinned';
+  if (ofBoss('swat', 'by')) return 'swat';
+  if (ofBoss('fizzle')) return 'fizzle';
+  if (ofBoss('fold', 'by')) return 'miss';
+  return null;
 }
 
 /**

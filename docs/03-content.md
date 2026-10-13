@@ -37,7 +37,7 @@ A giant paper crane that refolds the arena itself. The player must out-fold it.
 - 6 HP total, 3 phases (2 HP each). 7x7 arena with voids at the edges.
 - **Telegraphed crease:** every 2 turns the Crane marks a crease line on the board (visible warning). On the next beat it executes the fold, stacking one side onto the other.
 - The player can pre-empt by folding first to change what the Crane's fold does, or to pin the Crane under a layer.
-- Damage comes from bump attacks when the Crane is adjacent and not pinned, and from folds that drop it onto a void tile.
+- Damage comes only from folds that drop a void onto it (2 each). A bump deals no damage; it only startles the Crane, which flies off (6a, user's choice: with bump damage, dodging its telegraphed folds and bumping won without a single fold).
 - **Phase 1:** single telegraphed folds, no minions.
 - **Phase 2:** spawns Scrap Mites on its fold; its folds carry minions with them.
 - **Phase 3:** telegraphs two creases at once; the arena shrinks as edges fold under.
