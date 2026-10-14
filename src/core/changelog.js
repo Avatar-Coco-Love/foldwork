@@ -11,6 +11,14 @@
 
 export const CHANGELOG = Object.freeze([
   {
+    version: '0.8.7', date: '2026-10-14', pr: 40,
+    title: 'Restore defaults',
+    notes: [
+      'Settings > Audio: Restore audio defaults.',
+      'Settings > Data: Restore default settings (tap twice). Your runs, progress and play-data choice stay.',
+    ],
+  },
+  {
     version: '0.8.6', date: '2026-10-14', pr: 39,
     title: 'Music you can hear, and this page',
     notes: [

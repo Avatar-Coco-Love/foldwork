@@ -137,6 +137,8 @@ export const SETTINGS_GROUPS = Object.freeze([
       // Hidden until collection is switched on (config TELEMETRY.collect).
       { id: 'telemetry', label: 'Share play data', key: 'telemetry', show: (ctx) => !!ctx.telemetryOffered },
       { id: 'save-code', label: 'Save code', note: 'Move your run to another device.', action: 'saveCode' },
+      // Every choice back to its default (8g). Asks with a second tap.
+      { id: 'restore-settings', label: 'Restore default settings', note: 'Display, gameplay and audio. Your runs and progress stay.', action: 'restoreAll' },
       // Title screen only (the panel drops a row without its action).
       { id: 'reset-progress', label: 'Reset progress', note: 'Erase scraps, unlocks, stats and history.', action: 'resetProgress' },
     ],
@@ -150,9 +152,28 @@ export const SETTINGS_GROUPS = Object.freeze([
       { id: 'music-volume', label: 'Music', key: 'musicVolume' },
       { id: 'sfx-volume', label: 'Effects', key: 'sfxVolume' },
       { id: 'mute', label: 'Mute', key: 'mute' },
+      { id: 'restore-audio', label: 'Restore audio defaults', note: 'Every volume and Mute back to how they started.', action: 'restoreAudio' },
     ],
   },
 ]);
+
+/** Settings Restore defaults leaves alone: sharing play data stays the player's choice. */
+const KEPT_ON_RESTORE = new Set(['telemetry']);
+
+/**
+ * The defaults for one group's choice rows (`'audio'`), or for every
+ * group (null), as a patch for ctx.updateSettings.
+ */
+export function defaultsFor(groupId = null) {
+  const patch = {};
+  for (const g of SETTINGS_GROUPS) {
+    if (groupId && g.id !== groupId) continue;
+    for (const r of g.rows) {
+      if (r.key && !KEPT_ON_RESTORE.has(r.key)) patch[r.key] = DEFAULT_SETTINGS[r.key];
+    }
+  }
+  return patch;
+}
 
 /** The option list for a choice setting (`palette`, `animSpeed`, …). */
 export function choicesFor(key) {
