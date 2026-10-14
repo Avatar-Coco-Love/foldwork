@@ -4,12 +4,13 @@
 small. At the end of each conversation, update this file in the same PR.
 
 ## Next up
-**Phase 7a: paper scraps and the unlocks shop (start of meta-progression).**
-Read docs/03 (meta-progression, relic unlocks, spirits), docs/04 (screens
-5-6), docs/06 Phase 7 and OPEN-QUESTIONS "Exact scrap costs". Split
-Phase 7 into PR-sized chunks here first (e.g. 7a scraps earned + shown on
-the run summary and stored in meta; 7b unlocks shop; 7c daily seed; 7d
-stats and history). Ask for scrap earn rates and costs before building.
+**Phase 7b: unlocks shop.** Read docs/03 (relics, spirits, meta), docs/04
+(screen 6 and the title's Unlocks row), OPEN-QUESTIONS "Paper scraps"
+(costs are settled). Store unlocks in `core/meta.js` (`parseMeta` fills
+missing fields). Which 12 relics start unlocked is still open: propose a
+list (the 15 built, 10 to come) and ask. Frog and Turtle lock (Frog 30,
+Turtle 50); a saved run already using one keeps working. Show the scrap
+bank on the shop and the title row.
 
 ## Phase checklist
 Larger phases are split into PR-sized chunks so each conversation stays small.
@@ -56,6 +57,15 @@ Larger phases are split into PR-sized chunks so each conversation stays small.
   - [x] 6b Crane phases 2–3 (minions, double creases, shrinking arena) (PR 27)
   - [x] 6c Run summary and win/lose flow through the boss (PR 28)
 - [ ] **Phase 7** — Meta-progression, daily seed, persistence
+  - [x] 7a Paper scraps: earned per run, shown on the summary, banked in
+    meta (PR 29)
+  - [ ] 7b Unlocks shop: relics, spirits (Frog, Turtle), palettes; title
+    Unlocks row
+  - [ ] 7c Remaining relics (10, to 24 total) with rarities and unlock
+    flags
+  - [ ] 7d Daily seed mode (same run on every device) + title row
+  - [ ] 7e Stats & History screen; Settings > Data Reset progress;
+    unlock/daily telemetry
 - [ ] **Phase 8** — Audio and polish
 - [ ] **Phase 9** — Playtesting, balance, manifest
 
@@ -955,3 +965,28 @@ Larger phases are split into PR-sized chunks so each conversation stays small.
   summary → Challenge a friend → Esc back → Retry this seed → spirit
   select → Back to the summary → Esc to the title. Landscape scrolls. No
   console errors.
+
+### PR 29: Phase 7a paper scraps
+- Rates settled with the user (OPEN-QUESTIONS "Paper scraps", docs/03):
+  5 per floor cleared, 2 per fold kill, 25 for the Crane; lost runs keep
+  theirs; abandoned runs earn none; dev-param runs never bank. Shop costs
+  (7b) settled too. Phase 7 split into 7a-7e above.
+- `core/turn.js`: `FloorState.foldKills`, enemies (not the player, not
+  the boss) that fell or died from the player's own fold; undo takes it
+  back. `core/run.js`: `run.foldKills` summed by `finishFloor` (won or
+  lost; older saves read as 0).
+- `core/scraps.js`: pure `runScraps(run)` → `{ lines, total }`
+  (`SCRAP_RATES`); a relic `scraps` hook for Lucky Scrap later.
+- `core/meta.js` (`{ v, scraps, earned, runs }`, `parseMeta`,
+  `bankScraps`) and `ui/metaStore.js` (`foldwork.meta`, guarded, memory
+  fallback). `ctx.meta`; `endRun` banks a won or lost run once and sets
+  `ctx.lastScraps`.
+- Summary: a "Paper scraps" row (breakdown, then "Total: +n (bank
+  saved)"); `runSummary(run, scraps)`.
+- Save code v2 carries fold kills (6 bits, cap 63); v1 codes still read
+  (0 kills). Codes are one character longer.
+- Telemetry: `run.end.foldKills`, `run.end.scraps` (docs/07).
+- 11 new tests (`tests/scraps.test.js`; 347 total). Checked in headless Chromium
+  (390x844): a saved run continued and lost by walking into a void → the
+  summary shows the breakdown and `foldwork.meta` grows. No console
+  errors.

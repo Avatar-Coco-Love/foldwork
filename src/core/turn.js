@@ -19,6 +19,9 @@
 //                       without a key), landings (falls to survive; run-wide,
 //                       carried by core/run.js), guard (the next hit this
 //                       turn is negated) }
+//     foldKills,        enemies the player's own folds killed this floor
+//                       (dropped or crushed; not the boss), for paper
+//                       scraps (core/scraps.js). Undo takes it back.
 //   }
 //
 // States are values: act() works on a copy and never mutates its input. The
@@ -164,6 +167,7 @@ export function createFloorState({
   return {
     board: next, turn: 0, charges, maxCharges: charges, keys: 0, status: 'playing', outcome: null, undo: null,
     rules: floorRules,
+    foldKills: 0,
     uses: { wards: floorRules.wards, freeLocks: floorRules.freeLocks, landings, guard: false },
   };
 }
@@ -428,7 +432,18 @@ function runFold(s, action, outerEmit, before) {
     if (e && e.top) emit({ type: 'strand', id, at: { col: e.col, row: e.row } });
   }
   refundFold(s, effects, emit);
+  s.foldKills = (s.foldKills || 0) + foldKills(effects);
   return null;
+}
+
+// Enemies (not the player, not the boss) that a player's fold killed:
+// dropped into a void or killed by the fold's effects (Sharp Edge).
+function foldKills(effects) {
+  const dead = new Set();
+  for (const ev of effects) {
+    if ((ev.type === 'fall' || ev.type === 'death') && ev.id !== PLAYER_ID && !isBoss(ev.creature)) dead.add(ev.id);
+  }
+  return dead.size;
 }
 
 /** An undo chain cut to at most `n` folds (n = 0: none). */

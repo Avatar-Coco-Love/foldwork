@@ -5,7 +5,8 @@ to "Resolved" with the answer once decided.
 
 ## Open
 These belong to later phases and get decided when that phase is built.
-- Exact scrap costs and earn rates (Phase 7; tune in Phase 9).
+- Scrap rates and costs: settled in 7a (see Resolved "Paper scraps");
+  tune in Phase 9.
 - Relic rarities and offer weights (provisional since 4b; tune in Phase 9
   playtests). Weights common 6 / uncommon 3 / rare 1. Common: Extra Crease,
   Spring Crease, Paper Heart, Laminate, Mender, Master Key, Paper Cut,
@@ -41,6 +42,18 @@ These belong to later phases and get decided when that phase is built.
   file would load `share.png`, which the game must not).
 
 ## Resolved
+- Paper scraps (7a, user's choices): **earn** 5 per floor cleared, 2 per
+  enemy killed by the player's own fold (dropped into a void or killed
+  by the fold's effects; not the boss, not a bump, not the Crane's
+  folds), 25 for beating the Great Crane. Lucky Scrap +50% (when that
+  relic is built). A **lost run keeps everything** it earned; an
+  abandoned run (a new run started over it) earns nothing (decided while
+  building: it shows no summary). Dev-param runs show what they'd earn
+  but never bank. **Costs** (7b): relics by rarity, common 40 /
+  uncommon 70 / rare 120; palettes 50 each, High Contrast always free;
+  **Frog 30 and Turtle 50** become shop unlocks (a saved run using one
+  keeps working). A full win earns about 85; everything costs roughly
+  10-12 full wins.
 - Back to Projects (P3, user's choice): links to
   `https://avatar-coco-love.github.io/` (in `src/config.js`).
 - Hint button (P2, decided while building): the step search tries a line

@@ -135,7 +135,7 @@ Run events share a run tag: `seed`, `floor`, `hp`, `maxHp`, `relics`,
 | `session.hide` | Page hidden / closed | `ms` since load |
 | `screen.view` | Every screen change | `name`, `floor` |
 | `run.start` | New Run | run tag, `daily`, `challenge` (on a friend's challenge seed), `retry` (Retry this seed on the run summary), `lastFloor` |
-| `run.end` | Run won, lost, or given up (`abandoned`: a new run started over it; Menu no longer ends a run, it stays saved) | run tag, `outcome`, `cause`, `cleared`, `lastFloor` |
+| `run.end` | Run won, lost, or given up (`abandoned`: a new run started over it; Menu no longer ends a run, it stays saved) | run tag, `outcome`, `cause`, `cleared`, `lastFloor`, `foldKills`, `scraps` (earned; 0 when abandoned) |
 | `run.resume` | Continue Run on the title screen (the session's later events carry the run's saved id) | run tag, `cleared`, `lastFloor`, `offer` (resumed on a relic offer), `savedMs` (age of the save) |
 | `run.load` | Load run pressed in Settings > Data > Save code (title screen). Loaded: a new run id, the run starts at its floor's start or on its offer; any run in progress ends as `abandoned` first | `ok`; when loaded, run tag, `cleared`, `lastFloor`, `offer`; when refused, `reason` (`empty`, `format`, `check`, `version`, `data`) |
 | `spirit.pick` | Spirit chosen on the select screen (the run starts right after) | run tag, `index` (card position), `offered` [spirit ids, in card order] |

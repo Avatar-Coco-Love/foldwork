@@ -1406,7 +1406,7 @@ export const summaryScreen = {
         el('button', { class: 'btn btn-primary', type: 'button', onclick: toMenu }, 'Menu')));
       return escapeTo(toMenu);
     }
-    const summary = runSummary(run);
+    const summary = runSummary(run, ctx.lastScraps);
     let onEscape = toMenu;
 
     const show = (panel, escape) => {

@@ -11,6 +11,8 @@
 //   cleared(run)       → run     after each floor won, before the offer
 //   offer(offer)       → offer   the offer's shape before it is rolled
 //                                ({ count }; core/run.js rollOffer)
+//   scraps(earned, run) → earned the paper scraps a finished run earns
+//                                (core/scraps.js runScraps)
 //
 // Hooks return new values and never mutate. A run only stores relic ids, so
 // run state stays plain data (saves, telemetry); effects come from this

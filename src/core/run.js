@@ -13,6 +13,8 @@
 //     relics,     relic ids, in the order taken (core/relics.js)
 //     landings,   falls the player can still survive (Soft Landing)
 //     cleared,    floors cleared
+//     foldKills,  enemies killed by the player's folds, floors finished so
+//                 far (paper scraps, core/scraps.js; absent in older saves)
 //     offer,      null, or the relic offer waiting to be taken after a
 //                 floor: { floor, relics: [ids], rest } (rollOffer)
 //     clean,      whether the last floor won was cleared without damage
@@ -84,6 +86,7 @@ export function createRun({ seed, relics = [], spirit = null, floor = 1, lastFlo
     relics: [],
     landings: 0,
     cleared: 0,
+    foldKills: 0,
     offer: null,
     clean: false,
     status: 'playing',
@@ -128,11 +131,12 @@ export function floorSetupFor(run, setup) {
  */
 export function finishFloor(run, floorState) {
   if (run.status !== 'playing') return run;
+  if (floorState.status !== 'won' && floorState.status !== 'lost') return run;
+  const foldKills = (run.foldKills || 0) + (floorState.foldKills || 0);
   if (floorState.status === 'lost') {
     const cause = (floorState.outcome && floorState.outcome.cause) || null;
-    return { ...run, status: 'lost', cause, hp: 0 };
+    return { ...run, status: 'lost', cause, hp: 0, foldKills };
   }
-  if (floorState.status !== 'won') return run;
   const me = playerOf(floorState);
   const uses = floorState.uses || {};
   const hp = me ? me.hp : run.hp;
@@ -142,6 +146,7 @@ export function finishFloor(run, floorState) {
     hp: clean ? Math.min(run.maxHp, hp + CLEAN_HEAL) : hp,
     landings: uses.landings ?? run.landings,
     cleared: run.cleared + 1,
+    foldKills,
     clean,
   };
   next = runHooks(next.relics, 'cleared', next);

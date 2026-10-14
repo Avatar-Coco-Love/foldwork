@@ -92,4 +92,5 @@ A giant paper crane that refolds the arena itself. The player must out-fold it.
 - Earn scraps per run: per floor cleared, per enemy defeated by fold (bonus), and a boss-clear bonus.
 - Spend on: unlocking relics, spirits (Frog, Turtle), and cosmetic palette variants.
 - No permanent stat upgrades. Unlocks add variety only.
-- **[OPEN]** Exact scrap costs and earn rates.
+- Earn (7a): 5 per floor cleared, 2 per enemy killed by a fold, 25 for the boss. Lost runs keep their scraps.
+- Costs (7b): relics common 40 / uncommon 70 / rare 120; palettes 50 (High Contrast free); Frog 30, Turtle 50. Tune in Phase 9.
