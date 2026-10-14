@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict';
 import { test } from './harness.js';
-import { computeLayout, cellAtPoint, cellOrigin, HUD_METRICS } from '../src/render/layout.js';
+import {
+  computeLayout, cellAtPoint, cellOrigin, HUD_METRICS, sideWidth,
+} from '../src/render/layout.js';
 
 const VIEWPORTS = {
   phonePortrait: [390, 844],
@@ -54,4 +56,30 @@ test('cellAtPoint round-trips with cellOrigin', () => {
   }
   assert.equal(cellAtPoint(L, L.boardX - 1, L.boardY), null);
   assert.equal(cellAtPoint(L, L.boardX + L.boardW, L.boardY), null);
+});
+
+test('portrait reserve (hint card) moves the board up, never under it', () => {
+  // Galaxy S-Ultra in Chrome: 412x780 CSS px with the address bar.
+  const free = computeLayout({ viewW: 412, viewH: 780, cols: 7, rows: 7 });
+  const card = 150;
+  const L = computeLayout({ viewW: 412, viewH: 780, cols: 7, rows: 7, reserve: { bottom: card } });
+  assert.ok(L.boardY + L.boardH <= 780 - HUD_METRICS.bottom - card - HUD_METRICS.boardPadding);
+  assert.ok(L.boardY < free.boardY, 'board moved up');
+  assert.equal(L.cellSize, free.cellSize, 'room to spare: same size');
+  // Landscape keeps the card in the side panel: reserve is ignored.
+  const land = computeLayout({ viewW: 915, viewH: 340, cols: 7, rows: 7 });
+  assert.deepEqual(computeLayout({ viewW: 915, viewH: 340, cols: 7, rows: 7, reserve: { bottom: card } }), land);
+});
+
+test('landscape side panel widens into spare width, within its bounds', () => {
+  assert.equal(sideWidth(915, 340), HUD_METRICS.sideMax);
+  assert.equal(sideWidth(1024, 768), Math.max(HUD_METRICS.side, 1024 - 768));
+  assert.equal(sideWidth(800, 700), HUD_METRICS.side);
+  for (const [w, h] of [[915, 340], [568, 280], [1366, 1024], [1920, 960]]) {
+    const L = computeLayout({ viewW: w, viewH: h, cols: 8, rows: 8 });
+    assert.equal(L.side, sideWidth(w, h));
+    assert.ok(L.boardX + L.boardW <= w - L.side, `${w}x${h} board clear of panel`);
+    const lh = computeLayout({ viewW: w, viewH: h, cols: 8, rows: 8, leftHanded: true });
+    assert.ok(lh.boardX >= lh.side, `${w}x${h} left-handed board clear of panel`);
+  }
 });

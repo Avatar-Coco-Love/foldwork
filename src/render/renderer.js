@@ -33,6 +33,7 @@ export function createRenderer(canvas, { paletteId = DEFAULT_PALETTE_ID } = {}) 
     viewH: 0,
     insets: { top: 0, right: 0, bottom: 0, left: 0 },
     leftHanded: false,
+    reserve: null, // portrait HUD room beyond its bars (layout.js)
     palette: getPalette(paletteId),
     scene: null, // { board, preview?, hint?, creases?, traps?, compass? } — extended by later phases
     fx: null, // fx player (render/fx.js): foldAnim, actor, shake
@@ -53,6 +54,7 @@ export function createRenderer(canvas, { paletteId = DEFAULT_PALETTE_ID } = {}) 
       rows: h,
       insets: r.insets,
       leftHanded: r.leftHanded,
+      reserve: r.reserve,
     });
   }
 
@@ -99,6 +101,17 @@ export function createRenderer(canvas, { paletteId = DEFAULT_PALETTE_ID } = {}) 
     },
     setPalette(id) {
       r.palette = getPalette(id);
+      api.invalidate();
+    },
+    /**
+     * Extra room the HUD needs ({ top, bottom } CSS px, portrait only), e.g.
+     * the hint card; null for none. The board re-centres in what's left.
+     */
+    setReserve(reserve) {
+      const same = (a, b) => (a?.top || 0) === (b?.top || 0) && (a?.bottom || 0) === (b?.bottom || 0);
+      if (same(reserve, r.reserve)) return;
+      r.reserve = reserve;
+      relayout();
       api.invalidate();
     },
     setLeftHanded(value) {

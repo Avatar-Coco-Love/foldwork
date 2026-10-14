@@ -797,6 +797,7 @@ export const floorScreen = {
       onHint: () => askHint(),
       onConfirmFold: () => input.confirmPending(),
       onPocket: state.rules.pocket ? () => togglePocket() : null,
+      onReserve: (reserve) => ctx.renderer.setReserve(reserve),
     });
 
     // Pocket Fold: a mode, so a drag can fold one lane or a whole half.

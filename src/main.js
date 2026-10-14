@@ -25,9 +25,11 @@
 //                   offers a run on that seed (ui/share.js)
 //   ?telemetry=console   log telemetry events (also: off, or a localhost
 //                   collector URL, see tools/telemetry-collector.js)
+//   ?audit=1        expose the board layout as window.foldworkLayout() for
+//                   tools/layout-audit.js
 
 import { createRenderer } from './render/renderer.js';
-import { HUD_METRICS } from './render/layout.js';
+import { HUD_METRICS, sideWidth } from './render/layout.js';
 import { getPalette, cssVarName, DEFAULT_PALETTE_ID } from './render/palette.js';
 import { createRouter } from './ui/router.js';
 import { createBackButton } from './ui/backButton.js';
@@ -72,6 +74,7 @@ rootStyle.setProperty('--hud-bottom', HUD_METRICS.bottom + 'px');
 rootStyle.setProperty('--hud-side', HUD_METRICS.side + 'px');
 
 const renderer = createRenderer(canvas);
+if (params.audit) window.foldworkLayout = () => renderer.layout;
 const audio = createAudio();
 const music = createMusic(audio);
 const reducedMotionQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
@@ -459,7 +462,10 @@ function onResize() {
   const vv = window.visualViewport;
   const w = Math.round(vv ? vv.width : window.innerWidth);
   const h = Math.round(vv ? vv.height : window.innerHeight);
-  renderer.resize(w, h, readSafeInsets());
+  const insets = readSafeInsets();
+  renderer.resize(w, h, insets);
+  // The landscape panel widens into spare width (layout.js sideWidth).
+  rootStyle.setProperty('--hud-side', sideWidth(w, h, insets) + 'px');
   pinScroll();
 }
 
