@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict';
 import { test } from './harness.js';
 import {
-  buildFoldAnim, foldFrame, foldDurationMs, shakeOffset, createFxPlayer, FOLD_MS, ROTATE_SHARE,
+  buildFoldAnim, foldFrame, foldDurationMs, shakeOffset, impactOffset, createFxPlayer, FOLD_MS, ROTATE_SHARE,
+  IMPACT_PX,
 } from '../src/render/fx.js';
 import { applyFold } from '../src/core/fold.js';
 import { createBoard, createLayer, getCell, cellIndex } from '../src/core/board.js';
@@ -141,6 +142,46 @@ test('fx player shake: offset while running, static flash under reduced motion',
   frames.shift()();
   assert.equal(fx.shake.x, 0);
   assert.equal(fx.shake.flash, true);
+  fx.destroy();
+  delete globalThis.requestAnimationFrame;
+  delete globalThis.cancelAnimationFrame;
+});
+
+test('impact offset: subtle, two-axis, dies off, deterministic', () => {
+  const o = impactOffset(0);
+  near(o.x, 0);
+  near(o.y, 0);
+  let peak = 0;
+  let moved = false;
+  for (let i = 1; i < 40; i++) {
+    const { x, y } = impactOffset(i / 40);
+    peak = Math.max(peak, Math.hypot(x, y));
+    if (Math.abs(y) > 0.1) moved = true;
+  }
+  assert.ok(moved);
+  assert.ok(peak > 1 && peak <= IMPACT_PX * 1.2, String(peak));
+  const end = impactOffset(1);
+  near(end.x, 0);
+  near(end.y, 0);
+  assert.deepEqual(impactOffset(0.3, 3), impactOffset(0.3, 3));
+});
+
+test('fx player impact: runs alongside a clip and ends', () => {
+  const frames = [];
+  globalThis.requestAnimationFrame = (fn) => (frames.push(fn), frames.length);
+  globalThis.cancelAnimationFrame = () => {};
+  let t = 0;
+  const fx = createFxPlayer({ onChange: () => {}, now: () => t });
+  fx.playActor({ kind: 'hit' }, { duration: 200 });
+  fx.playImpact(1);
+  fx.playImpact(0); // no strength: ignored
+  t = 60;
+  frames.shift()();
+  assert.ok(fx.impact && Math.hypot(fx.impact.x, fx.impact.y) > 0);
+  assert.ok(fx.busy);
+  t = 1000;
+  frames.shift()();
+  assert.equal(fx.impact, null);
   fx.destroy();
   delete globalThis.requestAnimationFrame;
   delete globalThis.cancelAnimationFrame;

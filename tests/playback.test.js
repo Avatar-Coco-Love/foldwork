@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from './harness.js';
-import { buildClips, createPlayback } from '../src/render/playback.js';
+import { buildClips, createPlayback, shakeFor } from '../src/render/playback.js';
 import { ACTOR_MS, FOLD_MS, clipDurationMs } from '../src/render/fx.js';
 import { createBoard, topLayer, getCell } from '../src/core/board.js';
 import { TILE } from '../src/core/tiles.js';
@@ -60,6 +60,25 @@ test('fall: move then a fall clip; wait and defeat make no clips', () => {
   assert.equal(buildClips(s.board, run(s, { type: 'wait' }).events, normal).length, 0);
 });
 
+test('screen shake: a fall shakes when shake is on, never under reduced motion', () => {
+  const b = createBoard(5, 5, (c, r) => (c === 2 && r === 1 ? TILE.VOID : TILE.FLOOR));
+  const s = createFloorState({ board: b, player: { col: 2, row: 2 } });
+  const r = run(s, { type: 'move', dir: 'up' });
+  const shaky = buildClips(s.board, r.events, { ...normal, shake: true });
+  assert.deepEqual(shaky.map((c) => c.shake || 0), [0, 0.8]);
+  assert.ok(buildClips(s.board, r.events, normal).every((c) => !c.shake));
+  assert.equal(shakeFor({ type: 'fall', id: 'm1' }, { shake: true, reducedMotion: true }), 0);
+});
+
+test('screen shake: the player hurt and a boss swat; an enemy hit does not', () => {
+  const on = { ...normal, shake: true };
+  assert.equal(shakeFor({ type: 'damage', id: PLAYER_ID }, on), 1);
+  assert.equal(shakeFor({ type: 'damage', id: 'm1' }, on), 0);
+  assert.ok(shakeFor({ type: 'swat', id: PLAYER_ID }, on) > 1);
+  assert.equal(shakeFor({ type: 'move', id: PLAYER_ID }, on), 0);
+  assert.equal(shakeFor({ type: 'swat', id: PLAYER_ID }, normal), 0);
+});
+
 test('fold and undo clips: forward from the old board, reverse from the restored one', () => {
   const s = createFloorState({ board: createBoard(5, 5), player: { col: 2, row: 2 } });
   const fold = { axis: 'v', index: 2, side: 'before' };
@@ -94,6 +113,9 @@ function fakeFx() {
       fx.log.push(actor.kind);
       fx.running = done;
     },
+    playImpact(strength) {
+      fx.log.push(`shake ${strength}`);
+    },
     finish() {
       const d = fx.running;
       fx.running = null;
@@ -123,6 +145,14 @@ test('playback sequences clips, swaps the shown board, then shows the end board'
   assert.equal(done, 1);
   assert.ok(!pb.busy);
   assert.deepEqual(fx.log, ['bump', 'hit']);
+});
+
+test('playback starts a clip\'s impact shake with the clip', () => {
+  const fx = fakeFx();
+  const pb = createPlayback({ fx, show: () => {} });
+  pb.play([{ board: 'b0', actor: { kind: 'hit' }, duration: 1, shake: 1 }], 'end');
+  assert.deepEqual(fx.log, ['shake 1', 'hit']);
+  fx.finish();
 });
 
 test('playback with no clips ends at once; finish() skips the rest', () => {

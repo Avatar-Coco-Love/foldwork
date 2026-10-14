@@ -43,6 +43,14 @@ These belong to later phases and get decided when that phase is built.
   file would load `share.png`, which the game must not).
 
 ## Resolved
+- Visual polish (8d, user's choices). **Grain:** faint, about 3%
+  contrast with a few paper fibres, on tile faces and the board sheet;
+  each palette scales it (`grain`: High Contrast 0.5, Kraft 1.2). **Shadows:**
+  soft: a short blurred shadow under the board, a thin contact shadow
+  under each raised layer, a stack's shadow on the paper beside it
+  (longer when taller) and a soft shadow under a folding sheet that
+  widens as it flies. **Screen shake** (decided in 8c): on, subtle,
+  a Settings > Display row; never under reduced motion.
 - Playtest round 2 (8c, user's choices). **Refolding a crease:** folding
   the same line back from the other side lifts the flap back (docs/02
   "Lifting a flap") instead of folding the whole side, so the paper

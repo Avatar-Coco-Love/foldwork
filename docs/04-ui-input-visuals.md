@@ -35,7 +35,8 @@
 - Pinned creatures show a small paper-clip marker.
 
 ## Visual style (code-drawn)
-- Paper-craft look: flat geometric shapes, soft drop shadows, and subtle procedural paper grain (low-contrast noise generated once to an offscreen canvas and reused).
+- Paper-craft look: flat geometric shapes, soft drop shadows, and subtle procedural paper grain (low-contrast noise generated once to an offscreen canvas and reused). Grain is faint (about 3%, scaled per palette). Shadows are soft: under the board, under each raised layer, beside a raised stack (longer when taller) and under a folding sheet (wider as it flies).
+- Screen shake: a small, quick wobble of the board when the player is hurt, the boss swats them, or anything drops into the void. On by default with a Settings toggle; never under reduced motion.
 - Tile faces are warm off-white with colored accents; different tile types use both color and a distinct symbol/pattern (colorblind-safe).
 - Layers are drawn as slightly offset stacked sheets, with a visible edge thickness per layer.
 - Creatures are simple origami-inspired polygons built from triangles and rhombi (Mite = small beetle, Wasp = triangular wasp, Brute = boxy golem, etc.). Defined as data, drawn by a shared vector routine.
@@ -56,7 +57,7 @@
 4. Relic choice (3 cards; 4th rest option on floors 4 and 7)
 5. Run summary (floors cleared, scraps earned, unlocks)
 6. Unlocks shop (spirits, relics, palettes; scrap bank on top; Buy then Confirm; locked items show a lock and their cost; owned palettes have Use)
-7. Settings, in groups: Display (palette, text size, animation speed, reduced motion, left-handed layout), Gameplay (tap-to-confirm folds, tutorial hints), Data (share play data, save code, reset progress), Audio, About (version, credits, feedback / bug report)
+7. Settings, in groups: Display (palette, text size, animation speed, reduced motion, screen shake, left-handed layout), Gameplay (tap-to-confirm folds, tutorial hints), Data (share play data, save code, reset progress), Audio, About (version, credits, feedback / bug report)
 8. Pause menu, from the floor's Menu button (Resume, Restart Floor, How to Play, Settings, Abandon Run, Save & Quit to Title)
 9. Stats & History (totals, best run, by spirit, the last 20 runs, daily history with current and best streaks; read only)
 

@@ -19,6 +19,9 @@ export const FOLD_MS = 400;
 /** Share of the fold spent rotating; the rest settles onto the stacks. */
 export const ROTATE_SHARE = 0.75;
 export const SHAKE_MS = 320;
+/** Impact screen shake (8d): short, subtle, never under reduced motion. */
+export const IMPACT_MS = 260;
+export const IMPACT_PX = 3;
 /** Under reduced motion the invalid cue is a static flash, not a shake. */
 export const FLASH_MS = 300;
 
@@ -115,6 +118,19 @@ export function shakeOffset(t, amplitude = 6) {
   return amplitude * Math.sin(t * Math.PI * 4) * (1 - t);
 }
 
+/**
+ * Impact shake offset at progress t ∈ [0,1] (player hurt, boss swat, void
+ * drop): a small two-axis wobble that dies off quickly. No randomness, so
+ * the same hit always shakes the same way. Writes into `out`.
+ */
+export function impactOffset(t, amplitude = IMPACT_PX, out = {}) {
+  t = clamp01(t);
+  const fade = (1 - t) * (1 - t);
+  out.x = amplitude * Math.sin(t * Math.PI * 5) * fade;
+  out.y = amplitude * 0.6 * Math.sin(t * Math.PI * 7 + 1) * fade * (t > 0 ? 1 : 0);
+  return out;
+}
+
 // ---------------------------------------------------------------------------
 // Player (DOM: requestAnimationFrame + performance.now)
 
@@ -124,14 +140,16 @@ export function shakeOffset(t, amplitude = 6) {
  *                Called every frame while something plays.
  *
  * One clip plays at a time (a fold or a creature actor); the shake runs
- * alongside. State the renderer reads:
+ * alongside, and so does an impact. State the renderer reads:
  *   player.foldAnim  { ...buildFoldAnim(), u, frame } or null
  *   player.actor     { ...actor, u } or null (see render/playback.js)
- *   player.shake     { x, flash } or null
+ *   player.shake     { x, flash } or null (the invalid-action cue)
+ *   player.impact    { x, y } or null (screen shake on a hit)
  */
 export function createFxPlayer({ onChange, now = () => performance.now() }) {
   let clip = null; // { start, duration, reverse, done }
   let shake = null; // { start, duration, flash }
+  let impact = null; // { start, duration, amplitude }
   let rafId = 0;
   const frameOut = {};
 
@@ -139,6 +157,7 @@ export function createFxPlayer({ onChange, now = () => performance.now() }) {
     foldAnim: null,
     actor: null,
     shake: null,
+    impact: null,
     get busy() {
       return !!clip;
     },
@@ -176,6 +195,17 @@ export function createFxPlayer({ onChange, now = () => performance.now() }) {
       onChange();
       schedule();
     },
+    /**
+     * Impact screen shake; `strength` scales IMPACT_PX. The caller only
+     * asks when shake is on and motion isn't reduced (render/playback.js).
+     */
+    playImpact(strength = 1) {
+      if (!(strength > 0)) return;
+      impact = { start: now(), duration: IMPACT_MS, amplitude: IMPACT_PX * strength };
+      player.impact = { x: 0, y: 0 };
+      onChange();
+      schedule();
+    },
     /** Jump the running clip to its end (calls its done()). */
     finish() {
       finishClip();
@@ -185,9 +215,11 @@ export function createFxPlayer({ onChange, now = () => performance.now() }) {
       rafId = 0;
       clip = null;
       shake = null;
+      impact = null;
       player.foldAnim = null;
       player.actor = null;
       player.shake = null;
+      player.impact = null;
     },
   };
 
@@ -229,8 +261,17 @@ export function createFxPlayer({ onChange, now = () => performance.now() }) {
         player.shake.x = shake.flash ? 0 : shakeOffset(p);
       }
     }
+    if (impact) {
+      const p = (t - impact.start) / impact.duration;
+      if (p >= 1) {
+        impact = null;
+        player.impact = null;
+      } else {
+        impactOffset(p, impact.amplitude, player.impact);
+      }
+    }
     onChange();
-    if (clip || shake) schedule();
+    if (clip || shake || impact) schedule();
   }
 
   return player;
