@@ -18,7 +18,14 @@
 //                       ignore this floor), freeLocks (locks that open
 //                       without a key), landings (falls to survive; run-wide,
 //                       carried by core/run.js), guard (the next hit this
-//                       turn is negated) }
+//                       turn is negated), echo (folds this floor that take
+//                       no turn), rewinds (turns the player can take back;
+//                       run-wide, like landings) }
+//     traps,            spiked crease edges still live (Crease Trap):
+//                       [{ cells, turns (enemy phases left), hit (ids
+//                       already spiked by it) }]
+//     prev,             null, or the state before the latest action, while
+//                       uses.rewinds lasts (Rewind Charm; its own prev is null)
 //     foldKills,        enemies the player's own folds killed this floor
 //                       (dropped or crushed; not the boss), for paper
 //                       scraps (core/scraps.js). Undo takes it back.
@@ -41,6 +48,9 @@
 //   { type: 'undo' }        free unfold of the latest fold (refunds its
 //                           charge, enemies don't act); only until the
 //                           player's next action
+//   { type: 'takeback' }    Rewind Charm: the state before the latest
+//                           action (a whole turn, enemy phase and all),
+//                           once per use left; also from a lost floor
 //
 // Events (all carry plain data; with { snapshots: true } each also carries
 // `board`, a copy of the board right after it, for step-by-step playback):
@@ -93,10 +103,21 @@
 //   { type: 'catch', id, at, from }              a fall into `at` was survived
 //                                                (uses.landings); the
 //                                                creature stays at `from`
+//   { type: 'echo' }                             the fold took no turn
+//                                                (Echo Fold): play on
+//   { type: 'trap', cells }                      the fold spiked these cells
+//                                                (Crease Trap)
+//   { type: 'spike', id, at }                    a trap hit an enemy (a
+//                                                damage follows)
+//   { type: 'tape', ids }                        undo unfolded these pinned
+//                                                enemies; they stay stuck
+//                                                (Sticky Tape)
+//   { type: 'takeback' }                         a turn was taken back
+//                                                (Rewind Charm)
 
 import { DIRS, inBounds, getCell, topLayer, findCreature, cloneBoard, isFooting, cellIndex } from './board.js';
 import { tileDef, itemDef, ITEM } from './tiles.js';
-import { validateFold, applyFold, isDiagonal } from './fold.js';
+import { validateFold, applyFold, isDiagonal, isPocket, creaseEdge } from './fold.js';
 import { createCreature, creatureDef, isHeavy } from './creatures.js';
 import { actingEnemies, reachField, planEnemy, enemiesInReach, spawnSpot } from './enemies.js';
 import { isBoss, marksCode, fleeSpot, spawnsNow, enteredSpawnPhase, minionSpot, minionCount } from './boss.js';
@@ -130,11 +151,27 @@ export const SWAT_DAMAGE = 1;
  *   diagonal    diagonal creases can be played (Frog, Diagonal Crease;
  *               core/fold.js AXES)
  *   waxCoat     ranged hits on the player do nothing (Wax Coat)
+ *   pinDamage   damage an enemy takes when the player's fold pins it
+ *               (Sharp Edge; not the boss)
+ *   tapeTurns   enemy turns an enemy stays stuck after undo unfolds the
+ *               fold that pinned it (Sticky Tape); such an undo keeps the
+ *               fold's charge spent
+ *   trapTurns   enemy phases the player's crease edge stays spiked
+ *               (Crease Trap; core/fold.js creaseEdge)
+ *   echoFolds   folds per floor that take no turn (Echo Fold)
+ *   pocket      one-lane folds can be played (Pocket Fold; fold.pocket)
+ *   scout       the fold preview shows enemies' next actions (Scout's
+ *               Eye; render only)
+ *   compass     buried exits are drawn (Compass; render only)
  */
 export const DEFAULT_RULES = Object.freeze({
   undoDepth: 1, foldRefund: 0, wards: 0, foldGuard: false, freeLocks: 0, stackBump: 0, plateHold: 0,
-  diagonal: false, waxCoat: false,
+  diagonal: false, waxCoat: false, pinDamage: 0, tapeTurns: 0, trapTurns: 0, echoFolds: 0, pocket: false,
+  scout: false, compass: false,
 });
+
+/** Damage a Crease Trap spike deals. */
+export const SPIKE_DAMAGE = 1;
 
 /**
  * Start a floor: places the player on the top layer of `player` ({col,row},
@@ -143,10 +180,12 @@ export const DEFAULT_RULES = Object.freeze({
  * holds, null for nothing). The input board is not mutated.
  * `hp` / `maxHp` carry the player's HP between floors (default: full);
  * `rules` overrides DEFAULT_RULES fields. `landings` is how many falls
- * the player survives (Soft Landing; run-wide, so the run passes it in).
+ * the player survives (Soft Landing; run-wide, so the run passes it in);
+ * `rewinds` likewise, the turns the player can take back (Rewind Charm).
  */
 export function createFloorState({
   board, player = null, enemies = [], charges = DEFAULT_FOLD_CHARGES, hp, maxHp, rules = null, landings = 0,
+  rewinds = 0,
 } = {}) {
   const next = cloneBoard(board);
   const at = player || defaultStart(next);
@@ -168,7 +207,11 @@ export function createFloorState({
     board: next, turn: 0, charges, maxCharges: charges, keys: 0, status: 'playing', outcome: null, undo: null,
     rules: floorRules,
     foldKills: 0,
-    uses: { wards: floorRules.wards, freeLocks: floorRules.freeLocks, landings, guard: false },
+    uses: {
+      wards: floorRules.wards, freeLocks: floorRules.freeLocks, landings, guard: false, echo: floorRules.echoFolds, rewinds,
+    },
+    traps: [],
+    prev: null,
   };
 }
 
@@ -204,6 +247,11 @@ export function canUndo(state) {
   return state.status === 'playing' && !!state.undo;
 }
 
+/** Whether the Rewind Charm can take back the latest action (also on a lost floor). */
+export function canTakeBack(state) {
+  return state.status !== 'won' && !!state.prev && (state.uses.rewinds || 0) > 0;
+}
+
 /**
  * Whether `fold` can be played now: the fold must be valid on the board, a
  * diagonal crease needs rules.diagonal, and a charge must be left. Returns
@@ -214,6 +262,7 @@ export function foldCheck(state, fold) {
   const check = validateFold(state.board, fold);
   const extra = [];
   if (isDiagonal(fold) && !(state.rules && state.rules.diagonal)) extra.push({ code: 'no-diagonal' });
+  if (isPocket(fold) && !(state.rules && state.rules.pocket)) extra.push({ code: 'no-pocket' });
   if (state.charges <= 0) extra.push({ code: 'no-charges' });
   if (!extra.length) return check;
   return { ...check, ok: false, reasons: [...extra, ...check.reasons] };
@@ -240,9 +289,10 @@ export function coverEffect(board, from, to) {
  * runFold, which can compare reach before and after. `swat` is the id of
  * the boss that folded, if one did: a player it covers is swatted (moved
  * out and hit, or only moved when `hurt` is false) instead of pinned or
- * dropped. A pinned boss loses its mark. Returns whether it swatted.
+ * dropped. A pinned boss loses its mark. `pinDamage` hurts each enemy
+ * pinned (Sharp Edge; not the boss). Returns whether it swatted.
  */
-export function resolveFold(s, landings, emit, { swat = null, hurt = true } = {}) {
+export function resolveFold(s, landings, emit, { swat = null, hurt = true, pinDamage = 0 } = {}) {
   let swatted = false;
   for (const l of landings) {
     if (s.status !== 'playing') break; // a boss drop won (or a fall lost) the floor
@@ -265,9 +315,22 @@ export function resolveFold(s, landings, emit, { swat = null, hurt = true } = {}
       if (isBoss(covered)) covered.mark = null; // pinned: its fold fizzles
       if (covered.jaws) covered.jaws = false; // pinned: its warning is off
       emit({ type: 'pin', id: covered.id, at });
+      if (pinDamage > 0 && covered.id !== PLAYER_ID && !isBoss(covered)) hurtPinned(s, lower, at, pinDamage, emit);
     }
   }
   return swatted;
+}
+
+// A creature pinned on `layer` (covered at `at`) takes `amount` damage; at
+// 0 HP it dies there and drops what it carried (Sharp Edge).
+function hurtPinned(s, layer, at, amount, emit) {
+  const creature = layer.creature;
+  creature.hp = Math.max(0, creature.hp - amount);
+  emit({ type: 'damage', id: creature.id, amount, hp: creature.hp, at: { ...at } });
+  if (creature.hp > 0) return;
+  layer.creature = null;
+  emit({ type: 'death', id: creature.id, creature, at: { ...at } });
+  dropItem(s, creature, at, emit);
 }
 
 // A boss fold landed on the player (on `layer`, now covered at `at`): out
@@ -314,6 +377,7 @@ export const TURN_PHASES = [
 export function act(state, action, { snapshots = false } = {}) {
   const reject = (reason) => ({ ok: false, state, events: [], reason });
   if (!action || typeof action !== 'object') return reject('bad-action');
+  if (action.type === 'takeback') return runTakeback(state, snapshots);
   if (state.status !== 'playing') return reject('game-over');
   if (action.type === 'undo') return runUndo(state, snapshots);
 
@@ -321,7 +385,11 @@ export function act(state, action, { snapshots = false } = {}) {
   if (!handler) return reject('bad-action');
   const early = handler.check ? handler.check(state, action) : null;
   if (early) return reject(early);
-  const next = { ...state, board: cloneBoard(state.board), undo: null, uses: { ...state.uses } };
+  const next = {
+    ...state, board: cloneBoard(state.board), undo: null, uses: { ...state.uses },
+    // Rewind Charm: one step back, never a chain.
+    prev: state.uses.rewinds > 0 ? { ...state, prev: null } : null,
+  };
   const events = [];
   const emit = (ev) => {
     if (snapshots) ev.board = cloneBoard(next.board);
@@ -331,13 +399,22 @@ export function act(state, action, { snapshots = false } = {}) {
 
   const reason = handler.run(next, action, emit, state);
   if (reason) return reject(reason);
-  if (handler.takesTurn) {
+  let takesTurn = handler.takesTurn;
+  if (action.type === 'fold' && next.uses.echo > 0 && next.status === 'playing') {
+    next.uses.echo -= 1; // Echo Fold: enemies don't answer this one
+    takesTurn = false;
+    emit({ type: 'echo' });
+  }
+  if (takesTurn) {
     for (const phase of TURN_PHASES) {
       if (next.status !== 'playing') break;
       phase.run(next, emit, { action });
     }
     next.turn += 1;
     next.uses.guard = false; // Folded Shield lasts one turn cycle
+    if (next.traps && next.traps.length) {
+      next.traps = next.traps.map((t) => ({ ...t, turns: t.turns - 1 })).filter((t) => t.turns > 0);
+    }
   }
   delete next.fresh; // this turn's spawns (bossSpawn): only runEnemies reads it
   return { ok: true, state: next, events, reason: null };
@@ -396,7 +473,7 @@ function checkFold(s, action) {
   const check = foldCheck(s, action.fold);
   if (check.ok) return null;
   const code = check.reasons[0]?.code;
-  return code === 'no-charges' || code === 'no-diagonal' ? code : 'invalid-fold';
+  return code === 'no-charges' || code === 'no-diagonal' || code === 'no-pocket' ? code : 'invalid-fold';
 }
 
 // checkFold already passed (act runs it first).
@@ -421,7 +498,7 @@ function runFold(s, action, outerEmit, before) {
     return outerEmit(ev);
   };
   emit({ type: 'fold', fold: { ...action.fold } });
-  resolveFold(s, landings, emit);
+  resolveFold(s, landings, emit, { pinDamage: s.rules.pinDamage || 0 });
 
   // Strand: an enemy that could reach the player before the fold, is still
   // free to act, and now has no path.
@@ -433,6 +510,16 @@ function runFold(s, action, outerEmit, before) {
   }
   refundFold(s, effects, emit);
   s.foldKills = (s.foldKills || 0) + foldKills(effects);
+  if (s.rules.tapeTurns > 0) {
+    // Sticky Tape: who this fold pinned (and still is), for its undo.
+    const taped = effects.filter((ev) => ev.type === 'pin' && ev.id !== PLAYER_ID && findCreature(s.board, ev.id)).map((ev) => ev.id);
+    if (taped.length) s.undo.taped = taped;
+  }
+  if (s.rules.trapTurns > 0 && s.status === 'playing') {
+    const cells = creaseEdge(s.board, action.fold);
+    s.traps = [...(s.traps || []), { cells, turns: s.rules.trapTurns, hit: [] }];
+    emit({ type: 'trap', cells: cells.map((c) => ({ ...c })) });
+  }
   return null;
 }
 
@@ -466,8 +553,32 @@ function refundFold(s, effects, emit) {
 
 function runUndo(state, snapshots) {
   if (!state.undo) return { ok: false, state, events: [], reason: 'no-undo' };
-  const restored = state.undo.state;
-  const ev = { type: 'unfold', fold: { ...state.undo.fold } };
+  let restored = state.undo.state;
+  const events = [{ type: 'unfold', fold: { ...state.undo.fold } }];
+  const taped = state.undo.taped;
+  if (taped) {
+    // Sticky Tape: the enemies it pinned stay stuck, and the charge stays
+    // spent (or fold and undo would stun for free).
+    const board = cloneBoard(restored.board);
+    for (const id of taped) {
+      const c = findCreature(board, id);
+      if (c) c.creature.stuck = Math.max(c.creature.stuck || 0, restored.rules.tapeTurns);
+    }
+    restored = { ...restored, board, charges: Math.max(0, restored.charges - 1) };
+    events.push({ type: 'tape', ids: taped.slice() });
+  }
+  if (snapshots) for (const ev of events) ev.board = cloneBoard(restored.board);
+  return { ok: true, state: restored, events, reason: null };
+}
+
+// Rewind Charm: back to the state before the latest action, one use spent.
+// Its free undo is dropped: that undo's state still holds the use.
+function runTakeback(state, snapshots) {
+  if (!canTakeBack(state)) return { ok: false, state, events: [], reason: 'no-rewind' };
+  const restored = {
+    ...state.prev, undo: null, prev: null, uses: { ...state.prev.uses, rewinds: state.uses.rewinds - 1 },
+  };
+  const ev = { type: 'takeback' };
   if (snapshots) ev.board = cloneBoard(restored.board);
   return { ok: true, state: restored, events: [ev], reason: null };
 }
@@ -492,6 +603,10 @@ function runEnemies(s, emit, { action } = {}) {
     if (s.status !== 'playing') break;
     const me = findCreature(s.board, id);
     if (!me || !me.top) continue; // dropped or pinned by a boss fold this phase
+    if (me.creature.stuck > 0) {
+      me.creature.stuck -= 1; // Sticky Tape
+      continue;
+    }
     const def = creatureDef(me.creature.kind);
     if (def.pace > 1) {
       if (me.creature.rest > 0) {
@@ -522,6 +637,7 @@ function runEnemies(s, emit, { action } = {}) {
       getCell(s.board, me.col, me.row).layers[me.depth].creature = null;
       topLayer(s.board, plan.to.col, plan.to.row).creature = me.creature;
       emit({ type: 'slide', id, from: { col: me.col, row: me.row }, to: { ...plan.to }, path: plan.path.map((c) => ({ ...c })) });
+      spikeAt(s, id, plan.to, emit);
     } else if (plan.type === 'jaws') {
       me.creature.jaws = plan.open;
       emit({ type: 'jaws', id, open: plan.open, at: { col: me.col, row: me.row } });
@@ -538,9 +654,26 @@ function runEnemies(s, emit, { action } = {}) {
       topLayer(s.board, plan.to.col, plan.to.row).creature = spawn;
       me.creature.sprout = def.spawn.every;
       emit({ type: 'spawn', id, creature: { ...spawn }, at: { ...plan.to } });
-    } else {
-      stepCreature(s, me, plan.to, emit);
+    } else if (stepCreature(s, me, plan.to, emit)) {
+      spikeAt(s, id, plan.to, emit);
     }
+  }
+}
+
+// Crease Trap: an enemy that just stepped or slid onto `at` takes
+// SPIKE_DAMAGE from each live trap there that hasn't spiked it yet. A kill
+// counts as a fold kill (the fold's own effect).
+function spikeAt(s, id, at, emit) {
+  if (!s.traps || !s.traps.length) return;
+  for (const trap of s.traps) {
+    const top = topLayer(s.board, at.col, at.row);
+    if (!top || !top.creature || top.creature.id !== id || isBoss(top.creature)) return;
+    if (trap.hit.includes(id) || !trap.cells.some((c) => c.col === at.col && c.row === at.row)) continue;
+    s.traps = s.traps.map((t) => (t === trap ? { ...t, hit: [...t.hit, id] } : t));
+    emit({ type: 'spike', id, at: { ...at } });
+    const hp = top.creature.hp;
+    damageAt(s, at, SPIKE_DAMAGE, emit);
+    if (hp <= SPIKE_DAMAGE) s.foldKills = (s.foldKills || 0) + 1;
   }
 }
 

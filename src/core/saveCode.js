@@ -21,6 +21,7 @@
 //   or daily run; 0 = the player's own unlocks, which are the loading
 //   device's: decodeSaveCode's `pool`) |
 //   relic count 5, then 6 per relic (CODE_RELICS index), in order taken |
+//   rewinds 2 (version 4+: Rewind Charm uses left) |
 //   hint floors 4, then floor 4 + presses 6 each (capped at 63) |
 //   CRC-10 of everything before it | zero padding to a whole character
 //
@@ -28,7 +29,8 @@
 // neighbours. Only runs on a plain number seed (every saved run) have a
 // code; daily seeds (Phase 7) will take a new version. Version 1 codes
 // (no fold kills) still read, with 0 fold kills; version 1 and 2 codes
-// (no pool bit) read as the loading device's own unlocks.
+// (no pool bit) read as the loading device's own unlocks. Before version
+// 4 no relic gave rewinds, so older codes read 0.
 //
 // Room to grow: 6 bits per relic index (64 relics) and a 5-bit relic
 // count (31 held). Content past that takes a new version with wider
@@ -41,7 +43,7 @@ import { RELIC_DEFS } from './relics.js';
 import { SPIRIT_DEFS } from './spirits.js';
 import { templateFloors } from './floors.js';
 
-export const SAVE_CODE_VERSION = 3;
+export const SAVE_CODE_VERSION = 4;
 
 /**
  * Code order for spirits and relics. Append only: an id's position is
@@ -52,6 +54,8 @@ export const CODE_RELICS = Object.freeze([
   'extra-crease', 'thick-paper', 'recycled-crease', 'spring-crease', 'diagonal-crease',
   'paper-heart', 'laminate', 'soft-landing', 'folded-shield', 'mender', 'wax-coat',
   'master-key', 'paper-cut', 'heavy-stamp', 'origami-luck',
+  'sharp-edge', 'echo-fold', 'crease-trap', 'pocket-fold', 'sticky-tape', 'scouts-eye', 'lucky-scrap',
+  'compass', 'rewind-charm',
 ]);
 
 const ALPHABET = '0123456789ABCDEFGHJKMNPQRSTVWXYZ';
@@ -79,6 +83,7 @@ export function encodeSaveCode(run) {
     [run.hp, 4], [run.maxHp, 4], [run.landings || 0, 3], [run.cleared, 4], [run.offer ? 1 : 0, 1],
     [run.clean ? 1 : 0, 1], [Math.min(MAX_FOLD_KILLS, run.foldKills || 0), 6],
     [Array.isArray(run.pool) ? 0 : 1, 1], [relics.length, 5], ...relics.map((r) => [r, 6]),
+    [run.rewinds || 0, 2],
     [hints.length, 4], ...hints.flatMap(([floor, n]) => [[floor, 4], [n, 6]]),
   ];
   // Anything that doesn't fit (or is unknown) means no code, never a wrong one.
@@ -131,6 +136,7 @@ export function decodeSaveCode(text, { floors = templateFloors(), pool = RELIC_P
     f.foldKills = version >= 2 ? read(6) : 0;
     f.pool = version >= 3 && read(1) ? RELIC_POOL_ALL : pool;
     f.relics = Array.from({ length: read(5) }, () => read(6));
+    f.rewinds = version >= 4 ? read(2) : 0;
     f.hints = Array.from({ length: read(4) }, () => [read(4), read(6)]);
     const sum = crc10(bits.slice(0, at));
     if (read(CRC_BITS) !== sum) return { ok: false, reason: 'check' };
@@ -168,6 +174,7 @@ function toRun(f, floors) {
     relics,
     pool: Array.isArray(f.pool) ? f.pool.slice() : RELIC_POOL_ALL,
     landings: f.landings,
+    rewinds: f.rewinds,
     cleared: f.cleared,
     foldKills: f.foldKills,
     offer: null,

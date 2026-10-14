@@ -23,6 +23,7 @@
 import { LOGIC_VERSION } from '../config.js';
 import { RUN_VERSION } from './run.js';
 import { replay } from './replay.js';
+import { canTakeBack } from './turn.js';
 
 export const SAVE_VERSION = 1;
 
@@ -64,7 +65,9 @@ export function parseSave(data) {
  * The floor state to continue from. `start` is the floor rebuilt from the
  * run seed; `info` is its description (core/floors.js generateFloor).
  * Replays the saved actions when they belong to this very floor under the
- * same rules and still leave it in play; otherwise the floor starts over.
+ * same rules and still leave it in play (or lost with a Rewind Charm use
+ * to take that back: the floor screen offers it again); otherwise the
+ * floor starts over.
  * Returns { state, actions, restarted }: actions is the log kept going.
  */
 export function resumeFloor(save, start, info) {
@@ -76,7 +79,7 @@ export function resumeFloor(save, start, info) {
     && JSON.stringify(saved.variant) === JSON.stringify(info.variant);
   if (same) {
     const { state, refused } = replay(start, saved.actions);
-    if (!refused.length && state.status === 'playing') return { state, actions: saved.actions.slice(), restarted: false };
+    if (!refused.length && (state.status === 'playing' || canTakeBack(state))) return { state, actions: saved.actions.slice(), restarted: false };
   }
   return { state: start, actions: [], restarted: true };
 }

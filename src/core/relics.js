@@ -98,6 +98,52 @@ export const RELIC_DEFS = Object.freeze({
     glyph: '⟋',
     hooks: { rules: (rules) => ({ ...rules, diagonal: true }) },
   },
+  'sharp-edge': {
+    id: 'sharp-edge',
+    name: 'Sharp Edge',
+    text: 'An enemy your fold pins takes 1 damage.',
+    group: 'fold',
+    rarity: 'common',
+    unlock: 'starter',
+    glyph: '◣',
+    hooks: { rules: atLeast('pinDamage', 1) },
+  },
+  'echo-fold': {
+    id: 'echo-fold',
+    name: 'Echo Fold',
+    text: 'Your first fold on each floor takes no turn: enemies don\'t act.',
+    group: 'fold',
+    rarity: 'rare',
+    glyph: '»',
+    hooks: { rules: atLeast('echoFolds', 1) },
+  },
+  'crease-trap': {
+    id: 'crease-trap',
+    name: 'Crease Trap',
+    text: 'Your creases spike the cells beside them for 2 turns: enemies stepping on take 1 damage.',
+    group: 'fold',
+    rarity: 'common',
+    glyph: '⩓',
+    hooks: { rules: atLeast('trapTurns', 2) },
+  },
+  'pocket-fold': {
+    id: 'pocket-fold',
+    name: 'Pocket Fold',
+    text: 'Pocket mode (P): fold just the one row or column your drag starts in.',
+    group: 'fold',
+    rarity: 'rare',
+    glyph: '▭',
+    hooks: { rules: (rules) => ({ ...rules, pocket: true }) },
+  },
+  'sticky-tape': {
+    id: 'sticky-tape',
+    name: 'Sticky Tape',
+    text: 'Undo a fold that pinned enemies and they stay stuck 2 turns (the charge stays spent).',
+    group: 'fold',
+    rarity: 'common',
+    glyph: '▤',
+    hooks: { rules: atLeast('tapeTurns', 2) },
+  },
 
   // --- Defense ---
   'paper-heart': {
@@ -204,7 +250,54 @@ export const RELIC_DEFS = Object.freeze({
     glyph: '✦',
     hooks: { offer: (offer) => ({ ...offer, count: Math.max(offer.count, 4) }) },
   },
+  'scouts-eye': {
+    id: 'scouts-eye',
+    name: 'Scout\'s Eye',
+    text: 'While you preview a fold, see what each enemy will do next.',
+    group: 'utility',
+    rarity: 'uncommon',
+    glyph: '◉',
+    hooks: { rules: (rules) => ({ ...rules, scout: true }) },
+  },
+  'lucky-scrap': {
+    id: 'lucky-scrap',
+    name: 'Lucky Scrap',
+    text: '+50% paper scraps at the end of the run.',
+    group: 'utility',
+    rarity: 'uncommon',
+    glyph: '☘',
+    hooks: {
+      scraps: (earned) => {
+        const bonus = Math.floor(earned.total * LUCKY_SCRAP_BONUS);
+        if (bonus <= 0) return earned;
+        const line = { id: 'lucky', label: 'Lucky Scrap (+50%)', count: 1, each: bonus, amount: bonus };
+        return { lines: [...earned.lines, line], total: earned.total + bonus };
+      },
+    },
+  },
+  compass: {
+    id: 'compass',
+    name: 'Compass',
+    text: 'The exit stays marked even when paper covers it.',
+    group: 'utility',
+    rarity: 'common',
+    unlock: 'starter',
+    glyph: '⊕',
+    hooks: { rules: (rules) => ({ ...rules, compass: true }) },
+  },
+  'rewind-charm': {
+    id: 'rewind-charm',
+    name: 'Rewind Charm',
+    text: 'Once per run, take back your last turn (pause menu), even the one that tore you.',
+    group: 'utility',
+    rarity: 'rare',
+    glyph: '⟲',
+    hooks: { gain: (run) => ({ ...run, rewinds: (run.rewinds || 0) + 1 }) },
+  },
 });
+
+/** Lucky Scrap's share of a run's scraps, added on top. */
+export const LUCKY_SCRAP_BONUS = 0.5;
 
 export function relicDef(id) {
   const def = RELIC_DEFS[id];

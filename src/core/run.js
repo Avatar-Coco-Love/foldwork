@@ -17,6 +17,8 @@
 //                 and daily runs, so everyone gets the same pool; absent
 //                 in older saves, which started with every relic)
 //     landings,   falls the player can still survive (Soft Landing)
+//     rewinds,    turns the player can still take back (Rewind Charm;
+//                 absent in older saves: 0)
 //     cleared,    floors cleared
 //     foldKills,  enemies killed by the player's folds, floors finished so
 //                 far (paper scraps, core/scraps.js; absent in older saves)
@@ -104,6 +106,7 @@ export function createRun({
     relics: [],
     pool: Array.isArray(pool) ? pool.slice() : RELIC_POOL_ALL,
     landings: 0,
+    rewinds: 0,
     cleared: 0,
     foldKills: 0,
     offer: null,
@@ -128,20 +131,25 @@ export function addRelic(run, id) {
  * createFloorState() options for this run's current floor, from the
  * floor's own setup (core/floors.js generateFloor): spirit and relic hooks,
  * rules and the carried HP. `run` may also be a telemetry loadout
- * ({ spirit, relics, hp, maxHp, landings }), which is how replays rebuild
+ * ({ spirit, relics, hp, maxHp, landings, rewinds }), which is how replays rebuild
  * a floor.
  */
 export function floorSetupFor(run, setup) {
   const spirit = run.spirit || null;
   const out = applyRelics(spiritHook(spirit, 'setup', setup, run), run.relics || [], run);
   return {
-    ...out, rules: spiritHook(spirit, 'rules', out.rules), hp: run.hp, maxHp: run.maxHp, landings: run.landings || 0,
+    ...out,
+    rules: spiritHook(spirit, 'rules', out.rules),
+    hp: run.hp,
+    maxHp: run.maxHp,
+    landings: run.landings || 0,
+    rewinds: run.rewinds || 0,
   };
 }
 
 /**
  * The run after a floor ends. A win carries the player's HP (and Soft
- * Landings left) over, heals CLEAN_HEAL if the floor took no damage (HP
+ * Landings and Rewind Charm uses left) over, heals CLEAN_HEAL if the floor took no damage (HP
  * never drops below the floor's start, run.hp, with no healing mid-floor),
  * runs the relics' `cleared` hooks, and moves to the
  * next floor with an offer to take first, or wins the run after lastFloor
@@ -164,6 +172,7 @@ export function finishFloor(run, floorState) {
     ...run,
     hp: clean ? Math.min(run.maxHp, hp + CLEAN_HEAL) : hp,
     landings: uses.landings ?? run.landings,
+    rewinds: uses.rewinds ?? run.rewinds ?? 0,
     cleared: run.cleared + 1,
     foldKills,
     clean,

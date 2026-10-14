@@ -607,6 +607,7 @@ export const floorScreen = {
       // What the floor started with, so replays rebuild it exactly.
       loadout: {
         spirit: run.spirit, relics: run.relics.slice(), hp: setup.hp, maxHp: setup.maxHp, landings: setup.landings,
+        rewinds: setup.rewinds,
       },
       ...(info.overrides ? { overrides: info.overrides } : {}),
     };

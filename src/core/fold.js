@@ -10,6 +10,9 @@
 //     side  the half that folds over (where the drag starts):
 //           'before' = left / top of the line (for 'd': below-left),
 //           'after' = right / bottom (for 'd': above-right)
+//     pocket  optional (Pocket Fold): only one lane folds, the row (for
+//           'v') or column (for 'h') with this index; straight creases only.
+//           Whether a player may use it is a turn rule (rules.pocket).
 //
 // Diagonal creases (docs/OPEN-QUESTIONS.md): cells on the line are the
 // hinge. They are on neither side, so they stay put and are not covered.
@@ -106,6 +109,24 @@ export function maxStackOf(board) {
   return board.maxStack ?? DEFAULT_MAX_STACK;
 }
 
+/** Whether this is a one-lane fold (Pocket Fold, rules.pocket). */
+export function isPocket(fold) {
+  return !!fold && fold.pocket != null;
+}
+
+/** Lanes a pocket fold on `axis` may pick (rows for 'v', columns for 'h'); 0 for diagonals. */
+export function pocketLanes(board, axis) {
+  if (axis === 'v') return board.h;
+  if (axis === 'h') return board.w;
+  return 0;
+}
+
+// Whether (col, row) is in the fold's lane (always, for a whole fold).
+function inPocket(fold, col, row) {
+  if (!isPocket(fold)) return true;
+  return (fold.axis === 'v' ? row : col) === fold.pocket;
+}
+
 /** Problems with the crease itself (shape, bounds). Empty array = well-formed. */
 export function creaseErrors(board, fold) {
   if (!fold || typeof fold !== 'object') return [{ code: 'bad-fold' }];
@@ -116,7 +137,35 @@ export function creaseErrors(board, fold) {
     errors.push({ code: 'bad-index', index: fold.index });
   }
   if (!SIDES.includes(fold.side)) errors.push({ code: 'bad-side', side: fold.side });
+  if (isPocket(fold) && !(Number.isInteger(fold.pocket) && fold.pocket >= 0 && fold.pocket < pocketLanes(board, fold.axis))) {
+    errors.push({ code: 'bad-pocket', pocket: fold.pocket });
+  }
   return errors;
+}
+
+/**
+ * The cells along the crease on the side that stays (Crease Trap): the
+ * lane right beside a straight crease, or the hinge cells on a diagonal.
+ * A pocket fold's edge is the one cell in its lane. Well-formed folds only.
+ */
+export function creaseEdge(board, fold) {
+  const geo = AXES[fold.axis];
+  const cells = [];
+  for (let row = 0; row < board.h; row++) {
+    for (let col = 0; col < board.w; col++) {
+      if (!inPocket(fold, col, row)) continue;
+      let edge;
+      if (geo.diagonal) {
+        edge = !geo.onFoldingSide({ ...fold, side: 'before' }, col, row, board)
+          && !geo.onFoldingSide({ ...fold, side: 'after' }, col, row, board);
+      } else {
+        const at = fold.axis === 'v' ? col : row;
+        edge = at === (fold.side === 'before' ? fold.index : fold.index - 1);
+      }
+      if (edge) cells.push({ col, row });
+    }
+  }
+  return cells;
 }
 
 /**
@@ -125,7 +174,7 @@ export function creaseErrors(board, fold) {
  */
 export function mirrorCell(board, fold, col, row) {
   const geo = AXES[fold.axis];
-  if (!geo.onFoldingSide(fold, col, row, board)) return null;
+  if (!inPocket(fold, col, row) || !geo.onFoldingSide(fold, col, row, board)) return null;
   const dest = geo.mirror(fold, col, row, board);
   return { col: dest.col, row: dest.row, clipped: !inBounds(board, dest.col, dest.row) };
 }

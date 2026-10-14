@@ -11,8 +11,10 @@
 //   'u' 'd' 'l' 'r'   move up / down / left / right
 //   'w'               wait
 //   'z'               undo
+//   'k'               take back the last turn (Rewind Charm)
 //   'f<axis><index><side>'  fold, e.g. 'fh3a' = { axis: 'h', index: 3,
-//                     side: 'after' } ('b' = before)
+//                     side: 'after' } ('b' = before); a pocket fold adds
+//                     'p<lane>', e.g. 'fv2bp4' = { ..., pocket: 4 }
 //   'x<n>'            rewind (fold history, playtest P4b): the floor goes
 //                     back to how it was after its first n accepted
 //                     actions, e.g. 'x4' = { type: 'rewind', to: 4 }. Only
@@ -33,9 +35,11 @@ export function encodeAction(action) {
     case 'move': return MOVE_CODES[action.dir] || null;
     case 'wait': return 'w';
     case 'undo': return 'z';
+    case 'takeback': return 'k';
     case 'fold': {
       const f = action.fold;
-      return f && SIDE_CODES[f.side] ? `f${f.axis}${f.index}${SIDE_CODES[f.side]}` : null;
+      if (!f || !SIDE_CODES[f.side]) return null;
+      return `f${f.axis}${f.index}${SIDE_CODES[f.side]}${f.pocket != null ? `p${f.pocket}` : ''}`;
     }
     case 'rewind': return Number.isInteger(action.to) && action.to >= 0 ? `x${action.to}` : null;
     default: return null;
@@ -48,10 +52,14 @@ export function decodeAction(code) {
   if (MOVES[code]) return { type: 'move', dir: MOVES[code] };
   if (code === 'w') return { type: 'wait' };
   if (code === 'z') return { type: 'undo' };
+  if (code === 'k') return { type: 'takeback' };
   const x = /^x(\d+)$/.exec(code);
   if (x) return { type: 'rewind', to: Number(x[1]) };
-  const m = /^f([a-z])(\d+)([ab])$/.exec(code);
-  return m ? { type: 'fold', fold: { axis: m[1], index: Number(m[2]), side: SIDES[m[3]] } } : null;
+  const m = /^f([a-z])(\d+)([ab])(?:p(\d+))?$/.exec(code);
+  if (!m) return null;
+  const fold = { axis: m[1], index: Number(m[2]), side: SIDES[m[3]] };
+  if (m[4] !== undefined) fold.pocket = Number(m[4]);
+  return { type: 'fold', fold };
 }
 
 /**
