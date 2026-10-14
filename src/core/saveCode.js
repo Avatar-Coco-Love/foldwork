@@ -22,15 +22,19 @@
 //   device's: decodeSaveCode's `pool`) |
 //   relic count 5, then 6 per relic (CODE_RELICS index), in order taken |
 //   rewinds 2 (version 4+: Rewind Charm uses left) |
+//   daily 1 (version 5+: 1 = a daily run, then day 16 (days since
+//   1970-01-01, core/daily.js dayNumber) and practice 1; its seed field
+//   is 0, the seed being the day's date) |
 //   hint floors 4, then floor 4 + presses 6 each (capped at 63) |
 //   CRC-10 of everything before it | zero padding to a whole character
 //
 // The CRC catches any one mistyped character and any swap of two
 // neighbours. Only runs on a plain number seed (every saved run) have a
-// code; daily seeds (Phase 7) will take a new version. Version 1 codes
+// code, and daily runs (version 5). Version 1 codes
 // (no fold kills) still read, with 0 fold kills; version 1 and 2 codes
 // (no pool bit) read as the loading device's own unlocks. Before version
-// 4 no relic gave rewinds, so older codes read 0.
+// 4 no relic gave rewinds, so older codes read 0. Before version 5
+// there were no daily runs.
 //
 // Room to grow: 6 bits per relic index (64 relics) and a 5-bit relic
 // count (31 held). Content past that takes a new version with wider
@@ -42,8 +46,9 @@ import {
 import { RELIC_DEFS } from './relics.js';
 import { SPIRIT_DEFS } from './spirits.js';
 import { templateFloors } from './floors.js';
+import { isDailyDate, dayNumber, dateOfDay } from './daily.js';
 
-export const SAVE_CODE_VERSION = 4;
+export const SAVE_CODE_VERSION = 5;
 
 /**
  * Code order for spirits and relics. Append only: an id's position is
@@ -72,18 +77,21 @@ export function isCodeSeed(seed) {
 
 /** The save code for `run` (a RunState still being played), or null if it has none. */
 export function encodeSaveCode(run) {
-  if (!run || run.status !== 'playing' || !isCodeSeed(run.seed)) return null;
+  if (!run || run.status !== 'playing') return null;
+  const daily = isDailyDate(run.daily) && run.seed === run.daily;
+  if (!daily && !isCodeSeed(run.seed)) return null;
   const spirit = CODE_SPIRITS.indexOf(run.spirit ?? null);
   const relics = run.relics.map((id) => CODE_RELICS.indexOf(id));
   const hints = Object.entries(run.hints || {})
     .map(([floor, n]) => [Number(floor), Math.min(MAX_HINTS, n)])
     .filter(([floor, n]) => n > 0 && floor >= 1 && floor < 16);
   const fields = [
-    [SAVE_CODE_VERSION, 4], [Number(run.seed), 32], [spirit, 3], [run.floor, 4], [run.lastFloor, 4],
+    [SAVE_CODE_VERSION, 4], [daily ? 0 : Number(run.seed), 32], [spirit, 3], [run.floor, 4], [run.lastFloor, 4],
     [run.hp, 4], [run.maxHp, 4], [run.landings || 0, 3], [run.cleared, 4], [run.offer ? 1 : 0, 1],
     [run.clean ? 1 : 0, 1], [Math.min(MAX_FOLD_KILLS, run.foldKills || 0), 6],
     [Array.isArray(run.pool) ? 0 : 1, 1], [relics.length, 5], ...relics.map((r) => [r, 6]),
     [run.rewinds || 0, 2],
+    [daily ? 1 : 0, 1], ...(daily ? [[dayNumber(run.daily), 16], [run.practice ? 1 : 0, 1]] : []),
     [hints.length, 4], ...hints.flatMap(([floor, n]) => [[floor, 4], [n, 6]]),
   ];
   // Anything that doesn't fit (or is unknown) means no code, never a wrong one.
@@ -137,6 +145,7 @@ export function decodeSaveCode(text, { floors = templateFloors(), pool = RELIC_P
     f.pool = version >= 3 && read(1) ? RELIC_POOL_ALL : pool;
     f.relics = Array.from({ length: read(5) }, () => read(6));
     f.rewinds = version >= 4 ? read(2) : 0;
+    f.daily = version >= 5 && read(1) ? { day: read(16), practice: read(1) } : null;
     f.hints = Array.from({ length: read(4) }, () => [read(4), read(6)]);
     const sum = crc10(bits.slice(0, at));
     if (read(CRC_BITS) !== sum) return { ok: false, reason: 'check' };
@@ -163,16 +172,18 @@ function toRun(f, floors) {
     if (floor < 1 || floor > f.lastFloor || !n || hints[floor]) return null;
     hints[floor] = n;
   }
+  const daily = f.daily && dateOfDay(f.daily.day);
+  if (f.daily && (f.seed || !isDailyDate(daily))) return null;
   const run = {
     v: RUN_VERSION,
-    seed: String(f.seed),
+    seed: daily || String(f.seed),
     spirit,
     floor: f.floor,
     lastFloor: f.lastFloor,
     hp: f.hp,
     maxHp: f.maxHp,
     relics,
-    pool: Array.isArray(f.pool) ? f.pool.slice() : RELIC_POOL_ALL,
+    pool: !daily && Array.isArray(f.pool) ? f.pool.slice() : RELIC_POOL_ALL,
     landings: f.landings,
     rewinds: f.rewinds,
     cleared: f.cleared,
@@ -182,6 +193,7 @@ function toRun(f, floors) {
     ...(f.hints.length ? { hints } : {}),
     status: 'playing',
     cause: null,
+    ...(daily ? { daily, practice: !!f.daily.practice } : {}),
   };
   // The offer waiting after the floor before this one (core/run.js finishFloor).
   if (f.offer) run.offer = rollOffer(run, f.floor - 1);

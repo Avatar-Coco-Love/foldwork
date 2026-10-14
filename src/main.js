@@ -53,6 +53,7 @@ import {
   owns, buyUnlock, relicPool, newlyAffordable,
 } from './core/unlocks.js';
 import { runScraps } from './core/scraps.js';
+import { claimDaily, finishDaily } from './core/daily.js';
 
 const params = Object.fromEntries(new URLSearchParams(location.search));
 const canvas = document.getElementById('board');
@@ -145,19 +146,27 @@ const ctx = {
    * the last run's for `retry`) and run id. Its relic pool is the
    * player's unlocks, or every relic for `openPool` (challenge runs, and
    * a retry of one), so everyone on that seed draws from the same pool.
+   * `daily` (a date) starts that day's daily run instead (core/daily.js):
+   * the scored run if the day hasn't been played, else practice.
    */
   startRun({
-    floor = 1, spirit = devSpirit, seed = null, retry = false, openPool = false,
+    floor = 1, spirit = devSpirit, seed = null, retry = false, openPool = false, daily = null,
   } = {}) {
-    ctx.seed = seed || newSeed();
+    ctx.seed = daily || seed || newSeed();
     const pool = openPool ? RELIC_POOL_ALL : ctx.relicPool();
     ctx.run = createRun({
-      seed: ctx.seed, relics: devRelics, floor, spirit, pool,
+      seed: ctx.seed, relics: devRelics, floor, spirit, pool, daily,
     });
+    ctx.claimDaily();
     ctx.runId = newRunId();
     ctx.telemetry.setRun(ctx.runId);
     ctx.telemetry.track('run.start', {
-      ...runTag(ctx.run), daily: false, challenge: !!seed && !retry, retry, lastFloor: ctx.run.lastFloor,
+      ...runTag(ctx.run),
+      daily: ctx.run.daily || null,
+      practice: !!ctx.run.practice,
+      challenge: !!seed && !retry && !daily,
+      retry,
+      lastFloor: ctx.run.lastFloor,
     });
     ctx.saveRun();
   },
@@ -176,11 +185,14 @@ const ctx = {
    * Play a run loaded from a save code (Settings > Data, title screen; the
    * panel already asked before replacing a saved run): any run in
    * progress ends as abandoned, and the loaded one carries on as a new
-   * run id, at the start of its floor or on its relic offer.
+   * run id, at the start of its floor or on its relic offer. A scored
+   * daily run stays scored only where its day hasn't been played yet.
    */
   loadRun(run) {
     ctx.abandonRun();
     ctx.run = run;
+    ctx.claimDaily();
+    run = ctx.run;
     ctx.seed = run.seed;
     ctx.runId = newRunId();
     ctx.telemetry.setRun(ctx.runId);
@@ -190,6 +202,19 @@ const ctx = {
     ctx.saveRun();
     if (run.offer) ctx.router.go('offer', { floor: run.floor });
     else ctx.router.go('floor', { floor: run.floor });
+  },
+  /**
+   * A daily run just started or loaded (ctx.run) becomes the day's scored
+   * run, recorded in the meta, or practice when the day was played
+   * (core/daily.js claimDaily). Dev runs never record a day.
+   */
+  claimDaily() {
+    const claim = claimDaily(ctx.meta, ctx.run);
+    ctx.run = claim.run;
+    if (!devRun && claim.meta !== ctx.meta) {
+      ctx.meta = claim.meta;
+      metaStore.write(ctx.meta);
+    }
   },
   /**
    * Save the run in progress (core/save.js), with the floor being played:
@@ -242,7 +267,9 @@ const ctx = {
   /**
    * Record the run's end (won, lost, or abandoned when the player starts a
    * new run over it), clear it and its save. A won or lost run banks its
-   * paper scraps (an abandoned one earns none). Safe to call more than once.
+   * paper scraps (an abandoned one earns none, nor does a daily practice
+   * run); a scored daily run records its day's result. Safe to call more
+   * than once.
    */
   endRun(outcome) {
     if (!devRun) saves.clear();
@@ -252,22 +279,33 @@ const ctx = {
     ctx.runId = null;
     let scraps = 0;
     if (outcome !== 'abandoned') {
-      const earned = runScraps(run);
+      const earned = run.practice ? { lines: [], total: 0 } : runScraps(run);
       scraps = earned.total;
       let unlocks = [];
       if (!devRun) {
         const before = ctx.meta;
-        ctx.meta = bankScraps(ctx.meta, scraps);
+        ctx.meta = finishDaily(bankScraps(ctx.meta, scraps), run, outcome, scraps);
         metaStore.write(ctx.meta);
         unlocks = newlyAffordable(before, ctx.meta);
       }
       ctx.lastRun = run;
       ctx.lastScraps = {
-        earned, total: ctx.meta.scraps, banked: !devRun, affordable: unlocks,
+        earned, total: ctx.meta.scraps, banked: !devRun, affordable: unlocks, practice: !!run.practice,
       };
+    } else if (!devRun && run.daily) {
+      ctx.meta = finishDaily(ctx.meta, run, outcome);
+      metaStore.write(ctx.meta);
     }
     ctx.telemetry.track('run.end', {
-      ...runTag(run), outcome, cause: run.cause, cleared: run.cleared, lastFloor: run.lastFloor, foldKills: run.foldKills || 0, scraps,
+      ...runTag(run),
+      outcome,
+      cause: run.cause,
+      cleared: run.cleared,
+      lastFloor: run.lastFloor,
+      foldKills: run.foldKills || 0,
+      scraps,
+      daily: run.daily || null,
+      practice: !!run.practice,
     });
     ctx.telemetry.flush();
     ctx.telemetry.setRun(null);

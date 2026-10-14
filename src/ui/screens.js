@@ -32,6 +32,7 @@ import { encodeSaveCode, decodeSaveCode, isCodeSeed } from '../core/saveCode.js'
 import { relicDef, RARITY_NAMES, GROUP_NAMES } from '../core/relics.js';
 import { affordable, unlockCost } from '../core/unlocks.js';
 import { runSummary } from '../core/summary.js';
+import { dailyTitle, dailyName, isPractice } from '../core/daily.js';
 import { SPIRIT_DEFS, spiritDef } from '../core/spirits.js';
 import { HINTS, hintDef, hintsFor } from '../core/hints.js';
 import { loadSeenHints, saveSeenHints } from './hintStore.js';
@@ -40,9 +41,10 @@ import { createRng, fork, nextInt, chance } from '../core/rng.js';
 
 /**
  * Title menu rows (OPEN-QUESTIONS "Menu redesign"): { id, label, show(c),
- * note(c), go(ctx, c) }, where c is { save, scraps, ready, confirmNewRun }
- * (ready: shop items the player can buy now). The first row shown is the
- * primary button. Later phases add rows here (Daily Seed, Stats & History).
+ * note(c), go(ctx, c) }, where c is { save, scraps, ready, daily,
+ * confirmNewRun(start?) } (ready: shop items the player can buy now;
+ * daily: core/daily.js dailyTitle). The first row shown is the primary
+ * button. Later phases add rows here (Stats & History).
  */
 export const TITLE_ROWS = [
   {
@@ -54,6 +56,23 @@ export const TITLE_ROWS = [
   },
   // With a saved run, New Run asks before it replaces it.
   { id: 'new-run', label: 'New Run', go: (ctx, c) => (c.save ? c.confirmNewRun() : startNewRun(ctx)) },
+  // Today's daily seed (Phase 7d): continues it when the saved run is
+  // today's scored daily; otherwise a new daily run (scored or practice),
+  // asking first over a saved run.
+  {
+    id: 'daily',
+    label: 'Daily Seed',
+    note: (c) => c.daily.note,
+    go: (ctx, c) => {
+      if (c.daily.resume) {
+        ctx.continueRun();
+        return;
+      }
+      const start = () => ctx.router.go('spirit', { daily: c.daily.date });
+      if (c.save) c.confirmNewRun(start);
+      else start();
+    },
+  },
   {
     id: 'unlocks',
     label: 'Unlocks',
@@ -77,7 +96,8 @@ export const titleScreen = {
       save,
       scraps: ctx.meta.scraps,
       ready: affordable(ctx.meta, ctx.unlockOpts).length,
-      confirmNewRun: () => confirmNewRun(() => startNewRun(ctx)),
+      daily: dailyTitle(ctx.meta, save, Date.now()),
+      confirmNewRun: (start = () => startNewRun(ctx)) => confirmNewRun(start),
     };
     const rows = TITLE_ROWS.filter((r) => !r.show || r.show(c));
     // A challenge link (playtest P6) puts its card first, as the primary button.
@@ -162,6 +182,7 @@ export function scrapsText(n) {
 function saveText(save) {
   const sum = saveSummary(save);
   const parts = [`Floor ${sum.floor} of ${sum.lastFloor}`];
+  if (sum.daily) parts.unshift(`${dailyName(sum.daily)}${sum.practice ? ' (practice)' : ''}`);
   if (sum.spirit) parts.push(spiritDef(sum.spirit).name);
   parts.push(`${sum.hp}/${sum.maxHp} HP`);
   if (sum.relics) parts.push(`${sum.relics} relic${sum.relics === 1 ? '' : 's'}`);
@@ -486,15 +507,20 @@ export const spiritScreen = {
     ctx.renderer.setScene(null);
     const spirits = Object.values(SPIRIT_DEFS);
     // Back returns to the run summary when it sent us here.
-    const back = () => ctx.router.go(params.retry && ctx.lastRun ? 'summary' : 'title');
+    const fromSummary = (params.retry || params.from === 'summary') && ctx.lastRun;
+    const back = () => ctx.router.go(fromSummary ? 'summary' : 'title');
     // Accepting a challenge (title screen) brings its seed; so does Retry
-    // this seed (run summary).
+    // this seed (run summary). A daily run (title, or a retry of one)
+    // brings its date, which is its seed.
+    const daily = params.daily || null;
     const seed = params.challenge || params.retry || null;
     // Challenge runs offer every relic, so everyone on the seed draws from
     // the same pool; a retry keeps the pool kind of the run it retries.
     const openPool = !!params.challenge
       || (!!params.retry && !!ctx.lastRun && !Array.isArray(ctx.lastRun.pool));
-    const locked = (id) => !ctx.owns('spirit', id);
+    // Daily runs offer every spirit too (and every relic: createRun).
+    const locked = (id) => !daily && !ctx.owns('spirit', id);
+    const practice = daily && isPractice(ctx.meta, daily);
     const choose = (id, index) => {
       if (locked(id)) {
         ctx.router.go('unlocks', { from: 'spirit', back: params, focus: `spirit:${id}` });
@@ -502,7 +528,7 @@ export const spiritScreen = {
       }
       ctx.abandonRun(); // the title screen already asked
       ctx.startRun({
-        spirit: id, seed, retry: !params.challenge && !!params.retry, openPool,
+        spirit: id, seed, retry: !params.challenge && (!!params.retry || !!fromSummary), openPool, daily,
       });
       if (seed) ctx.clearChallenge();
       ctx.telemetry.track('spirit.pick', { ...runTag(ctx.run), index, offered: spirits.map((d) => d.id) });
@@ -528,14 +554,22 @@ export const spiritScreen = {
       el('div', { class: 'menu offer' },
         el('h2', { class: 'outcome-title', text: 'Choose your spirit' }),
         el('p', { class: 'subtitle', text: 'It sets your HP and gives one perk for the whole run.' }),
-        params.challenge ? el('p', { class: 'save-summary', text: 'Challenge run: your friend\'s floors and relic offers.' })
-          : seed ? el('p', { class: 'save-summary', text: 'Same seed: the floors and relic offers of your last run.' }) : null,
+        seedNote() ? el('p', { class: 'save-summary', text: seedNote() }) : null,
         el('div', { class: 'offer-cards', role: 'group', 'aria-label': 'Spirits' }, cards),
         el('div', { class: 'menu-buttons' },
           el('button', { class: 'btn btn-secondary', type: 'button', onclick: back }, 'Back')),
       ),
     );
     cards[0]?.focus({ preventScroll: true });
+
+    /** What the run about to start is, under the heading (or nothing for a new run). */
+    function seedNote() {
+      if (daily && practice) return `${dailyName(daily)}, practice: you've played today's scored run. Same floors and relic offers, no paper scraps.`;
+      if (daily) return `${dailyName(daily)}: everyone gets these floors and relic offers today, with every spirit and relic open. Your first daily run of the day is the one that counts.`;
+      if (params.challenge) return 'Challenge run: your friend\'s floors and relic offers.';
+      if (seed) return 'Same seed: the floors and relic offers of your last run.';
+      return null;
+    }
 
     const onKey = (e) => {
       const n = Number(e.key);
@@ -1553,8 +1587,9 @@ export const summaryScreen = {
         el('dl', { class: 'summary-rows' }, rows),
         el('div', { class: 'menu-buttons' },
           button('New run', () => startNewRun(ctx), true),
-          button('Retry this seed', () => ctx.router.go('spirit', { retry: run.seed })),
-          button('Challenge a friend', showChallenge),
+          button('Retry this seed', () => ctx.router.go('spirit', run.daily ? { daily: run.daily, from: 'summary' } : { retry: run.seed })),
+          // A daily is everyone's run already; only plain seeds make a challenge link.
+          isCodeSeed(run.seed) ? button('Challenge a friend', showChallenge) : null,
           summary.rows.some((r) => r.id === 'unlocks') ? button('Unlocks', () => ctx.router.go('unlocks', { from: 'summary' })) : null,
           button('Menu', toMenu)),
       );

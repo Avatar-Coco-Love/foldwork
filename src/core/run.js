@@ -27,6 +27,10 @@
 //     clean,      whether the last floor won was cleared without damage
 //                 (it healed CLEAN_HEAL; the HUD says so), else false
 //     hints,      optional { [floor]: Hint button presses } (run summary)
+//     daily,      daily runs only (core/daily.js): the UTC date, 'YYYY-MM-DD',
+//                 which is also the seed
+//     practice,   daily runs only: true for a practice run (the day's
+//                 scored run was already played; no paper scraps)
 //     status,     'playing' | 'won' | 'lost'
 //     cause,      why it was lost ('hp', 'fall'), else null
 //   }
@@ -89,22 +93,26 @@ export function runLength(floors = templateFloors()) {
 /**
  * A new run as `spirit` (its HP, then its `gain` hook). `relics` start in
  * the run (dev `?relics=`); `floor` starts it deeper (dev `?floor=`).
- * `pool` is the relics its offers draw from (RunState.pool).
+ * `pool` is the relics its offers draw from (RunState.pool). `daily` (a
+ * date) makes it that day's daily run: the date is its seed and it offers
+ * every relic; `practice` marks a practice run (core/daily.js claimDaily
+ * decides).
  */
 export function createRun({
   seed, relics = [], spirit = null, floor = 1, lastFloor = runLength(), pool = RELIC_POOL_ALL,
+  daily = null, practice = false,
 } = {}) {
   const hp = spirit ? spiritDef(spirit).hp : CREATURE_DEFS.player.hp;
   let run = {
     v: RUN_VERSION,
-    seed: String(seed),
+    seed: String(daily || seed),
     spirit,
     floor: Math.min(Math.max(1, floor), lastFloor),
     lastFloor,
     hp,
     maxHp: hp,
     relics: [],
-    pool: Array.isArray(pool) ? pool.slice() : RELIC_POOL_ALL,
+    pool: !daily && Array.isArray(pool) ? pool.slice() : RELIC_POOL_ALL,
     landings: 0,
     rewinds: 0,
     cleared: 0,
@@ -113,6 +121,7 @@ export function createRun({
     clean: false,
     status: 'playing',
     cause: null,
+    ...(daily ? { daily, practice: !!practice } : {}),
   };
   run = spiritHook(spirit, 'gain', run);
   for (const id of relics) run = addRelic(run, id);

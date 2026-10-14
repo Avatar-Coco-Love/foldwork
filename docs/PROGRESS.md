@@ -4,12 +4,11 @@
 small. At the end of each conversation, update this file in the same PR.
 
 ## Next up
-**Phase 7d: daily seed mode** (same run on every device) and its title
-row. Read docs/03 and docs/04 for the daily seed, OPEN-QUESTIONS
-"Unlocks shop" (daily runs offer every relic, like challenge runs) and
-the save-code notes in `core/saveCode.js` (daily seeds take a new code
-version). Ask how a daily seed is named and whether a day allows one
-attempt or many.
+**Phase 7e: Stats & History screen** (title row), Settings > Data >
+Reset progress, and unlock/daily telemetry. Read docs/04 (screens 1 and
+7), docs/07, and OPEN-QUESTIONS "Daily seed" (`meta.daily` holds one
+record per day played, for the history). Ask what the screen shows
+(totals, best run, daily streak?) and what Reset progress clears.
 
 ## Phase checklist
 Larger phases are split into PR-sized chunks so each conversation stays small.
@@ -62,7 +61,7 @@ Larger phases are split into PR-sized chunks so each conversation stays small.
     Unlocks row (PR 30)
   - [x] 7c Remaining relics (9, to 24 total) with rarities and unlock
     flags (PR 31)
-  - [ ] 7d Daily seed mode (same run on every device) + title row
+  - [x] 7d Daily seed mode (same run on every device) + title row (PR 32)
   - [ ] 7e Stats & History screen; Settings > Data Reset progress;
     unlock/daily telemetry
 - [ ] **Phase 8** — Audio and polish
@@ -1068,3 +1067,27 @@ Larger phases are split into PR-sized chunks so each conversation stays small.
 - Tests: `tests/relics7c.test.js`; two unlock tests updated for the new
   starters and the 40-scrap commons.
 
+### PR 32: Phase 7d, daily seed
+- Decisions (user's choices; OPEN-QUESTIONS "Daily seed"): the UTC date
+  is the day and the seed, shown "Daily · Oct 14"; the first daily run of
+  a day is scored, later ones are practice (no scraps); every spirit and
+  relic is open.
+- `core/daily.js` (pure): dates, labels, time to the next daily,
+  `claimDaily` (scored or practice; records the day as `playing`),
+  `finishDaily` (the day's result), `parseDaily`, and the title row's
+  text (`dailyTitle`).
+- `createRun({ daily })`: seed = date, every relic; `run.daily` and
+  `run.practice` (only on daily runs). Meta gains `daily` (no version
+  bump: parseMeta fills it in).
+- Save code version 5: a daily bit, then day number (16 bits) and
+  practice; version 4 codes still read (locked by a test).
+- Title: Daily Seed row after New Run (continues today's scored run if
+  it is the saved one; asks before replacing another saved run). Spirit
+  select explains scored vs practice. Summary: Daily row, "None:
+  practice run" scraps, Retry this seed = practice daily, no Challenge
+  link on daily runs. Continue Run's note names the daily.
+- Telemetry: `run.start` / `run.end` carry `daily` (date or null) and
+  `practice`.
+- Tests: `tests/daily.test.js` (12), including the same floors and
+  offers whatever the device's unlocks. Checked in Chromium at phone
+  size: title → spirit → floor, abandon → practice; no console errors.

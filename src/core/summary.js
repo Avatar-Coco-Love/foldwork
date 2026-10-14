@@ -3,12 +3,14 @@
 //
 // Rows (user's choice, 6c): spirit, floors cleared, HP, relics, seed;
 // paper scraps (7a) when the screen passes them in, and (7b) the unlocks
-// the banked scraps just made affordable.
+// the banked scraps just made affordable; (7d) for a daily run, its day
+// and whether it was the scored run or practice.
 
 import { BOSS_FLOOR } from './run.js';
 import { relicDef } from './relics.js';
 import { spiritDef } from './spirits.js';
 import { shopKind } from './unlocks.js';
+import { dailyLabel } from './daily.js';
 
 /** How a lost run ended, by the floor's defeat cause (core/turn.js). */
 const LOSS_TEXT = {
@@ -46,6 +48,7 @@ export function runSummary(run, scraps = null) {
     title,
     text,
     rows: [
+      ...(run.daily ? [{ id: 'daily', label: 'Daily', value: `${dailyLabel(run.daily)} · ${run.practice ? 'practice' : 'scored run'}` }] : []),
       { id: 'spirit', label: 'Spirit', value: spirit ? `${spirit.glyph} ${spirit.name}` : 'None' },
       { id: 'floors', label: 'Floors cleared', value: `${run.cleared} / ${run.lastFloor}` },
       { id: 'hp', label: 'HP', value: `${won ? run.hp : 0} / ${run.maxHp}` },
@@ -60,7 +63,10 @@ export function runSummary(run, scraps = null) {
 // "+27 (140 saved)": the run's scraps and the bank after it. The list
 // shows how they were earned, then that total. A dev run shows what it
 // would earn, not banked.
-function scrapsRow({ earned, total, banked }) {
+function scrapsRow({
+  earned, total, banked, practice,
+}) {
+  if (practice) return { id: 'scraps', label: 'Paper scraps', value: 'None: practice run' };
   const value = banked ? `+${earned.total} (${total} saved)` : `+${earned.total} (dev run, not saved)`;
   const lines = earned.lines.map((l) => (l.count > 1 ? `${l.label}: ${l.count} × ${l.each} = ${l.amount}` : `${l.label}: ${l.amount}`));
   return { id: 'scraps', label: 'Paper scraps', value, items: lines.length ? [...lines, `Total: ${value}`] : [] };
