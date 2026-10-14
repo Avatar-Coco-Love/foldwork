@@ -38,7 +38,7 @@ const crane = (s) => findCreature(s.board, CRANE);
 
 test('defs: Great Crane 6 HP boss in 3 phases, drop 2, bump 0, fixed, not heavy; map symbol G', () => {
   const d = CREATURE_DEFS.crane;
-  assert.deepEqual([d.hp, d.ai, d.fixed, d.heavy, d.boss], [6, 'crane', true, undefined, { phases: 3, drop: 2, bump: 0 }]);
+  assert.deepEqual([d.hp, d.ai, d.fixed, d.heavy, d.boss], [6, 'crane', true, undefined, { phases: 3, drop: 2, bump: 0, spawn: { phase: 2, kind: 'mite', cap: 2 }, double: 3 }]);
   assert.equal(createCreature('crane').mark, null);
   assert.deepEqual(parseMap(['G @']).enemies.map((e) => e.kind), ['crane']);
   const c = createCreature('crane');

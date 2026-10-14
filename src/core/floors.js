@@ -510,13 +510,14 @@ export const FLOOR_TEMPLATES = Object.freeze([
   // first strip creases carry voids and the player has sheets to aim.
   // Too big to search (the solver runs out of memory), so the proof is a
   // stored line, replayed by the tests: spoil its first fold, herd it with
-  // a bump, then three drops, spoiling one more fold on the way. It takes
-  // no hit, so it wins at 1 HP. 6 charges: no line with 5 or fewer turned
-  // up (a beam search stalled at two drops each time).
+  // a bump, then three drops (each of the first two spawns a Mite), and
+  // spoil its double crease on the way. It takes no hit, so it wins at 1
+  // HP. 7 charges since 6b: with phase 2-3 a beam search found no line
+  // with 6 (it stalled at two drops), as 6 did for 5 in 6a.
   {
     id: 'f9-crane',
     floor: 9,
-    charges: 6,
+    charges: 7,
     rows: [
       'o . o . o . o',
       '. . . . . . .',
@@ -526,10 +527,10 @@ export const FLOOR_TEMPLATES = Object.freeze([
       '. . . . . . .',
       'o . o @ o . o',
     ],
-    line: ['u', 'fv6b', 'fv6a', 'u', 'u', 'fv1b', 'fv5b', 'fv3a', 'fv4b'],
+    line: ['u', 'fv6b', 'fv6a', 'u', 'u', 'fv1b', 'fv5b', 'fv3b', 'fv2a', 'fv4a'],
     needs: ['fold'],
     tip: 'Bumps only startle the Crane; only a void dropped on it hurts. When it marks a crease you get one action: step out of the marked strip, or fold first to spoil it. To hurt it, fold paper with a void onto it.',
-    hints: ['crane-telegraph', 'crane-swat'],
+    hints: ['crane-telegraph', 'crane-swat', 'crane-minions', 'crane-double'],
   },
 ]);
 

@@ -64,13 +64,15 @@
 //   { type: 'unfold', fold }
 //   { type: 'jaws', id, open, at }              a Lockjaw opened (bite next
 //                                                turn) or closed its jaws
-//   { type: 'mark', id, fold }                   a boss marked the crease it
-//                                                folds next turn
+//   { type: 'mark', id, fold, n }                a boss marked a crease it
+//                                                folds next turn (n: its
+//                                                order, 1 or 2 in phase 3)
 //   { type: 'fizzle', id, fold }                 its marked fold was invalid
 //                                                when due: nothing happens
 //   { type: 'swat', id, by, from, to }           a boss fold landed on the
 //                                                player: moved from `from`
-//                                                to `to` (a damage follows)
+//                                                to `to` (a damage follows,
+//                                                once per beat)
 //   { type: 'flee', id, creature, from, to }     a hit or bumped boss flew away
 //                                                (core/boss.js fleeSpot)
 //   { type: 'pickup', id, item, at }             the player took an item
@@ -93,8 +95,8 @@ import { DIRS, inBounds, getCell, topLayer, findCreature, cloneBoard, isFooting,
 import { tileDef, itemDef, ITEM } from './tiles.js';
 import { validateFold, applyFold, isDiagonal } from './fold.js';
 import { createCreature, creatureDef, isHeavy } from './creatures.js';
-import { actingEnemies, reachField, planEnemy, enemiesInReach } from './enemies.js';
-import { isBoss, markCode, fleeSpot } from './boss.js';
+import { actingEnemies, reachField, planEnemy, enemiesInReach, spawnSpot } from './enemies.js';
+import { isBoss, marksCode, fleeSpot, spawnsNow, enteredSpawnPhase, minionSpot, minionCount } from './boss.js';
 import { syncGates, tickPlates, isLocked, unlockLayer, keyMeetsLock, spendKey } from './environment.js';
 
 export { DIRS };
@@ -233,9 +235,11 @@ export function coverEffect(board, from, to) {
  * s.board): pin or void-drop whoever was covered. Strands are found by
  * runFold, which can compare reach before and after. `swat` is the id of
  * the boss that folded, if one did: a player it covers is swatted (moved
- * out and hit) instead of pinned or dropped. A pinned boss loses its mark.
+ * out and hit, or only moved when `hurt` is false) instead of pinned or
+ * dropped. A pinned boss loses its mark. Returns whether it swatted.
  */
-export function resolveFold(s, landings, emit, { swat = null } = {}) {
+export function resolveFold(s, landings, emit, { swat = null, hurt = true } = {}) {
+  let swatted = false;
   for (const l of landings) {
     if (s.status !== 'playing') break; // a boss drop won (or a fall lost) the floor
     const cell = getCell(s.board, l.to.col, l.to.row);
@@ -249,20 +253,24 @@ export function resolveFold(s, landings, emit, { swat = null } = {}) {
     }
     const covered = lower ? lower.creature : null;
     if (!covered) continue;
-    if (swat && covered.id === PLAYER_ID) swatPlayer(s, lower, at, swat, emit);
-    else if (tileDef(cell.layers[cell.layers.length - 1].tile).hole) fall(s, covered, at, emit);
+    if (swat && covered.id === PLAYER_ID) {
+      swatPlayer(s, lower, at, swat, hurt, emit);
+      swatted = true;
+    } else if (tileDef(cell.layers[cell.layers.length - 1].tile).hole) fall(s, covered, at, emit);
     else {
       if (isBoss(covered)) covered.mark = null; // pinned: its fold fizzles
       if (covered.jaws) covered.jaws = false; // pinned: its warning is off
       emit({ type: 'pin', id: covered.id, at });
     }
   }
+  return swatted;
 }
 
 // A boss fold landed on the player (on `layer`, now covered at `at`): out
 // to the nearest free footing (the new top of `at` if it is one), then 1
-// damage. Nowhere to go: the player falls.
-function swatPlayer(s, layer, at, by, emit) {
+// damage (none when `hurt` is false: a second swat in one beat). Nowhere
+// to go: the player falls.
+function swatPlayer(s, layer, at, by, hurt, emit) {
   const player = layer.creature;
   layer.creature = null;
   const to = nearestFreeFooting(s.board, at);
@@ -272,7 +280,7 @@ function swatPlayer(s, layer, at, by, emit) {
   }
   topLayer(s.board, to.col, to.row).creature = player;
   emit({ type: 'swat', id: PLAYER_ID, by, from: { ...at }, to });
-  damageAt(s, to, SWAT_DAMAGE, emit);
+  if (hurt) damageAt(s, to, SWAT_DAMAGE, emit);
 }
 
 // ---------------------------------------------------------------------------
@@ -327,6 +335,7 @@ export function act(state, action, { snapshots = false } = {}) {
     next.turn += 1;
     next.uses.guard = false; // Folded Shield lasts one turn cycle
   }
+  delete next.fresh; // this turn's spawns (bossSpawn): only runEnemies reads it
   return { ok: true, state: next, events, reason: null };
 }
 
@@ -455,14 +464,19 @@ function runUndo(state, snapshots) {
 // crease the player folded this turn. Spawners (def `spawn`) count down
 // `sprout` while they have a path to the player and spawn when it reaches
 // 1; with no free neighbour they stay ready. Spawns act from next turn.
+// `s.fresh` lists ids spawned during the player's action (a boss's
+// phase-entry minion); like every spawn they act from next turn.
 function runEnemies(s, emit, { action } = {}) {
+  const fresh = s.fresh || [];
   const player = findCreature(s.board, PLAYER_ID);
   if (!player) return;
   const fold = action && action.type === 'fold' ? action.fold : null;
   const ctx = { field: reachField(s.board, player), player, fold };
   for (const id of actingEnemies(s.board)) {
+    if (fresh.includes(id)) continue;
     if (s.status !== 'playing') break;
     const me = findCreature(s.board, id);
+    if (!me || !me.top) continue; // dropped or pinned by a boss fold this phase
     const def = creatureDef(me.creature.kind);
     if (def.pace > 1) {
       if (me.creature.rest > 0) {
@@ -497,11 +511,10 @@ function runEnemies(s, emit, { action } = {}) {
       me.creature.jaws = plan.open;
       emit({ type: 'jaws', id, open: plan.open, at: { col: me.col, row: me.row } });
     } else if (plan.type === 'mark') {
-      me.creature.mark = markCode(plan.fold);
-      emit({ type: 'mark', id, fold: { ...plan.fold } });
+      me.creature.mark = marksCode(plan.folds);
+      plan.folds.forEach((fold, k) => emit({ type: 'mark', id, fold: { ...fold }, n: k + 1 }));
     } else if (plan.type === 'crease') {
-      me.creature.mark = null;
-      bossFold(s, id, plan.fold, emit);
+      bossCreases(s, me.creature, plan.folds, emit);
       // The board changed under everyone still to act.
       ctx.player = findCreature(s.board, PLAYER_ID);
       ctx.field = reachField(s.board, ctx.player);
@@ -516,13 +529,55 @@ function runEnemies(s, emit, { action } = {}) {
   }
 }
 
-// A boss folds its marked crease (core/boss.js): no charge, no undo of its
-// own (the player's undo of this turn's fold still restores the state
-// before it). Invalid when due: it fizzles.
-function bossFold(s, id, fold, emit) {
+// A boss folds its marked creases in order (core/boss.js). Its mark holds
+// the creases still to come, so one that pins it or makes it flee (both
+// clear the mark) stops the rest. The player takes swat damage once per
+// beat. In a spawning phase (fixed when the beat starts), each fold that
+// leaves it unhurt and on top spawns a minion, up to the cap.
+// A fold replaces s.board with a copy, so the boss is found again after each.
+function bossCreases(s, creature, folds, emit) {
+  const id = creature.id;
+  const spawn = spawnsNow(creature) ? creatureDef(creature.kind).boss.spawn : null;
+  let swatted = false;
+  let me = findCreature(s.board, id);
+  for (let k = 0; k < folds.length; k++) {
+    me.creature.mark = k + 1 < folds.length ? marksCode(folds.slice(k + 1)) : null;
+    const hp = me.creature.hp;
+    const done = bossFold(s, id, folds[k], !swatted, emit);
+    if (!done) continue;
+    swatted = swatted || done.swatted;
+    me = findCreature(s.board, id);
+    if (s.status !== 'playing' || !me) return;
+    if (spawn && me.top && me.creature.hp === hp) bossSpawn(s, id, spawn, done.landings, `${k}`, emit);
+    if (!me.creature.mark) return;
+  }
+}
+
+// A minion appears on the fold's landed strip (core/boss.js minionSpot),
+// or, with no landings (a phase-entry spawn), on the boss's free neighbour
+// closest to the player (enemies.js spawnSpot), while the boss has fewer
+// than spawn.cap alive. It acts from next turn.
+function bossSpawn(s, id, spawn, landings, tag, emit) {
+  if (minionCount(s.board, id) >= spawn.cap) return;
+  const player = findCreature(s.board, PLAYER_ID);
+  const me = findCreature(s.board, id);
+  let to = null;
+  if (landings) to = minionSpot(s.board, landings, player);
+  else if (me && player) to = spawnSpot(s.board, me, reachField(s.board, player));
+  if (!to) return;
+  const minion = createCreature(spawn.kind, { id: `${id}-m${s.turn}-${tag}` });
+  topLayer(s.board, to.col, to.row).creature = minion;
+  (s.fresh ||= []).push(minion.id);
+  emit({ type: 'spawn', id, creature: { ...minion }, at: { ...to } });
+}
+
+// A boss folds one crease: no charge, no undo of its own (the player's
+// undo of this turn's fold still restores the state before it). Invalid
+// when due: it fizzles (null). Else { landings, swatted }.
+function bossFold(s, id, fold, hurt, emit) {
   if (!validateFold(s.board, fold).ok) {
     emit({ type: 'fizzle', id, fold: { ...fold } });
-    return;
+    return null;
   }
   let landings = [];
   s.board = applyFold(s.board, fold, {
@@ -532,7 +587,7 @@ function bossFold(s, id, fold, emit) {
     },
   });
   emit({ type: 'fold', fold: { ...fold }, by: id });
-  resolveFold(s, landings, emit, { swat: id });
+  return { landings, swatted: resolveFold(s, landings, emit, { swat: id, hurt }) };
 }
 
 function runEnvironment(s, emit) {
@@ -598,11 +653,13 @@ function flee(s, creature, from, emit) {
 // A boss that falls (a void dropped on it) takes boss.drop damage instead
 // of dying, then flees; at 0 HP it dies and the floor is won.
 function bossDrop(s, creature, at, emit) {
-  const amount = creatureDef(creature.kind).boss.drop;
-  creature.hp = Math.max(0, creature.hp - amount);
-  emit({ type: 'damage', id: creature.id, amount, hp: creature.hp, at: { ...at } });
+  const { drop, spawn } = creatureDef(creature.kind).boss;
+  const before = creature.hp;
+  creature.hp = Math.max(0, creature.hp - drop);
+  emit({ type: 'damage', id: creature.id, amount: drop, hp: creature.hp, at: { ...at } });
   if (creature.hp > 0) {
     flee(s, creature, at, emit);
+    if (enteredSpawnPhase(creature, before)) bossSpawn(s, creature.id, spawn, null, 'p', emit);
     return;
   }
   emit({ type: 'death', id: creature.id, creature, at: { ...at } });
