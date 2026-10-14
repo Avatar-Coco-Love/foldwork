@@ -752,6 +752,7 @@ export const floorScreen = {
         shownBoard = b;
         sync();
       },
+      sound: (ids) => ctx.audio.playAll(ids),
     });
 
     // Crease marks for the folds still in effect, rebuilt when the log grows.
@@ -873,7 +874,8 @@ export const floorScreen = {
       announce(result.events);
       queueHints({ type: 'events', events: result.events });
       input.setBusy(true);
-      playback.play(buildClips(before.board, result.events, ctx.motion()), state.board, settle);
+      const endSfx = [];
+      playback.play(buildClips(before.board, result.events, ctx.motion(), endSfx), state.board, settle, endSfx);
     }
 
     function settle() {
@@ -1504,6 +1506,7 @@ export const offerScreen = {
       if (next === ctx.run) return;
       ctx.telemetry.track('relic.pick', { ...runTag(next), cleared: offer.floor, pick: choice, index, offered: offer.relics.slice() });
       ctx.run = next;
+      if (choice) ctx.audio.play('relic'); // a relic or rest card
       ctx.router.go('floor', { ...params, floor: next.floor });
     };
 
@@ -1536,7 +1539,8 @@ export const offerScreen = {
       });
     }
     const cards = choices.map((c, i) => el('button', {
-      class: `offer-card rarity-${c.rarity}`, type: 'button', 'aria-label': `${i + 1}: ${c.label}`, onclick: () => choose(c.id, i),
+      // choose() plays the relic sound (keys pick too), not the tap.
+      class: `offer-card rarity-${c.rarity}`, type: 'button', 'data-sfx': 'none', 'aria-label': `${i + 1}: ${c.label}`, onclick: () => choose(c.id, i),
     }, el('span', { class: 'offer-key', 'aria-hidden': 'true', text: String(i + 1) }), ...c.body));
 
     const empty = !choices.length;

@@ -8,7 +8,7 @@
 //   - createPlayback sequences clips through the fx player and swaps the
 //     shown board between them. It never touches game state.
 //
-// Clip = { board, duration, fold?, reverse?, actor? }
+// Clip = { board, duration, fold?, reverse?, actor?, sfx? }
 //   fold    buildFoldAnim() result (fold / unfold events)
 //   actor   { kind, id, creature, from, to, fromLevel, toLevel, skip }
 //           kind: 'move' | 'slide' | 'bump' | 'shoot' | 'hit' | 'death'
@@ -20,19 +20,35 @@
 //
 // Events with no visual (wait, defeat) and zero-length clips (reduced
 // motion) produce no clip, so the board simply jumps to its final state.
+//
+// Sounds (audio/sounds.js soundForEvent) ride the clips: `sfx` lists the
+// sounds to start with a clip, its own and those of the silent-picture
+// events just before it (a key picked up sounds as the next clip starts,
+// i.e. when the step onto it ends). Sounds after the last clip go into
+// `endSfx` and play when the turn has finished playing.
 
 import { buildFoldAnim, foldDurationMs, clipDurationMs, ACTOR_MS } from './fx.js';
 import { findCreature, stackHeight, topLayer } from '../core/board.js';
+import { soundForEvent } from '../audio/sounds.js';
 
-export function buildClips(startBoard, events, motion) {
+/** endSfx: an array to collect the sounds that follow the last clip. */
+export function buildClips(startBoard, events, motion, endSfx = null) {
   const clips = [];
   let board = startBoard;
+  let sfx = [];
   for (const ev of events) {
     const after = ev.board || board;
+    const sound = soundForEvent(ev);
+    if (sound) sfx.push(sound);
     const clip = clipFor(ev, board, after, motion);
-    if (clip && clip.duration > 0) clips.push(clip);
+    if (clip && clip.duration > 0) {
+      if (sfx.length) clip.sfx = sfx;
+      sfx = [];
+      clips.push(clip);
+    }
     board = after;
   }
+  if (endSfx) endSfx.push(...sfx);
   return clips;
 }
 
@@ -122,15 +138,17 @@ function actorClip(board, kind, id, creature, from, to, fromLevel, toLevel, skip
 }
 
 /**
- * createPlayback({ fx, show })
+ * createPlayback({ fx, show, sound })
  *   fx     the fx player
  *   show   show(board): the owner puts this board in the renderer's scene
+ *   sound  sound(ids): play these sounds now (optional)
  *
- * play(clips, endBoard, done) plays the clips in order, shows endBoard, then
- * calls done(). finish() skips to the end.
+ * play(clips, endBoard, done, endSfx) plays the clips in order, shows
+ * endBoard, plays endSfx, then calls done(). finish() skips to the end
+ * (skipped clips stay silent; endSfx still plays).
  */
-export function createPlayback({ fx, show }) {
-  let run = null; // { clips, i, endBoard, done }
+export function createPlayback({ fx, show, sound = null }) {
+  let run = null; // { clips, i, endBoard, done, endSfx }
 
   function step() {
     const r = run;
@@ -138,11 +156,13 @@ export function createPlayback({ fx, show }) {
     if (r.i >= r.clips.length) {
       run = null;
       show(r.endBoard);
+      if (sound && r.endSfx.length) sound(r.endSfx);
       if (r.done) r.done();
       return;
     }
     const clip = r.clips[r.i++];
     show(clip.board);
+    if (sound && clip.sfx) sound(clip.sfx);
     if (clip.fold) fx.playFold(clip.fold, { duration: clip.duration, reverse: clip.reverse, done: step });
     else fx.playActor(clip.actor, { duration: clip.duration, done: step });
   }
@@ -151,9 +171,9 @@ export function createPlayback({ fx, show }) {
     get busy() {
       return !!run;
     },
-    play(clips, endBoard, done = null) {
+    play(clips, endBoard, done = null, endSfx = []) {
       this.finish();
-      run = { clips, i: 0, endBoard, done };
+      run = { clips, i: 0, endBoard, done, endSfx };
       step();
     },
     finish() {

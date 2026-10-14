@@ -43,6 +43,18 @@ These belong to later phases and get decided when that phase is built.
   file would load `share.png`, which the game must not).
 
 ## Resolved
+- Phase 8 plan and audio (8a, user's choices). **Chunks:** 8a audio
+  engine, sound effects and Settings > Audio; 8b the generative ambient
+  loop; 8c visual polish (paper grain, shadows, fold polish, screen
+  shake); 8d the alignment audit and the accessibility checklist.
+  **Sounds:** the full docs/04 list (fold swish/crinkle, bump, pin,
+  door, key, fall, relic chosen, boss telegraph, victory, defeat) plus a
+  soft button tap; also unfold, hit, block, an enemy tear and a gate
+  latch so each of those events has its own cue. Moves and waits stay
+  silent. **Settings > Audio:** Master volume, Music, Effects as
+  5-step rows (Off, 25, 50, 75, 100%), then Mute (On/Off). Defaults:
+  master 75%, music 50%, effects 75%, mute off. **Default:** audio on;
+  it starts after the first tap or key press (browser autoplay rules).
 - Stats & History and Reset progress (7e, user's choices). **Stats:**
   totals (runs, won with a percentage, torn, given up, floors cleared,
   fold kills, Great Crane wins, paper scraps earned), the best run (most

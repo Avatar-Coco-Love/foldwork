@@ -56,6 +56,8 @@ import {
 } from './core/unlocks.js';
 import { runScraps } from './core/scraps.js';
 import { claimDaily, finishDaily } from './core/daily.js';
+import { createAudio } from './audio/sfx.js';
+import { mixLevels } from './audio/sounds.js';
 
 const params = Object.fromEntries(new URLSearchParams(location.search));
 const canvas = document.getElementById('board');
@@ -69,6 +71,7 @@ rootStyle.setProperty('--hud-bottom', HUD_METRICS.bottom + 'px');
 rootStyle.setProperty('--hud-side', HUD_METRICS.side + 'px');
 
 const renderer = createRenderer(canvas);
+const audio = createAudio();
 const reducedMotionQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
 
 // Saved settings, with dev URL overrides applied for this session only.
@@ -336,6 +339,8 @@ const ctx = {
     ctx.telemetry.setRun(null);
   },
   renderer,
+  /** Sound effects (audio/sfx.js): play(id), playAll(ids). */
+  audio,
   router: null,
   settings: settingsOverride,
   updateSettings(patch) {
@@ -396,7 +401,25 @@ function applySettings() {
   renderer.setLeftHanded(left);
   rootStyle.setProperty('--text-scale', String(textScale(s)));
   applyMotionClass();
+  audio.setLevels(mixLevels(s));
 }
+
+// --- Audio -----------------------------------------------------------------
+
+// Browsers allow sound only after a gesture: every press wakes the audio
+// (the first one creates it; later ones resume it after an interruption).
+for (const type of ['pointerdown', 'keydown', 'touchend']) {
+  document.addEventListener(type, audio.unlock, { capture: true, passive: true });
+}
+// Buttons tap, unless they ask for another sound (data-sfx; 'none' when
+// their action plays its own). It runs after the button's own handler, so
+// a volume row taps at its new volume.
+document.addEventListener('click', (e) => {
+  const btn = e.target instanceof Element ? e.target.closest('button') : null;
+  if (!btn || btn.disabled) return;
+  const id = btn.dataset.sfx || 'tap';
+  if (id !== 'none') audio.play(id);
+});
 
 ctx.router
   .register('title', titleScreen)

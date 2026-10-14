@@ -6,6 +6,7 @@
 // later phase adds a row here, not mount code.
 
 import { PALETTES, DEFAULT_PALETTE_ID } from '../render/palette.js';
+import { VOLUME_STEPS, MUTE_MODES } from '../audio/sounds.js';
 
 export const SETTINGS_KEY = 'foldwork.settings';
 export const SETTINGS_VERSION = 1;
@@ -64,6 +65,11 @@ export const DEFAULT_SETTINGS = Object.freeze({
   hand: 'right',
   confirmFolds: 'off',
   telemetry: 'on',
+  // Audio (8a): on by default; it starts after the first tap or key.
+  masterVolume: '75',
+  musicVolume: '50',
+  sfxVolume: '75',
+  mute: 'off',
 });
 
 /** The settings that are a choice from a list, and the list. */
@@ -75,6 +81,10 @@ const CHOICES = Object.freeze({
   hand: HANDS,
   confirmFolds: CONFIRM_FOLDS,
   telemetry: TELEMETRY_MODES,
+  masterVolume: VOLUME_STEPS,
+  musicVolume: VOLUME_STEPS,
+  sfxVolume: VOLUME_STEPS,
+  mute: MUTE_MODES,
 });
 
 /**
@@ -120,6 +130,17 @@ export const SETTINGS_GROUPS = Object.freeze([
       { id: 'save-code', label: 'Save code', note: 'Move your run to another device.', action: 'saveCode' },
       // Title screen only (the panel drops a row without its action).
       { id: 'reset-progress', label: 'Reset progress', note: 'Erase scraps, unlocks, stats and history.', action: 'resetProgress' },
+    ],
+  },
+  {
+    // Every sound is made in code (audio/). Volumes step Off → 100%.
+    id: 'audio',
+    title: 'Audio',
+    rows: [
+      { id: 'master-volume', label: 'Master volume', key: 'masterVolume' },
+      { id: 'music-volume', label: 'Music', key: 'musicVolume' },
+      { id: 'sfx-volume', label: 'Effects', key: 'sfxVolume' },
+      { id: 'mute', label: 'Mute', key: 'mute' },
     ],
   },
 ]);
