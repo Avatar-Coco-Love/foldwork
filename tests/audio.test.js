@@ -53,7 +53,7 @@ test('audio settings: defaults on, steps, mute, bad values reset', () => {
   assert.deepEqual([s.masterVolume, s.musicVolume, s.mute], ['25', '50', 'on']);
   assert.equal(choicesFor('sfxVolume'), VOLUME_STEPS);
   const audio = SETTINGS_GROUPS.find((g) => g.id === 'audio');
-  assert.deepEqual(audio.rows.map((r) => r.key), ['masterVolume', 'musicVolume', 'sfxVolume', 'mute']);
+  assert.deepEqual(audio.rows.filter((r) => r.key).map((r) => r.key), ['masterVolume', 'musicVolume', 'sfxVolume', 'mute']);
 });
 
 test('clip sounds: a bump and kill sound with their clips', () => {

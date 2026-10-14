@@ -14,7 +14,9 @@ import {
 } from '../core/turn.js';
 import { scatterEnemies } from '../core/enemies.js';
 import { CREATURE_DEFS } from '../core/creatures.js';
-import { SETTINGS_GROUPS, rowChoices, cycleOption, optionName } from './settings.js';
+import {
+  SETTINGS_GROUPS, rowChoices, cycleOption, optionName, defaultsFor,
+} from './settings.js';
 import { APP_VERSION, PROJECTS_URL } from '../config.js';
 import { newSince } from '../core/changelog.js';
 import { whatsNewPanel } from './whatsNew.js';
@@ -297,10 +299,33 @@ const CREDITS = 'Made by Cody Joshua Clements, built with Claude. Every picture 
 function settingsPanel(ctx, onBack, {
   saveCode, whatsNew, resetProgress = null, said = '',
 }) {
+  const syncs = []; // each choice row's value refresh
+  const status = el('p', { class: 'code-status', role: 'status', text: said });
+  const restore = (groupId, text) => {
+    ctx.updateSettings(defaultsFor(groupId));
+    for (const sync of syncs) sync();
+    status.textContent = text;
+  };
   const actions = {
     saveCode: () => saveCode(),
     // Only from the title's Settings; in a run the row isn't shown.
     ...(resetProgress ? { resetProgress: () => resetProgress() } : {}),
+    // Restore defaults (8g): the rows show their new values; all of them
+    // asks with a second tap first.
+    restoreAudio(btn) {
+      restore('audio', 'Audio settings restored.');
+      btn.querySelector('.setting-label').textContent = 'Audio defaults restored';
+    },
+    restoreAll(btn) {
+      if (btn.dataset.armed) {
+        restore(null, 'Default settings restored.');
+        delete btn.dataset.armed;
+        btn.querySelector('.setting-label').textContent = 'Default settings restored';
+        return;
+      }
+      btn.dataset.armed = '1';
+      btn.querySelector('.setting-label').textContent = 'Tap again to restore every setting';
+    },
     resetHints(btn) {
       saveSeenHints(new Set());
       btn.querySelector('.setting-label').textContent = 'Tutorial hints will show again';
@@ -330,6 +355,7 @@ function settingsPanel(ctx, onBack, {
       syncValue();
     });
     syncValue();
+    syncs.push(syncValue);
     return btn;
   };
   const group = (id, title, children) => el('section', { class: 'settings-group', 'aria-labelledby': `settings-${id}` },
@@ -341,7 +367,7 @@ function settingsPanel(ctx, onBack, {
   });
   return el('div', { class: 'menu settings' },
     el('h2', { class: 'outcome-title', text: 'Settings' }),
-    el('p', { class: 'code-status', role: 'status', text: said }),
+    status,
     el('div', { class: 'settings-groups' },
       groups,
       group('about', 'About', [

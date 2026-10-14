@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from './harness.js';
 import {
-  SETTINGS_GROUPS, DEFAULT_SETTINGS, choicesFor, normalizeSettings, textScale, PALETTE_OPTIONS,
+  SETTINGS_GROUPS, DEFAULT_SETTINGS, choicesFor, normalizeSettings, textScale, PALETTE_OPTIONS, defaultsFor,
 } from '../src/ui/settings.js';
 import { PALETTES } from '../src/render/palette.js';
 import {
@@ -74,4 +74,25 @@ test('settings: Save code is an action row in the Data group', () => {
   const row = data.rows.find((r) => r.id === 'save-code');
   assert.equal(row.action, 'saveCode');
   assert.ok(!row.show, 'always shown');
+});
+
+test('settings: Restore defaults, for audio or every group (8g)', () => {
+  const rowIds = SETTINGS_GROUPS.flatMap((g) => g.rows.map((r) => r.id));
+  assert.ok(rowIds.includes('restore-audio') && rowIds.includes('restore-settings'));
+  assert.deepEqual(defaultsFor('audio'), {
+    masterVolume: DEFAULT_SETTINGS.masterVolume,
+    musicVolume: DEFAULT_SETTINGS.musicVolume,
+    sfxVolume: DEFAULT_SETTINGS.sfxVolume,
+    mute: DEFAULT_SETTINGS.mute,
+  });
+  const changed = normalizeSettings({
+    palette: 'night-ink', textSize: 'large', hand: 'left', confirmFolds: 'on', masterVolume: '25', mute: 'on', telemetry: 'off',
+  });
+  const audioOnly = normalizeSettings({ ...changed, ...defaultsFor('audio') });
+  assert.equal(audioOnly.masterVolume, DEFAULT_SETTINGS.masterVolume);
+  assert.equal(audioOnly.mute, DEFAULT_SETTINGS.mute);
+  assert.equal(audioOnly.palette, 'night-ink', 'other groups stay');
+  const all = normalizeSettings({ ...changed, ...defaultsFor() });
+  assert.deepEqual({ ...all, telemetry: DEFAULT_SETTINGS.telemetry }, DEFAULT_SETTINGS, 'everything else is the default');
+  assert.equal(all.telemetry, 'off', 'sharing play data stays the player\'s choice');
 });

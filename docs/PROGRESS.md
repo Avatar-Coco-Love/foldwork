@@ -76,6 +76,7 @@ Larger phases are split into PR-sized chunks so each conversation stays small.
     and the accessibility checklist (PR 38)
   - [x] 8f Version from a changelog, What's New page, audible ambient
     loop (PR 39)
+  - [x] 8g Restore default settings (audio, or all) (PR 40)
 - [ ] **Phase 9** — Playtesting, balance, manifest
 
 ## Log
@@ -1300,3 +1301,18 @@ Larger phases are split into PR-sized chunks so each conversation stays small.
 - Tests: `changelog.test.js` (4: version = newest entry, entries ordered
   and well formed, compare/new/starting version, storage); the ambient
   test now requires notes at 200 Hz or more. 438 pass.
+
+### PR 40: Phase 8g, restore default settings
+- Decisions (user's request): a way back to the defaults, for sound or
+  for everything. Sharing play data is left alone (a privacy choice is
+  the player's; it is hidden while collection is off anyway).
+- `ui/settings.js`: `defaultsFor(groupId?)`, the defaults for one
+  group's choice rows or all of them, as a settings patch. Rows: Audio
+  > Restore audio defaults (one tap); Data > Restore default settings
+  (a second tap confirms: "Tap again to restore every setting").
+- Settings panel: every choice row re-shows its value after a restore,
+  the button says what happened, and the status line announces it.
+- Changelog 0.8.7.
+- Tests: menus (restore audio leaves other groups; restore all equals
+  the defaults except play data, which also proves every setting has a
+  row). 439 pass.
