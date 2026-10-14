@@ -4,12 +4,12 @@
 small. At the end of each conversation, update this file in the same PR.
 
 ## Next up
-**Phase 8: split it into PR-sized chunks first** (docs/06 Phase 8:
-synthesized SFX and ambient loop with volume controls; visual polish;
-the alignment audit), then start the audio chunk. Read docs/04 (Audio)
-and ask which sounds come first and the Settings > Audio rows (master,
-music, effects, mute). All audio is synthesized (Web Audio API, hard
-rule 1).
+**Phase 8b: the ambient loop** (docs/04 Audio: a soft generative loop,
+slow pentatonic pads and gentle plucks driven by the seeded RNG, low
+CPU). It plays into the music bus from 8a (`audio.music()` gives the
+context and bus; the Music row already sets its level). Ask: where it
+plays (title and floors, or floors only), whether it changes on the
+boss floor, and whether it pauses in menus.
 
 ## Phase checklist
 Larger phases are split into PR-sized chunks so each conversation stays small.
@@ -66,6 +66,11 @@ Larger phases are split into PR-sized chunks so each conversation stays small.
   - [x] 7e Stats & History screen; Settings > Data Reset progress;
     unlock/daily telemetry (PR 33)
 - [ ] **Phase 8** — Audio and polish
+  - [x] 8a Audio engine, sound effects, Settings > Audio (PR 34)
+  - [ ] 8b Generative ambient loop (music bus)
+  - [ ] 8c Visual polish: paper grain, shadows, fold polish, screen shake
+  - [ ] 8d Alignment audit (phone, tablet, desktop, both orientations)
+    and the accessibility checklist
 - [ ] **Phase 9** — Playtesting, balance, manifest
 
 ## Log
@@ -1116,3 +1121,31 @@ Larger phases are split into PR-sized chunks so each conversation stays small.
   its "unknown field" example and now uses another name. Checked in
   Chromium (390x844, 844x390): empty screen, filled screen, title note,
   reset confirm, Esc, erase; no console errors, no sideways scroll.
+
+### PR 34: Phase 8a, sound effects and Settings > Audio
+- Decisions (user's choices; OPEN-QUESTIONS "Phase 8 plan and audio"):
+  Phase 8 split into 8a–8d; the full docs/04 sound list plus a button
+  tap; volume rows step Off/25/50/75/100%; audio on by default.
+- `audio/sounds.js` (pure): every sound as data (tone and filtered-noise
+  voices with glides and envelopes), `soundForEvent` (turn event → sound;
+  moves and waits are silent), `VOLUME_STEPS`, `mixLevels` (squared
+  steps; mute zeroes the master).
+- `audio/sfx.js` (Web Audio): voices → effects bus / music bus → master.
+  Created on the first pointer or key press (main.js), suspended while
+  the page is hidden, a shared seeded noise buffer, at most 24 voices,
+  the same sound at most once per 30 ms, volume changes glide (no
+  clicks). No audio device: the game plays silent.
+- Playback: `buildClips` gives each clip the sounds to start with it
+  (its own and those of picture-less events just before, so a key
+  pickup sounds as the step onto it ends) and collects the rest in
+  `endSfx` (victory, defeat), which plays when the turn ends. Under
+  reduced motion every sound plays at the end; skipped clips are silent.
+- UI: Settings > Audio (Master volume, Music, Effects, Mute; title and
+  pause menu). Buttons tap after their own handler (`data-sfx` picks
+  another sound, `none` for none), so a volume row taps at its new
+  level. Relic and rest cards play the relic sound (keys 1–3 too).
+  The Music row has nothing to play until 8b.
+- Tests: `tests/audio.test.js` (7). Checked in Chromium (390x844): no
+  context before a gesture, running after; the Audio rows cycle and
+  save; a fold plays; no console errors.
+
