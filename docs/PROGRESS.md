@@ -6,9 +6,13 @@ and add a player-facing entry at the top of `src/core/changelog.js` (that
 entry is the version bump: `0.<phase>.<n>`, see its header).
 
 ## Next up
-**Phase 9: playtesting, balance, manifest** (docs/06). Ask the user for
-more playtest notes, then split the rest of Phase 9 into PR-sized chunks
-here (9a, the diagonal hint fix, is done).
+**Phase 9: playtesting, balance, manifest** (docs/06). Telemetry is live
+(9b). Once playtests have filled the Sheet, export it as CSV and run
+`node tools/replay-check.js events.csv` to start 9c balance (fold charges,
+enemy stats, scrap rates, relic weights, diagonal shortcuts). Without data
+yet, do 9e (home-screen manifest) first. Planned: 9c balance from
+telemetry, 9d Great Crane balance, 9e manifest, 9f performance and
+cross-device pass; playtest notes get their own fix PRs.
 
 ## Phase checklist
 Larger phases are split into PR-sized chunks so each conversation stays small.
@@ -80,6 +84,11 @@ Larger phases are split into PR-sized chunks so each conversation stays small.
 - [ ] **Phase 9** — Playtesting, balance, manifest
   - [x] 9a Hint search with diagonal creases (playtest: F8 with the Frog)
     (PR 41)
+  - [x] 9b Telemetry live: Google Sheets collector, collection on (PR 42)
+  - [ ] 9c Balance from telemetry (`tools/replay-check.js`)
+  - [ ] 9d Great Crane balance and arena templates
+  - [ ] 9e Home-screen manifest (icons drawn in code)
+  - [ ] 9f Performance and cross-device pass
 
 ## Log
 
@@ -1333,3 +1342,14 @@ Larger phases are split into PR-sized chunks so each conversation stays small.
 - The give-up text now says the search ran out and a line may still exist.
 - Changelog 0.9.0.
 - Tests: hintLine (the playtest position finds a clean line). 440 pass.
+
+### PR 42: Phase 9b, telemetry live
+- The user deployed `tools/telemetry-sheets/Code.gs` as an Apps Script web
+  app on their Sheet (access: Anyone). `src/config.js`: `collect: true`
+  and that `/exec` URL as `endpoint`.
+- Consent for playtests (user's choice): on by default with the switch.
+  Settings > Data > Share play data gains a note on what is sent.
+  OPEN-QUESTIONS: resolved for playtests; launch consent stays open.
+- Collector checked with a test POST (a `collector.test` row; delete it
+  from the Sheet or ignore it, replay-check skips non-floor events).
+- Changelog 0.9.1. Phase 9 split into 9c–9f.

@@ -165,8 +165,9 @@ rewind `x<n>` keeps the first n accepted actions, counting `resumedFrom`). Input
 - A player setting ("Share play data", title screen; the Phase 7 settings
   screen later) turns it off. Off deletes unsent events and records nothing
   more.
-- With `collect: false` (the default in the repo) nothing is recorded;
-  with no `endpoint` nothing is sent.
+- With `collect: false` nothing is recorded; with no `endpoint` nothing
+  is sent. Since 9b (0.9.1) the repo ships `collect: true` with the
+  playtest Sheets endpoint, sharing on by default (OPEN-QUESTIONS).
 - Before a public launch, decide the consent notice and default (see
   `docs/OPEN-QUESTIONS.md`).
 
