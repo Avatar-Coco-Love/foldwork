@@ -23,7 +23,9 @@
 // Def fields: id, name, text (one line for the HUD and offers), group
 // ('fold' | 'defense' | 'utility'), rarity ('common' | 'uncommon' | 'rare';
 // its offer weight, RARITY_WEIGHTS), glyph (a short symbol for the relic
-// tray and offer cards), hooks.
+// tray and offer cards), unlock ('starter' for the relics a new player
+// has; left out, the relic is bought in the unlocks shop at its rarity's
+// cost; core/unlocks.js), hooks.
 //
 // Rarities are provisional until playtests (docs/OPEN-QUESTIONS.md).
 
@@ -32,6 +34,10 @@ import { DEFAULT_MAX_STACK } from './board.js';
 
 /** Offer weight per rarity: a common shows up 6× as often as a rare. */
 export const RARITY_WEIGHTS = Object.freeze({ common: 6, uncommon: 3, rare: 1 });
+
+/** Rarity and group names for cards (offers, the unlocks shop). */
+export const RARITY_NAMES = Object.freeze({ common: 'Common', uncommon: 'Uncommon', rare: 'Rare' });
+export const GROUP_NAMES = Object.freeze({ fold: 'Fold', defense: 'Defense', utility: 'Utility' });
 
 const atLeast = (field, n) => (rules) => ({ ...rules, [field]: Math.max(rules[field], n) });
 
@@ -42,6 +48,7 @@ export const RELIC_DEFS = Object.freeze({
     text: '+1 fold charge on every floor.',
     group: 'fold',
     rarity: 'common',
+    unlock: 'starter',
     glyph: '+1',
     hooks: {
       setup: (setup) => ({ ...setup, charges: setup.charges + 1 }),
@@ -78,6 +85,7 @@ export const RELIC_DEFS = Object.freeze({
     text: 'Free undo can take back your last 2 folds.',
     group: 'fold',
     rarity: 'common',
+    unlock: 'starter',
     glyph: '↶2',
     hooks: { rules: atLeast('undoDepth', 2) },
   },
@@ -98,6 +106,7 @@ export const RELIC_DEFS = Object.freeze({
     text: '+1 max HP, and heal 1.',
     group: 'defense',
     rarity: 'common',
+    unlock: 'starter',
     glyph: '♥+',
     hooks: {
       gain: (run) => ({ ...run, maxHp: run.maxHp + 1, hp: Math.min(run.maxHp + 1, run.hp + 1) }),
@@ -109,6 +118,7 @@ export const RELIC_DEFS = Object.freeze({
     text: 'Ignore the first hit on each floor.',
     group: 'defense',
     rarity: 'common',
+    unlock: 'starter',
     glyph: '▣',
     hooks: { rules: atLeast('wards', 1) },
   },
@@ -118,6 +128,7 @@ export const RELIC_DEFS = Object.freeze({
     text: 'Once per run, survive walking into a void: stay put and take 1 damage.',
     group: 'defense',
     rarity: 'uncommon',
+    unlock: 'starter',
     glyph: '☂',
     hooks: { gain: (run) => ({ ...run, landings: (run.landings || 0) + 1 }) },
   },
@@ -127,6 +138,7 @@ export const RELIC_DEFS = Object.freeze({
     text: 'After you fold, the next hit that turn is negated.',
     group: 'defense',
     rarity: 'uncommon',
+    unlock: 'starter',
     glyph: '◈',
     hooks: { rules: (rules) => ({ ...rules, foldGuard: true }) },
   },
@@ -136,6 +148,7 @@ export const RELIC_DEFS = Object.freeze({
     text: 'Heal 1 HP after every 2 floors cleared.',
     group: 'defense',
     rarity: 'common',
+    unlock: 'starter',
     glyph: '✚',
     hooks: {
       cleared: (run) => (run.cleared % 2 === 0 ? { ...run, hp: Math.min(run.maxHp, run.hp + 1) } : run),
@@ -147,6 +160,7 @@ export const RELIC_DEFS = Object.freeze({
     text: 'Ranged attacks (Paper Wasp stings) deal you no damage.',
     group: 'defense',
     rarity: 'common',
+    unlock: 'starter',
     glyph: '◍',
     hooks: { rules: (rules) => ({ ...rules, waxCoat: true }) },
   },
@@ -158,6 +172,7 @@ export const RELIC_DEFS = Object.freeze({
     text: 'The first lock you walk into on each floor opens without a key.',
     group: 'utility',
     rarity: 'common',
+    unlock: 'starter',
     glyph: '⚿',
     hooks: { rules: atLeast('freeLocks', 1) },
   },
@@ -167,6 +182,7 @@ export const RELIC_DEFS = Object.freeze({
     text: 'Your bumps deal +1 damage to enemies on stacked tiles.',
     group: 'utility',
     rarity: 'common',
+    unlock: 'starter',
     glyph: '✂',
     hooks: { rules: atLeast('stackBump', 1) },
   },

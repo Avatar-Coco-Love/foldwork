@@ -11,6 +11,11 @@
 //     lastFloor,  the run is won after clearing this floor
 //     hp, maxHp,  the player's HP, carried between floors
 //     relics,     relic ids, in the order taken (core/relics.js)
+//     pool,       the relics this run's offers draw from: an array of ids
+//                 (the player's unlocks when the run started, Phase 7b),
+//                 or RELIC_POOL_ALL for every relic in the game (challenge
+//                 and daily runs, so everyone gets the same pool; absent
+//                 in older saves, which started with every relic)
 //     landings,   falls the player can still survive (Soft Landing)
 //     cleared,    floors cleared
 //     foldKills,  enemies killed by the player's folds, floors finished so
@@ -51,6 +56,16 @@ export const REST_HEAL = 2;
 /** HP healed for a floor cleared without taking damage (playtest round 1). */
 export const CLEAN_HEAL = 1;
 
+/** run.pool for every relic in the game (see RunState). */
+export const RELIC_POOL_ALL = 'all';
+
+/** The relic ids a run's offers may draw from (ids this build doesn't know are skipped). */
+export function poolIds(pool) {
+  if (!Array.isArray(pool)) return Object.keys(RELIC_DEFS);
+  const ids = new Set(pool);
+  return Object.keys(RELIC_DEFS).filter((id) => ids.has(id));
+}
+
 /** Floors in a full run before the boss (docs/03). */
 export const RUN_FLOORS = 8;
 
@@ -72,8 +87,11 @@ export function runLength(floors = templateFloors()) {
 /**
  * A new run as `spirit` (its HP, then its `gain` hook). `relics` start in
  * the run (dev `?relics=`); `floor` starts it deeper (dev `?floor=`).
+ * `pool` is the relics its offers draw from (RunState.pool).
  */
-export function createRun({ seed, relics = [], spirit = null, floor = 1, lastFloor = runLength() } = {}) {
+export function createRun({
+  seed, relics = [], spirit = null, floor = 1, lastFloor = runLength(), pool = RELIC_POOL_ALL,
+} = {}) {
   const hp = spirit ? spiritDef(spirit).hp : CREATURE_DEFS.player.hp;
   let run = {
     v: RUN_VERSION,
@@ -84,6 +102,7 @@ export function createRun({ seed, relics = [], spirit = null, floor = 1, lastFlo
     hp,
     maxHp: hp,
     relics: [],
+    pool: Array.isArray(pool) ? pool.slice() : RELIC_POOL_ALL,
     landings: 0,
     cleared: 0,
     foldKills: 0,
@@ -156,7 +175,8 @@ export function finishFloor(run, floorState) {
 
 /**
  * The relic offer after clearing `floor`: OFFER_SIZE relics (or what the
- * relics' `offer` hooks make it), weighted by rarity, none already owned
+ * relics' `offer` hooks make it) from the run's pool (in RELIC_DEFS
+ * order, so a pool's own order never matters), weighted by rarity, none already owned
  * or covered by the spirit's perk, and no repeats, from the run seed's
  * own stream (`offers-<floor>`), so a seed always offers the same. `rest` adds the rest option (REST_FLOORS).
  * Fewer relics are offered once the pool runs low.
@@ -165,7 +185,7 @@ export function rollOffer(run, floor) {
   const { count } = runHooks(run.relics, 'offer', { count: OFFER_SIZE });
   const rng = fork(createRng(run.seed), `offers-${floor}`);
   const covered = run.spirit ? spiritDef(run.spirit).covers : [];
-  const pool = Object.keys(RELIC_DEFS).filter((id) => !run.relics.includes(id) && !covered.includes(id));
+  const pool = poolIds(run.pool).filter((id) => !run.relics.includes(id) && !covered.includes(id));
   const relics = [];
   while (relics.length < count && pool.length) {
     const id = pickWeighted(rng, pool, (r) => RARITY_WEIGHTS[relicDef(r).rarity] ?? 1);

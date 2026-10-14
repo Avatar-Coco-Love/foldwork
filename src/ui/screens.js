@@ -12,7 +12,7 @@ import {
 } from '../core/turn.js';
 import { scatterEnemies } from '../core/enemies.js';
 import { CREATURE_DEFS } from '../core/creatures.js';
-import { SETTINGS_GROUPS, choicesFor, cycleOption, optionName } from './settings.js';
+import { SETTINGS_GROUPS, rowChoices, cycleOption, optionName } from './settings.js';
 import { APP_VERSION, PROJECTS_URL } from '../config.js';
 import { createBoard, findCreature } from '../core/board.js';
 import { TILE } from '../core/tiles.js';
@@ -27,7 +27,8 @@ import { stateKey } from '../core/solver.js';
 import { createHintSearch } from './hintSearch.js';
 import { shareGame, shareUrl, challengeUrl } from './share.js';
 import { encodeSaveCode, decodeSaveCode, isCodeSeed } from '../core/saveCode.js';
-import { relicDef } from '../core/relics.js';
+import { relicDef, RARITY_NAMES, GROUP_NAMES } from '../core/relics.js';
+import { affordable, unlockCost } from '../core/unlocks.js';
 import { runSummary } from '../core/summary.js';
 import { SPIRIT_DEFS, spiritDef } from '../core/spirits.js';
 import { HINTS, hintDef, hintsFor } from '../core/hints.js';
@@ -37,9 +38,9 @@ import { createRng, fork, nextInt, chance } from '../core/rng.js';
 
 /**
  * Title menu rows (OPEN-QUESTIONS "Menu redesign"): { id, label, show(c),
- * note(c), go(ctx, c) }, where c is { save, confirmNewRun }. The first row
- * shown is the primary button. Later phases add rows here (Daily Seed,
- * Unlocks, Stats & History).
+ * note(c), go(ctx, c) }, where c is { save, scraps, ready, confirmNewRun }
+ * (ready: shop items the player can buy now). The first row shown is the
+ * primary button. Later phases add rows here (Daily Seed, Stats & History).
  */
 export const TITLE_ROWS = [
   {
@@ -51,6 +52,12 @@ export const TITLE_ROWS = [
   },
   // With a saved run, New Run asks before it replaces it.
   { id: 'new-run', label: 'New Run', go: (ctx, c) => (c.save ? c.confirmNewRun() : startNewRun(ctx)) },
+  {
+    id: 'unlocks',
+    label: 'Unlocks',
+    note: (c) => `${scrapsText(c.scraps)}${c.ready ? ` · ${c.ready} ready to unlock` : ''}`,
+    go: (ctx) => ctx.router.go('unlocks', { from: 'title' }),
+  },
   { id: 'howto', label: 'How to Play', go: (ctx) => ctx.router.go('howto') },
   { id: 'settings', label: 'Settings', go: (ctx) => ctx.router.go('settings', { from: 'title' }) },
 ];
@@ -64,7 +71,12 @@ export const titleScreen = {
   mount(root, ctx) {
     ctx.renderer.setScene(null);
     const save = ctx.savedRun();
-    const c = { save, confirmNewRun: () => confirmNewRun(() => startNewRun(ctx)) };
+    const c = {
+      save,
+      scraps: ctx.meta.scraps,
+      ready: affordable(ctx.meta, ctx.unlockOpts).length,
+      confirmNewRun: () => confirmNewRun(() => startNewRun(ctx)),
+    };
     const rows = TITLE_ROWS.filter((r) => !r.show || r.show(c));
     // A challenge link (playtest P6) puts its card first, as the primary button.
     const challenge = ctx.challenge ? challengeCard() : null;
@@ -138,6 +150,11 @@ export const titleScreen = {
     }
   },
 };
+
+/** "1 paper scrap", "40 paper scraps". */
+export function scrapsText(n) {
+  return `${n} paper scrap${n === 1 ? '' : 's'}`;
+}
 
 /** One line about a saved run, for the title screen. */
 function saveText(save) {
@@ -242,13 +259,14 @@ function settingsPanel(ctx, onBack, { saveCode }) {
   };
   const row = (r) => {
     const label = el('span', { class: 'setting-label', text: r.label });
-    const note = r.note ? el('span', { class: 'setting-note', text: r.note }) : null;
+    const noteText = typeof r.note === 'function' ? r.note(ctx) : r.note;
+    const note = noteText ? el('span', { class: 'setting-note', text: noteText }) : null;
     if (r.action) {
       const btn = el('button', { class: 'btn setting-row', type: 'button', 'data-setting': r.id }, el('span', { class: 'setting-text' }, label, note));
       btn.addEventListener('click', () => actions[r.action](btn));
       return btn;
     }
-    const list = choicesFor(r.key);
+    const list = rowChoices(r, ctx);
     const value = el('span', { class: 'setting-value' });
     const btn = el('button', { class: 'btn setting-row', type: 'button', 'data-setting': r.id },
       el('span', { class: 'setting-text' }, label, note), value);
@@ -357,7 +375,9 @@ function saveCodePanel(ctx, { onBack, canLoad }) {
   return panel;
 
   function tryLoad() {
-    const result = decodeSaveCode(input.value);
+    // A code's run offers this device's own unlocks, unless it is a
+    // challenge run (every relic).
+    const result = decodeSaveCode(input.value, { pool: ctx.relicPool() });
     if (!result.ok) {
       error.textContent = CODE_ERRORS[result.reason] || CODE_ERRORS.format;
       ctx.telemetry.track('run.load', { ok: false, reason: result.reason });
@@ -456,7 +476,8 @@ function startNewRun(ctx) {
 /**
  * Spirit select (docs/04 screen 2): one card per spirit with its HP and
  * perk. Picking one starts the run as that spirit on floor 1. Number keys
- * pick too. Unlock costs arrive with Phase 7; until then all are open.
+ * pick too. A spirit not unlocked yet (core/unlocks.js) shows its cost;
+ * picking it opens the unlocks shop, whose Back returns here.
  */
 export const spiritScreen = {
   mount(root, ctx, params) {
@@ -467,25 +488,39 @@ export const spiritScreen = {
     // Accepting a challenge (title screen) brings its seed; so does Retry
     // this seed (run summary).
     const seed = params.challenge || params.retry || null;
+    // Challenge runs offer every relic, so everyone on the seed draws from
+    // the same pool; a retry keeps the pool kind of the run it retries.
+    const openPool = !!params.challenge
+      || (!!params.retry && !!ctx.lastRun && !Array.isArray(ctx.lastRun.pool));
+    const locked = (id) => !ctx.owns('spirit', id);
     const choose = (id, index) => {
+      if (locked(id)) {
+        ctx.router.go('unlocks', { from: 'spirit', back: params, focus: `spirit:${id}` });
+        return;
+      }
       ctx.abandonRun(); // the title screen already asked
-      ctx.startRun({ spirit: id, seed, retry: !params.challenge && !!params.retry });
+      ctx.startRun({
+        spirit: id, seed, retry: !params.challenge && !!params.retry, openPool,
+      });
       if (seed) ctx.clearChallenge();
       ctx.telemetry.track('spirit.pick', { ...runTag(ctx.run), index, offered: spirits.map((d) => d.id) });
       ctx.router.go('floor', { floor: ctx.run.floor });
     };
-    const cards = spirits.map((def, i) => el('button', {
-      class: 'offer-card spirit-card',
-      type: 'button',
-      'aria-label': `${i + 1}: ${def.name}. ${def.hp} HP. ${def.perk}`,
-      onclick: () => choose(def.id, i),
-    },
-    el('span', { class: 'offer-key', 'aria-hidden': 'true', text: String(i + 1) }),
-    el('span', { class: 'offer-glyph', 'aria-hidden': 'true', text: def.glyph }),
-    el('strong', { class: 'offer-name', text: def.name }),
-    el('span', { class: 'offer-tags', text: `${def.hp} HP` }),
-    el('span', { class: 'spirit-hearts', 'aria-hidden': 'true', text: '♥'.repeat(def.hp) }),
-    el('span', { class: 'offer-text', text: def.perk })));
+    const cards = spirits.map((def, i) => {
+      const lock = locked(def.id) ? lockText('spirit', def.id) : null;
+      return el('button', {
+        class: `offer-card spirit-card${lock ? ' is-locked' : ''}`,
+        type: 'button',
+        'aria-label': `${i + 1}: ${def.name}. ${def.hp} HP. ${def.perk}${lock ? ` ${lock.label}` : ''}`,
+        onclick: () => choose(def.id, i),
+      },
+      el('span', { class: 'offer-key', 'aria-hidden': 'true', text: String(i + 1) }),
+      el('span', { class: 'offer-glyph', 'aria-hidden': 'true', text: def.glyph }),
+      el('strong', { class: 'offer-name', text: def.name }),
+      el('span', { class: 'offer-tags', text: lock ? `${def.hp} HP · ${lock.tag}` : `${def.hp} HP` }),
+      el('span', { class: 'spirit-hearts', 'aria-hidden': 'true', text: '♥'.repeat(def.hp) }),
+      el('span', { class: 'offer-text', text: def.perk }));
+    });
 
     root.append(
       el('div', { class: 'menu offer' },
@@ -513,6 +548,17 @@ export const spiritScreen = {
     return () => window.removeEventListener('keydown', onKey);
   },
 };
+
+/**
+ * What a locked item's card says: { tag (short, on the card), label (for
+ * screen readers) }. Locks always say so in words and with the lock mark,
+ * never by dimming alone.
+ */
+function lockText(kind, id) {
+  const cost = unlockCost(kind, id);
+  if (cost == null) return { tag: '🔒 Locked', label: 'Locked.' };
+  return { tag: `🔒 ${cost} scraps`, label: `Locked: unlock it for ${scrapsText(cost)} in Unlocks.` };
+}
 
 export const floorScreen = {
   mount(root, ctx, routeParams) {
@@ -1262,8 +1308,6 @@ function devVictoryPanel(ctx, params) {
   };
 }
 
-const RARITY_NAMES = { common: 'Common', uncommon: 'Uncommon', rare: 'Rare' };
-const GROUP_NAMES = { fold: 'Fold', defense: 'Defense', utility: 'Utility' };
 
 /**
  * Relic choice (docs/04 screen 4), between run floors: one card per relic
@@ -1434,6 +1478,7 @@ export const summaryScreen = {
           button('New run', () => startNewRun(ctx), true),
           button('Retry this seed', () => ctx.router.go('spirit', { retry: run.seed })),
           button('Challenge a friend', showChallenge),
+          summary.rows.some((r) => r.id === 'unlocks') ? button('Unlocks', () => ctx.router.go('unlocks', { from: 'summary' })) : null,
           button('Menu', toMenu)),
       );
     }

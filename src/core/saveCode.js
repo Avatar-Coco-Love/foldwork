@@ -17,6 +17,9 @@
 //   version 4 | seed 32 | spirit 3 | floor 4 | lastFloor 4 | hp 4 |
 //   maxHp 4 | landings 3 | cleared 4 | offer 1 | clean 1 |
 //   fold kills 6 (version 2+, capped at 63) |
+//   open pool 1 (version 3+: 1 = the run offers every relic, a challenge
+//   or daily run; 0 = the player's own unlocks, which are the loading
+//   device's: decodeSaveCode's `pool`) |
 //   relic count 5, then 6 per relic (CODE_RELICS index), in order taken |
 //   hint floors 4, then floor 4 + presses 6 each (capped at 63) |
 //   CRC-10 of everything before it | zero padding to a whole character
@@ -24,14 +27,21 @@
 // The CRC catches any one mistyped character and any swap of two
 // neighbours. Only runs on a plain number seed (every saved run) have a
 // code; daily seeds (Phase 7) will take a new version. Version 1 codes
-// (no fold kills) still read, with 0 fold kills.
+// (no fold kills) still read, with 0 fold kills; version 1 and 2 codes
+// (no pool bit) read as the loading device's own unlocks.
+//
+// Room to grow: 6 bits per relic index (64 relics) and a 5-bit relic
+// count (31 held). Content past that takes a new version with wider
+// fields; older versions keep reading as they are.
 
-import { RUN_VERSION, BOSS_FLOOR, rollOffer, runLength } from './run.js';
+import {
+  RUN_VERSION, BOSS_FLOOR, RELIC_POOL_ALL, rollOffer, runLength,
+} from './run.js';
 import { RELIC_DEFS } from './relics.js';
 import { SPIRIT_DEFS } from './spirits.js';
 import { templateFloors } from './floors.js';
 
-export const SAVE_CODE_VERSION = 2;
+export const SAVE_CODE_VERSION = 3;
 
 /**
  * Code order for spirits and relics. Append only: an id's position is
@@ -67,7 +77,8 @@ export function encodeSaveCode(run) {
   const fields = [
     [SAVE_CODE_VERSION, 4], [Number(run.seed), 32], [spirit, 3], [run.floor, 4], [run.lastFloor, 4],
     [run.hp, 4], [run.maxHp, 4], [run.landings || 0, 3], [run.cleared, 4], [run.offer ? 1 : 0, 1],
-    [run.clean ? 1 : 0, 1], [Math.min(MAX_FOLD_KILLS, run.foldKills || 0), 6], [relics.length, 5], ...relics.map((r) => [r, 6]),
+    [run.clean ? 1 : 0, 1], [Math.min(MAX_FOLD_KILLS, run.foldKills || 0), 6],
+    [Array.isArray(run.pool) ? 0 : 1, 1], [relics.length, 5], ...relics.map((r) => [r, 6]),
     [hints.length, 4], ...hints.flatMap(([floor, n]) => [[floor, 4], [n, 6]]),
   ];
   // Anything that doesn't fit (or is unknown) means no code, never a wrong one.
@@ -86,9 +97,11 @@ export function encodeSaveCode(run) {
  * save, or { ok: false, reason }: 'empty', 'format' (not a code: bad
  * characters or too short), 'check' (a typo: the check failed), 'version'
  * (made by a newer game) or 'data' (checks out, but this game can't play
- * it: an unknown relic, a floor it doesn't have).
+ * it: an unknown relic, a floor it doesn't have). `pool` is the run's
+ * relic pool unless the code says it offers every relic: the player's
+ * own unlocks on this device (core/unlocks.js relicPool).
  */
-export function decodeSaveCode(text, { floors = templateFloors() } = {}) {
+export function decodeSaveCode(text, { floors = templateFloors(), pool = RELIC_POOL_ALL } = {}) {
   let s = String(text ?? '').toUpperCase().replace(/[\s-]+/g, '');
   if (!s) return { ok: false, reason: 'empty' };
   if (s.startsWith(PREFIX)) s = s.slice(PREFIX.length);
@@ -116,6 +129,7 @@ export function decodeSaveCode(text, { floors = templateFloors() } = {}) {
       landings: read(3), cleared: read(4), offer: read(1), clean: read(1),
     };
     f.foldKills = version >= 2 ? read(6) : 0;
+    f.pool = version >= 3 && read(1) ? RELIC_POOL_ALL : pool;
     f.relics = Array.from({ length: read(5) }, () => read(6));
     f.hints = Array.from({ length: read(4) }, () => [read(4), read(6)]);
     const sum = crc10(bits.slice(0, at));
@@ -152,6 +166,7 @@ function toRun(f, floors) {
     hp: f.hp,
     maxHp: f.maxHp,
     relics,
+    pool: Array.isArray(f.pool) ? f.pool.slice() : RELIC_POOL_ALL,
     landings: f.landings,
     cleared: f.cleared,
     foldKills: f.foldKills,

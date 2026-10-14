@@ -2,10 +2,15 @@
 // read tokens by name, never raw colors. Tile types also get distinct symbols
 // (drawn by the renderer), so color is never the only cue. `glyph` is ink
 // that reads on a tile face in every palette (tile symbols, keys).
+//
+// `unlock` (core/unlocks.js): 'starter' palettes are free; the rest are
+// bought in the unlocks shop (PALETTE_COST, or a `cost` here). A new
+// palette is a new object below with the same tokens, added to PALETTES.
 
 const PAPER = {
   id: 'paper',
   name: 'Paper',
+  unlock: 'starter',
   scheme: 'light',
   background: '#e9e2d3',
   backgroundAccent: '#ded5c2',
@@ -28,6 +33,7 @@ const PAPER = {
 const NIGHT_INK = {
   id: 'night-ink',
   name: 'Night Ink',
+  unlock: 'starter',
   scheme: 'dark',
   background: '#1b1d26',
   backgroundAccent: '#22252f',
@@ -50,6 +56,7 @@ const NIGHT_INK = {
 const HIGH_CONTRAST = {
   id: 'high-contrast',
   name: 'High Contrast',
+  unlock: 'starter',
   scheme: 'light',
   background: '#ffffff',
   backgroundAccent: '#f0f0f0',
@@ -69,10 +76,58 @@ const HIGH_CONTRAST = {
   uiBorder: '#000000',
 };
 
+// Shop palettes (Phase 7b). Same rules as the rest: tile symbols carry
+// meaning, so color is never the only cue.
+const KRAFT = {
+  id: 'kraft',
+  name: 'Kraft',
+  scheme: 'light',
+  background: '#c9a77c',
+  backgroundAccent: '#bd9a6d',
+  boardEdge: '#8f6d45',
+  shadow: 'rgba(60, 35, 10, 0.3)',
+  tileFace: '#e8d3b0',
+  tileEdge: '#b8996c',
+  gridLine: 'rgba(80, 50, 20, 0.16)',
+  wallFace: '#6e5233',
+  glyph: '#2e2014',
+  voidFace: '#2a1f17',
+  ink: '#2e2014',
+  inkSoft: '#5c4630',
+  accent: '#a8431f',
+  danger: '#9e1c12',
+  uiSurface: 'rgba(232, 211, 176, 0.94)',
+  uiBorder: '#9c7a50',
+};
+
+const BLUEPRINT = {
+  id: 'blueprint',
+  name: 'Blueprint',
+  scheme: 'dark',
+  background: '#123a6b',
+  backgroundAccent: '#164378',
+  boardEdge: '#0a2547',
+  shadow: 'rgba(0, 10, 30, 0.45)',
+  tileFace: '#dce9f7',
+  tileEdge: '#8fb0d6',
+  gridLine: 'rgba(18, 58, 107, 0.2)',
+  wallFace: '#3d6596',
+  glyph: '#0d2b50',
+  voidFace: '#06182e',
+  ink: '#eef5ff',
+  inkSoft: '#a9c4e6',
+  accent: '#ffd166',
+  danger: '#ff7a6b',
+  uiSurface: 'rgba(16, 52, 96, 0.94)',
+  uiBorder: '#4f7bb3',
+};
+
 export const PALETTES = Object.freeze({
   [PAPER.id]: PAPER,
   [NIGHT_INK.id]: NIGHT_INK,
   [HIGH_CONTRAST.id]: HIGH_CONTRAST,
+  [KRAFT.id]: KRAFT,
+  [BLUEPRINT.id]: BLUEPRINT,
 });
 
 export const DEFAULT_PALETTE_ID = PAPER.id;

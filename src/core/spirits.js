@@ -10,10 +10,9 @@
 // Def fields: id, name, hp (starting max HP), perk (one line for the select
 // screen), glyph (a short symbol shown with the name), covers (relic ids
 // whose effect the spirit already has; they are left out of its offers),
-// hooks.
-//
-// Unlock costs (docs/03: Frog and Turtle cost paper scraps) wait for the
-// Phase 7 meta-progression; until then every spirit can be picked.
+// unlock ('starter', or left out for a shop spirit with its `cost` in
+// paper scraps; core/unlocks.js), hooks. A saved run keeps its spirit
+// whether or not it is unlocked: the lock is only on spirit select.
 
 export const SPIRIT_DEFS = Object.freeze({
   fox: {
@@ -23,6 +22,7 @@ export const SPIRIT_DEFS = Object.freeze({
     perk: 'Starts each floor with +1 fold charge.',
     glyph: '△',
     covers: [],
+    unlock: 'starter',
     hooks: {
       setup: (setup) => ({ ...setup, charges: setup.charges + 1 }),
     },
@@ -33,6 +33,7 @@ export const SPIRIT_DEFS = Object.freeze({
     hp: 2,
     perk: 'Diagonal creases unlocked from the start.',
     glyph: '◇',
+    cost: 30,
     covers: ['diagonal-crease'],
     hooks: {
       rules: (rules) => ({ ...rules, diagonal: true }),
@@ -44,6 +45,7 @@ export const SPIRIT_DEFS = Object.freeze({
     hp: 4,
     perk: 'Free undo can take back your last 2 folds.',
     glyph: '⬡',
+    cost: 50,
     covers: ['spring-crease'],
     hooks: {
       rules: (rules) => ({ ...rules, undoDepth: Math.max(rules.undoDepth, 2) }),

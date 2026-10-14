@@ -86,11 +86,12 @@ A giant paper crane that refolds the arena itself. The player must out-fold it.
 24. Origami Luck: relic choices show 4 options instead of 3.
 
 - Rarity: common/uncommon/rare (roughly 12/8/4). Rarity affects offer weights, not raw power. **[OPEN]** Rarity assignments.
-- Unlocks: 12 relics available at the start; 12 unlock with paper scraps.
+- Unlocks: 12 relics available at the start; 12 unlock with paper scraps (lists: OPEN-QUESTIONS "Unlocks shop").
 
 ## Meta-progression: paper scraps
 - Earn scraps per run: per floor cleared, per enemy defeated by fold (bonus), and a boss-clear bonus.
 - Spend on: unlocking relics, spirits (Frog, Turtle), and cosmetic palette variants.
 - No permanent stat upgrades. Unlocks add variety only.
 - Earn (7a): 5 per floor cleared, 2 per enemy killed by a fold, 25 for the boss. Lost runs keep their scraps.
-- Costs (7b): relics common 40 / uncommon 70 / rare 120; palettes 50 (High Contrast free); Frog 30, Turtle 50. Tune in Phase 9.
+- Costs (7b): relics common 40 / uncommon 70 / rare 120; palettes 50 (Paper, Night Ink, High Contrast free; Kraft and Blueprint in the shop); Frog 30, Turtle 50. Tune in Phase 9.
+- A run offers only relics the player owned when it started; challenge (and daily) runs offer every relic.
