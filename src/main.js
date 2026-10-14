@@ -57,6 +57,7 @@ import {
 import { runScraps } from './core/scraps.js';
 import { claimDaily, finishDaily } from './core/daily.js';
 import { createAudio } from './audio/sfx.js';
+import { createMusic } from './audio/music.js';
 import { mixLevels } from './audio/sounds.js';
 
 const params = Object.fromEntries(new URLSearchParams(location.search));
@@ -72,6 +73,7 @@ rootStyle.setProperty('--hud-side', HUD_METRICS.side + 'px');
 
 const renderer = createRenderer(canvas);
 const audio = createAudio();
+const music = createMusic(audio);
 const reducedMotionQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
 
 // Saved settings, with dev URL overrides applied for this session only.
@@ -341,6 +343,8 @@ const ctx = {
   renderer,
   /** Sound effects (audio/sfx.js): play(id), playAll(ids). */
   audio,
+  /** The ambient loop (audio/music.js): setMood(mood, seed), duck(on). */
+  music,
   router: null,
   settings: settingsOverride,
   updateSettings(patch) {
@@ -407,9 +411,14 @@ function applySettings() {
 // --- Audio -----------------------------------------------------------------
 
 // Browsers allow sound only after a gesture: every press wakes the audio
-// (the first one creates it; later ones resume it after an interruption).
+// (the first one creates it and starts the ambient loop; later ones resume
+// it after an interruption). The loop then plays on every screen (8b).
+function wakeAudio() {
+  audio.unlock();
+  music.start();
+}
 for (const type of ['pointerdown', 'keydown', 'touchend']) {
-  document.addEventListener(type, audio.unlock, { capture: true, passive: true });
+  document.addEventListener(type, wakeAudio, { capture: true, passive: true });
 }
 // Buttons tap, unless they ask for another sound (data-sfx; 'none' when
 // their action plays its own). It runs after the button's own handler, so

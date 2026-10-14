@@ -34,6 +34,8 @@ import { affordable, unlockCost } from '../core/unlocks.js';
 import { runSummary } from '../core/summary.js';
 import { dailyTitle, dailyName, isPractice } from '../core/daily.js';
 import { parseStats } from '../core/stats.js';
+import { isBoss } from '../core/boss.js';
+import { moodFor } from '../audio/ambient.js';
 import { SPIRIT_DEFS, spiritDef } from '../core/spirits.js';
 import { HINTS, hintDef, hintsFor } from '../core/hints.js';
 import { loadSeenHints, saveSeenHints } from './hintStore.js';
@@ -743,6 +745,10 @@ export const floorScreen = {
     const hintQueue = [];
     let hintShown = null;
 
+    // The ambient loop (8b): darker on the boss floor, its phrases seeded
+    // by the run seed and floor. Leaving the floor goes back to calm.
+    ctx.music.setMood(moodFor({ boss: setup.enemies.some(isBoss) }), `${ctx.seed}:${floorNo}`);
+
     const canvas = ctx.renderer.canvas;
     const fx = createFxPlayer({ onChange: () => ctx.renderer.invalidate() });
     ctx.renderer.setFx(fx);
@@ -823,6 +829,7 @@ export const floorScreen = {
       preview = null;
       clearHelp();
       hud.hideOutcome();
+      ctx.music.duck(false);
       input.setEnabled(true);
       sync();
       hud.notify('Rewind Charm: your last turn is undone.', { info: true });
@@ -1054,6 +1061,7 @@ export const floorScreen = {
       input.setEnabled(false);
       const close = () => {
         hud.hideOutcome();
+        ctx.music.duck(false);
         input.setEnabled(true);
       };
       hud.showOutcome({
@@ -1081,6 +1089,7 @@ export const floorScreen = {
       if (state.status !== 'playing') return;
       input.cancel();
       input.setEnabled(false);
+      ctx.music.duck(true); // until Resume or leaving the floor
       sync(); // back from a fold history peek
       const runFloor = inRun && floorNo === run.floor;
       hud.showOutcome({
@@ -1103,6 +1112,7 @@ export const floorScreen = {
 
     function resumePlay() {
       hud.hideOutcome();
+      ctx.music.duck(false);
       input.setEnabled(true);
     }
 
@@ -1354,6 +1364,8 @@ export const floorScreen = {
       ctx.renderer.setFx(null);
       input.destroy();
       hud.destroy();
+      ctx.music.duck(false);
+      ctx.music.setMood('calm');
     };
   },
 };
