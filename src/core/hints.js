@@ -8,7 +8,8 @@
 //   'event:<type>'     after an action whose events include <type>
 //                      (core/turn.js event list); `who` narrows it to the
 //                      player ('player') or anyone else ('other') by the
-//                      event's id
+//                      event's id, and `match` (plain fields) to events
+//                      whose fields equal those values
 //   'refuse:<reason>'  when an action is refused for <reason>
 // Order in HINTS is the order How to Play lists them in.
 
@@ -106,6 +107,17 @@ export const HINTS = Object.freeze({
     text: 'The Crane\'s fold landed on you: 1 damage, and you were knocked to the nearest open tile. Step off the hatched tiles before it folds, or fold first to change what its crease will move.',
     on: 'event:swat',
   },
+  'crane-minions': {
+    title: 'Paper minions',
+    text: 'Hurt, the Crane calls Scrap Mites: one now, and one with each fold it makes, up to two at a time. Mites standing on a strip it folds ride along with it.',
+    on: 'event:spawn',
+  },
+  'crane-double': {
+    title: 'Two creases',
+    text: 'Badly torn, the Crane marks two creases at once. It folds 1, then 2, on its next turn; the second is aimed at the floor as the first leaves it. A beat of its folds hurts you once at most.',
+    on: 'event:mark',
+    match: { n: 2 },
+  },
   'key-fold': {
     title: 'Fold a key in',
     text: 'A fold that stacks a key straight onto a lock opens it too, no walking needed.',
@@ -134,7 +146,13 @@ function matches(def, trigger, playerId) {
   if (kind === 'start') return trigger.type === 'start';
   if (kind === 'refuse') return trigger.type === 'refuse' && trigger.reason === arg;
   if (kind !== 'event' || trigger.type !== 'events') return false;
-  return trigger.events.some((ev) => ev.type === arg && whoMatches(def.who, ev.id, playerId));
+  return trigger.events.some((ev) => ev.type === arg && whoMatches(def.who, ev.id, playerId) && fieldsMatch(def.match, ev));
+}
+
+function fieldsMatch(match, ev) {
+  if (!match) return true;
+  for (const key in match) if (ev[key] !== match[key]) return false;
+  return true;
 }
 
 function whoMatches(who, id, playerId) {

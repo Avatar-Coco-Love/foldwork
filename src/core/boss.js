@@ -25,14 +25,26 @@
 //     deals none (`boss.bump` 0), so only folds hurt it. Every bump or
 //     drop startles it: it flies to the free footing
 //     farthest from the player (walking distance), mark cleared. Its HP
-//     is split into `phases` equal phases (phaseOf; 6b changes its
-//     behaviour per phase).
+//     is split into `phases` equal phases (phaseOf).
+//   - Phase 2 on (def `boss.spawn`, 6b): every fold it carries out (not a
+//     fizzle, not one that pins or hurts it) spawns a Scrap Mite on the
+//     free footing of the landed strip closest to the player (Manhattan,
+//     ties row-major), while fewer than `cap` of its spawns are alive.
+//     A hit that takes it into a spawning phase also spawns one at once,
+//     next to where it fled (the Spore Bloom's spot rule), so chained
+//     drops can't skip the minions. Minions on a strip it folds ride
+//     along like any creature.
+//   - Phase 3 (def `boss.double`, 6b): it marks two creases at once. The
+//     second is chosen on the board as the first will leave it (same
+//     rules); both must move paper, and they fold in order on the next
+//     beat. The player takes swat damage at most once per beat. The arena
+//     shrinks from the strips alone (no fold-under rule).
 //
 // Creature field (a primitive, so cloneBoard and the solver's stateKey
-// handle it): `mark` (the marked crease as a code, see markCode, or null).
+// handle it): `mark` (the marked creases as a code, see marksCode, or null).
 
-import { AXES, SIDES, validateFold, mirrorCell } from './fold.js';
-import { inBounds, isFooting, topLayer } from './board.js';
+import { AXES, SIDES, validateFold, mirrorCell, applyFold } from './fold.js';
+import { inBounds, isFooting, topLayer, findCreature } from './board.js';
 import { creatureDef, CREATURE_DEFS } from './creatures.js';
 
 const WAIT = Object.freeze({ type: 'wait' });
@@ -51,6 +63,23 @@ export function markFold(code) {
   return m ? { axis: m[1], index: Number(m[2]), side: m[3] === 'b' ? 'before' : 'after' } : null;
 }
 
+/** Several creases as one mark code, in fold order: 'h3a+v2b'. */
+export function marksCode(folds) {
+  return folds.map(markCode).join('+');
+}
+
+/** The creases a mark code stands for, in fold order ([] for none or a bad code). */
+export function markFolds(code) {
+  if (typeof code !== 'string' || !code) return [];
+  const out = [];
+  for (const part of code.split('+')) {
+    const fold = markFold(part);
+    if (!fold) return [];
+    out.push(fold);
+  }
+  return out;
+}
+
 /** Whether a creature is a boss (def `boss`; unknown kinds are not). */
 export function isBoss(creature) {
   const def = creature && CREATURE_DEFS[creature.kind];
@@ -58,19 +87,18 @@ export function isBoss(creature) {
 }
 
 /**
- * Every marked crease on the board, for the telegraph: [{ id, at, fold }]
- * (at = the boss's cell). A pinned boss has no mark, so only top layers
- * are read.
+ * Every marked crease on the board, for the telegraph: [{ id, at, fold, n,
+ * of }] (at = the boss's cell; n = 1-based fold order among its `of`
+ * marks). A pinned boss has no mark, so only top layers are read.
  */
 export function bossMarks(board) {
   const out = [];
   for (let i = 0; i < board.cells.length; i++) {
     const layers = board.cells[i].layers;
     const c = layers.length ? layers[layers.length - 1].creature : null;
-    const fold = c && c.mark ? markFold(c.mark) : null;
-    if (!fold) continue;
+    const folds = c ? markFolds(c.mark) : [];
     const col = i % board.w;
-    out.push({ id: c.id, at: { col, row: (i - col) / board.w }, fold });
+    folds.forEach((fold, k) => out.push({ id: c.id, at: { col, row: (i - col) / board.w }, fold, n: k + 1, of: folds.length }));
   }
   return out;
 }
@@ -90,23 +118,64 @@ export function phaseOf(creature) {
 }
 
 /**
- * The Crane's plan (ENEMY_AI 'crane'): fold its marked crease, or mark a
- * new one. Plan = { type: 'crease', fold } | { type: 'mark', fold } | wait
- * (no crease it can use).
+ * The Crane's plan (ENEMY_AI 'crane'): fold its marked creases, or mark
+ * new ones. Plan = { type: 'crease', folds } | { type: 'mark', folds } |
+ * wait (no crease it can use).
  */
 export function planCrane(board, me, { player }) {
-  const marked = markFold(me.creature.mark);
-  if (marked) return { type: 'crease', fold: marked };
-  const fold = chooseCrease(board, me, player);
-  return fold ? { type: 'mark', fold } : WAIT;
+  const marked = markFolds(me.creature.mark);
+  if (marked.length) return { type: 'crease', folds: marked };
+  const count = creaseCount(me.creature);
+  const folds = chooseCreases(board, me, player, count, { needMoves: count > 1 });
+  return folds.length ? { type: 'mark', folds } : WAIT;
+}
+
+/** How many creases a boss marks at once in its current phase (def `boss.double`). */
+export function creaseCount(creature) {
+  const { double } = creatureDef(creature.kind).boss;
+  return double && phaseOf(creature) >= double ? 2 : 1;
+}
+
+/** Whether a boss spawns minions on its folds in its current phase (def `boss.spawn`). */
+export function spawnsNow(creature) {
+  const { spawn } = creatureDef(creature.kind).boss;
+  return !!spawn && phaseOf(creature) >= spawn.phase;
+}
+
+/** Whether a hit from `hpBefore` took the boss into a new phase that spawns. */
+export function enteredSpawnPhase(creature, hpBefore) {
+  return spawnsNow(creature) && phaseOf(creature) > phaseOf({ ...creature, hp: hpBefore });
+}
+
+/**
+ * Up to `count` creases, each chosen on the board the earlier ones leave
+ * (applyFold alone: no pins or swats are simulated), with the Crane and
+ * player where that board puts them. `needMoves`: each must move paper.
+ */
+export function chooseCreases(board, me, player, count = 1, { needMoves = false } = {}) {
+  const out = [];
+  let b = board;
+  let at = me;
+  let target = player;
+  for (let k = 0; k < count; k++) {
+    const fold = chooseCrease(b, at, target, { needMoves });
+    if (!fold) break;
+    out.push(fold);
+    if (k + 1 === count) break;
+    b = applyFold(b, fold);
+    at = findCreature(b, me.creature.id);
+    target = player && findCreature(b, player.creature.id);
+    if (!at) break;
+  }
+  return out;
 }
 
 /**
  * The crease the Crane at `me` ({col, row}) marks against `player`
  * (findCreature()'s result, or null), by the rules above. Null when no
- * crease qualifies.
+ * crease qualifies. `needMoves`: skip creases that move no paper.
  */
-export function chooseCrease(board, me, player) {
+export function chooseCrease(board, me, player, { needMoves = false } = {}) {
   let best = null;
   let bestScore = null;
   for (const axis of CRANE_AXES) {
@@ -133,6 +202,7 @@ export function chooseCrease(board, me, player) {
           if (m.to.col === me.col && m.to.row === me.row) self = true;
         }
         if (self) continue; // it never folds paper onto itself
+        if (needMoves && !moved) continue;
         const dist = player ? Math.abs(dest.col - player.col) + Math.abs(dest.row - player.row) : 0;
         const score = [1 - covers, dist, moved];
         if (!bestScore || less(score, bestScore)) {
@@ -164,6 +234,35 @@ export function fleeSpot(board, field, from, nearest) {
     bestD = field[i];
   }
   return best || (inBounds(board, from.col, from.row) ? nearest(board, from) : null);
+}
+
+/**
+ * Where a boss's fold puts its minion (def `boss.spawn`): the free footing
+ * (no creature) among the fold's landing cells closest to `player` by
+ * Manhattan distance, ties row-major. Null when none is free.
+ */
+export function minionSpot(board, landings, player) {
+  let best = null;
+  let bestKey = Infinity;
+  for (const l of landings) {
+    const top = topLayer(board, l.to.col, l.to.row);
+    if (!isFooting(top) || top.creature) continue;
+    const d = player ? Math.abs(l.to.col - player.col) + Math.abs(l.to.row - player.row) : 0;
+    const key = d * board.cells.length + l.to.row * board.w + l.to.col;
+    if (key < bestKey) {
+      best = { col: l.to.col, row: l.to.row };
+      bestKey = key;
+    }
+  }
+  return best;
+}
+
+/** How many minions boss `id` has on the board (pinned ones too). */
+export function minionCount(board, id) {
+  const prefix = `${id}-m`;
+  let n = 0;
+  for (const cell of board.cells) for (const l of cell.layers) if (l.creature && l.creature.id.startsWith(prefix)) n += 1;
+  return n;
 }
 
 function less(a, b) {

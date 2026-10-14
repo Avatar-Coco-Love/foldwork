@@ -40,9 +40,9 @@ A giant paper crane that refolds the arena itself. The player must out-fold it.
 - The player can pre-empt by folding first to change what the Crane's fold does, or to pin the Crane under a layer.
 - Damage comes only from folds that drop a void onto it (2 each). A bump deals no damage; it only startles the Crane, which flies off (6a, user's choice: with bump damage, dodging its telegraphed folds and bumping won without a single fold).
 - **Phase 1:** single telegraphed folds, no minions.
-- **Phase 2:** spawns Scrap Mites on its fold; its folds carry minions with them.
-- **Phase 3:** telegraphs two creases at once; the arena shrinks as edges fold under.
-- **[OPEN]** Exact balance and arena templates; to be tuned in playtests.
+- **Phase 2:** spawns Scrap Mites on its fold; its folds carry minions with them. (6b: 1 Mite per fold on the landed strip, at most 2 alive, plus 1 on entering phases 2 and 3; minions ride its strips like any creature.)
+- **Phase 3:** telegraphs two creases at once; the arena shrinks as edges fold under. (6b: both fold in order on the next beat, numbered 1 and 2; at most 1 swat damage per beat; the shrinking comes from the strips themselves.)
+- **[OPEN]** Exact balance and arena templates; to be tuned in playtests (arena: 7 fold charges since 6b).
 
 ## Spirits (starting characters)
 | Spirit | HP | Perk |

@@ -4,15 +4,11 @@
 small. At the end of each conversation, update this file in the same PR.
 
 ## Next up
-**Phase 6b: Crane phases 2–3.** Playtest round 1 is done (PR 19–26).
-Phase 1 plays end to end on floor 9 (PR 18). Read OPEN-QUESTIONS "Great
-Crane core rules" and "Great Crane bumps", docs/03 Boss, and
-`core/boss.js`. Phase 2: spawns Scrap Mites on its fold, its folds carry
-minions; phase 3: per docs/03 (double creases, shrinking arena). Ask
-before inventing details the doc leaves open. `phaseOf` already reports
-the phase. Keep the `f9-crane` stored line winning (re-find it with a
-beam search over act(); a full solve runs out of memory), and re-check
-the 6 charges. Rules changes bump `LOGIC_VERSION`.
+**Phase 6c: run summary and win/lose flow through the boss.** The Crane
+plays all three phases (PR 27). Read docs/03 (run end), docs/04 (summary
+screen), `runPanel` in `ui/screens.js` (the stub boss win panel from PR
+18) and OPEN-QUESTIONS "Save code" (the summary gets a Challenge a friend
+row). Ask what the summary shows before building it.
 
 ## Phase checklist
 Larger phases are split into PR-sized chunks so each conversation stays small.
@@ -56,7 +52,7 @@ Larger phases are split into PR-sized chunks so each conversation stays small.
   - [x] 6a Great Crane phase 1, telegraphed crease, floor 9 arena
     - [x] core rules: crane def, aimed strip crease, swat, drop, flee (PR 17)
     - [x] arena template, stored-line proof, run to floor 9, telegraph render (PR 18)
-  - [ ] 6b Crane phases 2–3 (minions, double creases, shrinking arena)
+  - [x] 6b Crane phases 2–3 (minions, double creases, shrinking arena) (PR 27)
   - [ ] 6c Run summary and win/lose flow through the boss
 - [ ] **Phase 7** — Meta-progression, daily seed, persistence
 - [ ] **Phase 8** — Audio and polish
@@ -910,3 +906,30 @@ Larger phases are split into PR-sized chunks so each conversation stays small.
   (lowercase) loads after the confirm; a challenge link in a fresh
   browser shows the card, and the run it starts has the sender's seed.
   No console errors.
+
+### PR 27: Phase 6b Great Crane phases 2-3
+- Settled with the user (OPEN-QUESTIONS "Great Crane phases 2-3"). Def
+  `boss.spawn: { phase: 2, kind: 'mite', cap: 2 }` and `boss.double: 3`.
+- `core/boss.js`: mark codes hold several creases (`marksCode`,
+  `markFolds`: 'h6a+v2b'); `chooseCreases` (the second on the board the
+  first leaves, `needMoves`), `creaseCount`, `spawnsNow`,
+  `enteredSpawnPhase`, `minionSpot`, `minionCount`. `bossMarks` entries
+  carry `n` / `of`. Plans are `{ type: 'mark' | 'crease', folds }`.
+- `core/turn.js`: `bossCreases` folds them in order (the boss is found
+  again after each fold, since applyFold copies the board), one swat
+  damage per beat (`resolveFold` `hurt`, returns whether it swatted),
+  `bossSpawn` (per fold, and on phase entry from `bossDrop`). Spawns made
+  during the player's action wait a turn (`s.fresh`). Fix: an enemy
+  pinned or dropped earlier in the enemy phase doesn't act (a boss fold
+  dropping a Mite crashed it). Event `mark` carries `n`.
+  `LOGIC_VERSION` 4.
+- `f9-crane`: 7 charges, new stored line (10 turns, 7 folds, wins at 1
+  HP); beam search with 6 found none.
+- Telegraph: the second crease is previewed on the board the first
+  leaves; numbered badges 1/2 when two are marked. Hints
+  `crane-minions` (first spawn), `crane-double` (hint `match` field: the
+  second mark event).
+- 10 new tests (`tests/bossPhases.test.js`; 333 total). Checked in
+  headless Chromium (phone 390x844, desktop 1280x800) from a seeded save
+  mid-line: phase 2 single mark, phase 3 double mark with badges, Mites
+  on the board. No console errors.

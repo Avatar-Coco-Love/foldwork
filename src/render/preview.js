@@ -2,7 +2,7 @@
 // Pure (no DOM). Built once per crease change, not per frame, so the draw
 // pass only reads typed arrays.
 
-import { validateFold, AXES } from '../core/fold.js';
+import { validateFold, applyFold, AXES } from '../core/fold.js';
 import { cellIndex, topLayer, findCreature, DIRS } from '../core/board.js';
 import { coverEffect, PLAYER_ID, act } from '../core/turn.js';
 import { keyMeetsLock } from '../core/environment.js';
@@ -98,16 +98,19 @@ export function slidePreview(state, fold) {
  */
 export function buildTelegraph(board) {
   const out = [];
+  let b = board;
   for (const m of bossMarks(board)) {
-    const pv = buildFoldPreview(board, m.fold);
+    if (m.n === 1) b = board;
+    const pv = buildFoldPreview(b, m.fold);
     if (!pv) continue;
     let hits = false;
     for (let i = 0; i < pv.state.length && pv.ok; i++) {
       if (pv.state[i] !== CELL.LANDING) continue;
-      const top = board.cells[i].layers.at(-1);
+      const top = b.cells[i].layers.at(-1);
       if (top && top.creature && top.creature.id === PLAYER_ID) hits = true;
     }
     out.push({ ...m, pv, fizzle: !pv.ok, hits });
+    if (pv.ok && m.n < m.of) b = applyFold(b, m.fold);
   }
   return out;
 }

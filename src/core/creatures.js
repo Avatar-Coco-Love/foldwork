@@ -57,8 +57,11 @@ export const CREATURE_DEFS = Object.freeze({
   // fold is its only attack. Never walks (so never stranded); not heavy.
   // `boss.bump` is what a bump deals it: 0, so a bump only startles it
   // (it flees) and only folds hurt it (a void drop deals `boss.drop`).
+  // From phase `spawn.phase` its folds spawn `spawn.kind` (at most `cap`
+  // alive); from phase `double` it marks two creases at once (boss.js).
   crane: {
-    kind: 'crane', name: 'Great Crane', team: 'enemy', hp: 6, ai: 'crane', fixed: true, boss: { phases: 3, drop: 2, bump: 0 },
+    kind: 'crane', name: 'Great Crane', team: 'enemy', hp: 6, ai: 'crane', fixed: true,
+    boss: { phases: 3, drop: 2, bump: 0, spawn: { phase: 2, kind: 'mite', cap: 2 }, double: 3 },
   },
 });
 

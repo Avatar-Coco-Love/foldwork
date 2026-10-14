@@ -15,8 +15,7 @@ These belong to later phases and get decided when that phase is built.
 - Telemetry start: collection is off (`TELEMETRY.collect: false`) until the
   first playtests have been watched; then deploy the Sheets collector and
   switch it on (docs/07).
-- Great Crane arena layout and charges (6a, being tuned); phase 2-3
-  behaviour (6b).
+- Great Crane arena layout and charges (7 since 6b; tune in playtests).
 - Names and mechanics for the two later spirits (post-launch; ideas: Rabbit,
   Koi).
 - Telemetry consent before a public launch: is "on by default, with an
@@ -177,6 +176,33 @@ These belong to later phases and get decided when that phase is built.
     Decided while building: a code drops the Hint presses on the floor
     in progress (the run keeps floors already won); the loaded run is a
     new telemetry run (`run.load`).
+- Great Crane phases 2-3 (6b, user's choices; docs/03 left them open):
+  - **Phase 2 on:** every fold it carries out (not a fizzle, not one that
+    pins or hurts it) spawns **1 Scrap Mite** on the free footing of the
+    landed strip closest to the player (Manhattan, ties row-major; no
+    RNG), **at most 2** of its Mites alive (pinned ones count). Spawns
+    act from next turn. "Its folds carry minions" needed no rule: anything
+    on a folded strip already rides it. Phase 3 keeps spawning.
+  - **Phase entry:** a hit that takes it into phase 2 or 3 also spawns a
+    Mite at once, on its free neighbour (after it flees) closest to the
+    player by walking distance (the Spore Bloom rule). Found while
+    building: two drops in a row (6 -> 4 -> 2) skipped phase 2 and every
+    Mite with it.
+  - **Phase 3:** it marks **two creases at once**, the second chosen on
+    the board as the first will leave it (applyFold only; pins and swats
+    aren't simulated), same aim rules, and **both must move paper** (its
+    aim prefers the fewest cells moved, so it often marked an empty
+    strip first). Both fold in order on the next beat; a pin or a hit
+    from the first stops the second. The player takes swat damage **at
+    most once per beat** (a second swat only moves them). Telegraph:
+    numbered badges 1 and 2.
+  - **Shrinking arena:** emergent from strip folds (twice per beat in
+    phase 3); no fold-under rule.
+  - **Charges:** 6 -> **7**. Beam searches (widths 3000, 4000 and 10000)
+    found no 6-charge line at 1 HP; 7 wins in 10 turns.
+  - Decided while building: an enemy pinned or dropped by a boss fold
+    earlier in the same enemy phase doesn't act (before, a dropped one
+    crashed the turn).
 - Great Crane bumps (6a part 2, user's choice after a solver check): on
   the draft arena a no-fold search won at 1 HP (dodge every marked strip,
   bump 6 times; its own folds pile the paper to full stacks, then it has

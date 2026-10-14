@@ -14,7 +14,7 @@
 import { computeLayout, cellOrigin } from './layout.js';
 import { getPalette, DEFAULT_PALETTE_ID } from './palette.js';
 import { TILE, ITEM } from '../core/tiles.js';
-import { CELL, EFFECT, buildTelegraph } from './preview.js';
+import { CELL, EFFECT, buildTelegraph, creaseSegment } from './preview.js';
 import { drawCreature } from './creatures.js';
 import { findCreature, stackHeight } from '../core/board.js';
 import { creatureDef } from '../core/creatures.js';
@@ -255,8 +255,10 @@ function drawSpawnMarks(r, ctx) {
 // The Great Crane's marked crease (render/preview.js buildTelegraph): a
 // dashed danger line with its chevron, diagonal hatching on every cell the
 // fold lands on and a "!" badge on the player if it covers them. A mark
-// that would fizzle is drawn grey. Cached per board; faded while the
-// player previews a fold of their own.
+// that would fizzle is drawn grey. Two marks at once (phase 3) carry a
+// numbered badge at the line's start for their fold order, so the order
+// reads without color. Cached per board; faded while the player previews
+// a fold of their own.
 function drawTelegraph(r, ctx) {
   const L = r.layout;
   if (!L || (r.fx && r.fx.foldAnim)) return;
@@ -284,6 +286,15 @@ function drawTelegraph(r, ctx) {
       hatch(ctx, o.x, o.y - level * lift, size, size * 0.2);
     }
     drawCrease(ctx, p, L, pv, lineW, { color, dashed: true });
+    const seg = t.of > 1 ? creaseSegment(board, t.fold) : null;
+    if (seg) {
+      const rad = Math.max(8, size * 0.17);
+      const dx = seg.x1 - seg.x0;
+      const dy = seg.y1 - seg.y0;
+      const len = Math.hypot(dx, dy) || 1;
+      const along = Math.min(0.5, rad * 1.4 / (len * size));
+      badge(ctx, p, L.boardX + (seg.x0 + dx * along) * size, L.boardY + (seg.y0 + dy * along) * size, rad, String(t.n), !t.fizzle);
+    }
     if (t.hits) {
       const me = findCreature(board, 'player');
       if (me) {
