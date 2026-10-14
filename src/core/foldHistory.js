@@ -2,7 +2,8 @@
 // its action log (core/replay.js codes or action objects). Pure; no DOM.
 //
 // A fold is in effect until an undo takes it back, so the log is walked as
-// a stack: a fold pushes, an undo pops. Each entry is { fold, n, at }:
+// a stack: a fold pushes, an undo pops. A take-back (Rewind Charm) cancels
+// the action before it, whatever it was. Each entry is { fold, n, at }:
 //   n   its number on the paper (1 = the oldest fold still in effect)
 //   at  its index in the log (playtest P4b rewinds to it)
 // Only accepted actions belong in the log (the floor screen logs no
@@ -11,13 +12,18 @@
 import { decodeAction, replay } from './replay.js';
 
 export function foldsInEffect(actions) {
-  const out = [];
+  const kept = [];
   actions.forEach((a, at) => {
     const action = typeof a === 'string' ? decodeAction(a) : a;
     if (!action) return;
+    if (action.type === 'takeback') kept.pop();
+    else kept.push({ action, at });
+  });
+  const out = [];
+  for (const { action, at } of kept) {
     if (action.type === 'fold') out.push({ fold: action.fold, n: out.length + 1, at });
     else if (action.type === 'undo') out.pop();
-  });
+  }
   return out;
 }
 
@@ -59,5 +65,7 @@ const FOLD_TEXT = {
 /** A short description of a fold on a board of `board`'s size. */
 export function foldText(board, fold) {
   const text = FOLD_TEXT[fold.axis];
-  return text ? text(fold, board) : 'A fold';
+  if (!text) return 'A fold';
+  if (fold.pocket == null) return text(fold, board);
+  return `${text(fold, board)}, ${fold.axis === 'v' ? 'row' : 'column'} ${fold.pocket + 1} only (pocket fold)`;
 }

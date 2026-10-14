@@ -4,11 +4,13 @@ import { el, svgIcon } from './dom.js';
 import { createHud } from './hud.js';
 import { createFoldInput } from './input.js';
 import { dirToward } from './moveInput.js';
-import { buildFoldPreview, slidePreview, bossForecast, buildHintMark, buildCreaseMarks } from '../render/preview.js';
+import {
+  buildFoldPreview, slidePreview, scoutPreview, bossForecast, buildHintMark, buildCreaseMarks,
+} from '../render/preview.js';
 import { createFxPlayer } from '../render/fx.js';
 import { createPlayback, buildClips } from '../render/playback.js';
 import {
-  createFloorState, defaultStart, act, canUndo, foldCheck, playerOf, PLAYER_ID, DEFAULT_FOLD_CHARGES,
+  createFloorState, defaultStart, act, canUndo, canTakeBack, foldCheck, playerOf, PLAYER_ID, DEFAULT_FOLD_CHARGES,
 } from '../core/turn.js';
 import { scatterEnemies } from '../core/enemies.js';
 import { CREATURE_DEFS } from '../core/creatures.js';
@@ -628,7 +630,9 @@ export const floorScreen = {
 
     function persist() {
       if (!saving) return;
-      if (state.status === 'playing') {
+      // A loss the Rewind Charm can still take back is saved as play goes
+      // on: the floor screen offers the charm again when it is continued.
+      if (state.status === 'playing' || canTakeBack(state)) {
         ctx.saveRun({
           floor: floorNo, templateId: info.templateId, variant: info.variant, actions: actionLog, hints: hintCount,
         });
@@ -664,7 +668,9 @@ export const floorScreen = {
         creasesFor = actionLog.length;
         creases = buildCreaseMarks(state.board, foldsInEffect(actionLog));
       }
-      ctx.renderer.setScene({ board: shownBoard, preview, hint: hintMark, creases });
+      ctx.renderer.setScene({
+        board: shownBoard, preview, hint: hintMark, creases, traps: state.traps, compass: !!state.rules.compass,
+      });
       const me = playerOf(state);
       hud.setHp(me ? me.hp : 0, me ? me.maxHp : CREATURE_DEFS.player.hp);
       hud.setCharges(state.charges, state.maxCharges);
@@ -689,7 +695,62 @@ export const floorScreen = {
       onCancel: () => input.cancel(),
       onHint: () => askHint(),
       onConfirmFold: () => input.confirmPending(),
+      onPocket: state.rules.pocket ? () => togglePocket() : null,
     });
+
+    // Pocket Fold: a mode, so a drag can fold one lane or a whole half.
+    let pocketMode = false;
+    function togglePocket() {
+      if (!state.rules.pocket || state.status !== 'playing') return;
+      pocketMode = !pocketMode;
+      input.cancel();
+      hud.setPocket(pocketMode);
+      hud.notify(pocketMode ? 'Pocket mode: a fold moves just the row or column you drag.' : 'Pocket mode off.', { info: true });
+    }
+
+    // Rewind Charm (once per run): back to before the latest action, from
+    // the pause menu or the defeat panel. No animation: the board is simply
+    // as it was.
+    function takeBack() {
+      if (playback.busy || !canTakeBack(state)) return;
+      if (input.active) input.cancel();
+      const result = act(state, { type: 'takeback' });
+      if (!result.ok) {
+        refuse(result.reason);
+        return;
+      }
+      recorder.action({ type: 'takeback' }, ctx.inputSource(), { ok: true, tookTurn: false });
+      ctx.telemetry.track('floor.takeback', { ...floorTag, turn: state.turn, lost: state.status === 'lost' });
+      state = result.state;
+      actionLog.push(encodeAction({ type: 'takeback' }));
+      persist();
+      shownBoard = state.board;
+      preview = null;
+      clearHelp();
+      hud.hideOutcome();
+      input.setEnabled(true);
+      sync();
+      hud.notify('Rewind Charm: your last turn is undone.', { info: true });
+    }
+
+    // A loss the charm can take back: ask before the run ends.
+    function offerTakeBack() {
+      const cause = state.outcome && state.outcome.cause;
+      hud.showOutcome({
+        title: 'Torn',
+        text: `${cause === 'fall' ? 'You fell through the paper.' : 'Out of HP.'} Your Rewind Charm can take that turn back (once per run).`,
+        actions: [
+          { label: 'Rewind that turn', primary: true, onclick: takeBack },
+          { label: 'Accept defeat', onclick: acceptDefeat },
+        ],
+      });
+    }
+
+    function acceptDefeat() {
+      state = { ...state, prev: null }; // the charm is no longer on offer
+      persist();
+      endFloor();
+    }
 
     // Runs one action through the turn engine, then plays its events back.
     // Logic is final before playback starts; input pressed meanwhile is
@@ -932,6 +993,7 @@ export const floorScreen = {
         actions: [
           { label: 'Resume', primary: true, onclick: resumePlay },
           { label: 'Restart Floor', onclick: confirmRestart },
+          canTakeBack(state) ? { label: 'Rewind Charm: take back last turn', onclick: takeBack } : null,
           { label: 'How to Play', onclick: () => hud.showSheet(howToPanel(openPause), { onEscape: openPause }) },
           { label: 'Fold history', onclick: openHistory },
           { label: 'Settings', onclick: openSettings },
@@ -1009,6 +1071,8 @@ export const floorScreen = {
         preview: foldPreview(was, f.fold),
         hint: null,
         creases: buildCreaseMarks(was.board, foldsInEffect(before.actions)),
+        traps: was.traps,
+        compass: !!was.rules.compass,
       });
       // The meters show the floor as it was then, too.
       const me = playerOf(was);
@@ -1084,6 +1148,10 @@ export const floorScreen = {
     function endFloor() {
       input.setEnabled(false);
       hud.hideHint();
+      if (state.status === 'lost' && canTakeBack(state)) {
+        offerTakeBack();
+        return;
+      }
       const cause = state.outcome && state.outcome.cause;
       report(state.status === 'won' ? 'won' : 'lost');
       if (inRun) {
@@ -1111,7 +1179,7 @@ export const floorScreen = {
       canvas,
       getLayout: () => ctx.renderer.layout,
       getBoard: () => state.board,
-      foldOptions: () => ({ diagonal: !!state.rules.diagonal }),
+      foldOptions: () => ({ diagonal: !!state.rules.diagonal, pocket: pocketMode }),
       confirmFolds: () => ctx.settings.confirmFolds === 'on',
       isValid: (crease) => !!foldPreview(state, crease)?.ok,
       onPending: (on) => hud.setFoldPending(on),
@@ -1140,6 +1208,7 @@ export const floorScreen = {
       onWait: () => dispatch({ type: 'wait' }),
       onHint: () => askHint(),
       onRestart: () => confirmRestart(),
+      onPocket: () => togglePocket(),
       onMove: (dir) => dispatch({ type: 'move', dir }),
       onTap(cell) {
         // Tap an adjacent tile to step (or bump) there. Measured from where
@@ -1170,14 +1239,15 @@ export const floorScreen = {
 
     sync();
     persist();
-    if (restartHints != null) hud.notify('Floor restarted.', { info: true });
+    if (state.status === 'lost') endFloor(); // continued on a loss the charm can take back
+    else if (restartHints != null) hud.notify('Floor restarted.', { info: true });
     else if (actionLog.length) hud.notify('Run continued where you left off.', { info: true });
     else if (restarted) hud.notify('This floor changed in an update, so it starts over.', { info: true });
     queueHints({ type: 'start' });
     return () => {
       // Leaving a saved floor mid-play keeps the run: Continue Run on the
       // title screen picks it up. An unsaved one (dev overrides) ends it.
-      const keep = saving && state.status === 'playing';
+      const keep = saving && (state.status === 'playing' || canTakeBack(state));
       report(leaving || (keep ? 'left' : 'abandoned'));
       gone = true;
       window.removeEventListener('keydown', onEscape);
@@ -1208,6 +1278,8 @@ const REFUSALS = {
   pinned: 'Pinned under paper. Undo the fold to get free.',
   'no-charges': 'No fold charges left.',
   'no-diagonal': 'Diagonal creases are locked.',
+  'no-pocket': 'Pocket folds need the Pocket Fold relic.',
+  'no-rewind': 'Nothing to take back.',
   'no-undo': 'Nothing to undo.',
   'invalid-fold': null,
 };
@@ -1218,6 +1290,9 @@ const NOTICES = {
   unlock: (ev) => (ev.by === 'fold' ? 'The key opens the lock.' : ev.by === 'master-key' ? 'Master Key: the lock opens.' : 'Unlocked.'),
   gate: (ev) => (ev.open ? 'A gate opens.' : 'A gate closes.'),
   refund: () => 'Recycled Crease: charge refunded.',
+  echo: () => 'Echo Fold: the enemies hold still. Go again.',
+  spike: () => 'Crease Trap: an enemy steps on the spikes.',
+  tape: () => 'Sticky Tape: they stay stuck for 2 turns.',
   block: (ev) => (ev.id !== PLAYER_ID ? null : BLOCK_NOTES[ev.by] || null),
   catch: () => 'Soft Landing: you catch yourself at the edge.',
   swat: () => 'The Crane\'s fold swats you aside.',
@@ -1237,8 +1312,9 @@ function foldPreview(state, crease) {
   if (!pv) return null;
   const check = foldCheck(state, crease);
   const slides = check.ok ? slidePreview(state, crease) : [];
+  const scout = check.ok && state.rules.scout ? scoutPreview(state, crease) : [];
   const boss = check.ok ? bossForecast(state, { type: 'fold', fold: crease }) : null;
-  return { ...pv, ok: check.ok, reasons: check.ok === pv.ok ? pv.reasons : check.reasons, slides, boss };
+  return { ...pv, ok: check.ok, reasons: check.ok === pv.ok ? pv.reasons : check.reasons, slides, scout, boss };
 }
 
 /** What the Crane's fold will then do (bossForecast), for the fold status. */

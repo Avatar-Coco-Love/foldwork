@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from './harness.js';
-import { findCreature, getCell } from '../src/core/board.js';
+import { findCreature, getCell, createBoard } from '../src/core/board.js';
 import { parseMap } from '../src/core/maps.js';
 import { createFloorState, act, canTakeBack, PLAYER_ID } from '../src/core/turn.js';
 import { applyRelics, RELIC_DEFS } from '../src/core/relics.js';
@@ -9,6 +9,9 @@ import { createRun, floorSetupFor, finishFloor } from '../src/core/run.js';
 import { encodeAction, decodeAction, replay } from '../src/core/replay.js';
 import { encodeSaveCode, decodeSaveCode, CODE_RELICS } from '../src/core/saveCode.js';
 import { runScraps } from '../src/core/scraps.js';
+import { foldsInEffect, foldText } from '../src/core/foldHistory.js';
+import { creaseSegment, scoutPreview } from '../src/render/preview.js';
+import { creaseFromDrag, defaultCrease, stepCrease, sameCrease } from '../src/ui/foldGesture.js';
 
 const types = (r) => r.events.map((e) => e.type);
 const withRelics = (rows, relics, extra = {}) => createFloorState(applyRelics({ ...parseMap(rows), ...extra }, relics));
@@ -191,4 +194,36 @@ test('Lucky Scrap: +50% scraps, rounded down, as its own line', () => {
   assert.equal(earned.total, 22);
   assert.deepEqual(earned.lines.at(-1), { id: 'lucky', label: 'Lucky Scrap (+50%)', count: 1, each: 7, amount: 7 });
   assert.equal(runScraps({ ...run, cleared: 0 }).lines.length, 0, 'nothing earned, no line');
+});
+
+test('Pocket Fold input: a drag folds its start lane; keys move the lane and turn v ↔ h', () => {
+  const L = { boardX: 0, boardY: 0, cellSize: 10, cols: 5, rows: 5 };
+  // Drag right from cell (0, 3): a 'v' crease, row 3 only.
+  const c = creaseFromDrag(L, { x: 5, y: 35 }, { x: 25, y: 35 }, { pocket: true });
+  assert.deepEqual(c, { axis: 'v', index: 2, side: 'before', pocket: 3 });
+  // A diagonal drag stays straight in pocket mode, even with diagonals.
+  assert.ok(['v', 'h'].includes(creaseFromDrag(L, { x: 5, y: 5 }, { x: 25, y: 25 }, { pocket: true, diagonal: true }).axis));
+  const board = createBoard(5, 5);
+  const k = defaultCrease(board, { pocket: true });
+  assert.deepEqual(k, { axis: 'v', index: 2, side: 'before', pocket: 2 });
+  assert.equal(stepCrease(board, k, 'ArrowDown').pocket, 3);
+  assert.equal(stepCrease(board, k, 'ArrowRight').index, 3);
+  assert.deepEqual(stepCrease(board, k, 'r'), { axis: 'h', index: 2, side: 'before', pocket: 2 });
+  assert.ok(!sameCrease(k, { ...k, pocket: 1 }));
+  assert.ok(sameCrease({ axis: 'v', index: 2, side: 'before' }, { axis: 'v', index: 2, side: 'before' }));
+});
+
+test('7c views: take-backs in fold history, pocket crease segments, Scout\'s Eye marks', () => {
+  assert.deepEqual(foldsInEffect(['fv1b', 'r', 'k', 'fh1b', 'k']).map((f) => f.at), [0]);
+  assert.deepEqual(foldsInEffect(['fv1b', 'z', 'k']).map((f) => f.at), [0], 'taking back an undo restores its fold');
+  const board = createFloorState(parseMap(['. . .', '. . .', '@ . .'])).board;
+  const seg = creaseSegment(board, { axis: 'v', index: 1, side: 'before', pocket: 2 });
+  assert.deepEqual([seg.x0, seg.y0, seg.x1, seg.y1], [1, 2, 1, 3]);
+  const segH = creaseSegment(board, { axis: 'h', index: 1, side: 'before', pocket: 0 });
+  assert.deepEqual([Math.min(segH.x0, segH.x1), Math.max(segH.x0, segH.x1), segH.y0], [0, 1, 1]);
+  assert.match(foldText(board, { axis: 'v', index: 1, side: 'before', pocket: 2 }), /row 3 only/);
+
+  const s = withRelics(['@ . . .', '. . . .', '. . . m'], ['scouts-eye']);
+  const marks = scoutPreview(s, { axis: 'h', index: 1, side: 'before' });
+  assert.deepEqual(marks, [{ kind: 'move', id: 'mite-0', from: { col: 3, row: 2 }, to: { col: 2, row: 2 } }]);
 });

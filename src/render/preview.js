@@ -89,6 +89,32 @@ export function slidePreview(state, fold) {
     .map(({ id, from, to, path }) => ({ id, from, to, path }));
 }
 
+/** Enemy events Scout's Eye draws, and the mark each becomes. */
+const SCOUT_KINDS = { move: 'move', bump: 'attack', shoot: 'attack', spawn: 'spawn', jaws: 'jaws' };
+
+/**
+ * Scout's Eye (rules.scout): what each enemy does in the turn after `fold`
+ * from floor state `state`, from the real turn like slidePreview:
+ * [{ kind: 'move' | 'attack' | 'spawn' | 'jaws', id, from, to }]. Slides
+ * are left out (pv.slides already shows them); a jaws mark is only an
+ * opening one. Empty when the fold can't be played or takes no turn (Echo
+ * Fold).
+ */
+export function scoutPreview(state, fold) {
+  const result = act(state, { type: 'fold', fold });
+  if (!result.ok) return [];
+  const out = [];
+  for (const ev of result.events) {
+    const kind = SCOUT_KINDS[ev.type];
+    if (!kind || ev.id === PLAYER_ID) continue;
+    if (kind === 'jaws') {
+      if (ev.open) out.push({ kind, id: ev.id, from: { ...ev.at }, to: { ...ev.at } });
+    } else if (kind === 'spawn') out.push({ kind, id: ev.id, from: { ...ev.at }, to: { ...ev.at } });
+    else out.push({ kind, id: ev.id, from: { ...ev.from }, to: { ...ev.to } });
+  }
+  return out;
+}
+
 /**
  * The telegraph (docs/03 Great Crane): each boss's marked crease as it
  * would fold on this board, [{ id, at, fold, pv, fizzle, hits }]. `pv` is
@@ -159,7 +185,7 @@ export function buildCreaseMarks(board, folds) {
  * c..c+1): the segment { x0, y0, x1, y1 }, plus the unit normal { nx, ny }
  * pointing from the 'before' half to the 'after' half and `offset` (n·p on
  * the line, unit n). Works for every axis in AXES; null if the line misses
- * the board.
+ * the board. A pocket fold's segment spans its one lane.
  */
 export function creaseSegment(board, fold) {
   const geo = AXES[fold.axis];
@@ -186,6 +212,11 @@ export function creaseSegment(board, fold) {
     t1 = Math.min(t1, Math.max(a, b));
   }
   if (!(t1 > t0)) return null;
+  if (fold.pocket != null) {
+    // The lane runs along the line: rows for 'v' (t = y), columns for 'h' (t = -x).
+    if (fold.axis === 'v') [t0, t1] = [fold.pocket, fold.pocket + 1];
+    else if (fold.axis === 'h') [t0, t1] = [-(fold.pocket + 1), -fold.pocket];
+  }
   return { x0: px + dx * t0, y0: py + dy * t0, x1: px + dx * t1, y1: py + dy * t1, nx, ny, offset };
 }
 
