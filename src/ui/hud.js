@@ -240,7 +240,7 @@ export function createHud(root, {
           el('div', { class: 'menu-buttons' }, btns),
         ),
       ), onEscape);
-      btns[0]?.focus();
+      btns[0]?.focus({ preventScroll: true });
     },
     /**
      * A full screen over the board (Settings, How to Play from the pause

@@ -68,7 +68,7 @@ export function stateKey(state, { playerHp = true } = {}) {
     const layers = cells[i].layers;
     for (let d = 0; d < layers.length; d++) {
       const l = layers[d];
-      key += code(l.tile) + (l.item ? code(l.item) : '') + (l.link || '') + (l.hold ? `h${l.hold}` : '');
+      key += code(l.tile) + (l.item ? code(l.item) : '') + (l.link || '') + (l.hold ? `h${l.hold}` : '') + (l.hinge ? `^${l.hinge}` : '');
       if (l.creature) key += `(${creatureKey(l.creature, playerHp)})`;
       key += ';';
     }

@@ -25,6 +25,7 @@ Later (not v1): Ink hazards, Mirror tiles.
 - A fold stacks tiles from the folded half onto the stationary half. Each cell can hold multiple layers.
 - **Only the top layer is active.** Movement, hazards, keys, plates, and enemies all use the top layer.
 - Layers below are preserved. Unfolding restores them exactly.
+- **Lifting a flap:** every layer a fold moves remembers that crease. Folding the same line from the other side, when that side holds any such layers, lifts the flap back instead of folding the whole side: only the flap's layers (and anything lying on them) move back; the paper underneath, and anything pinned there, stays. Cells with no flap don't move. It costs a charge and a turn like any fold (playtest round 2).
 - Creatures travel with their layer. A creature on a folded tile ends up on the destination cell, on top.
 - **Max stack height: 3 layers** (relics can raise it). A fold that would exceed 3 on any cell is invalid, and the preview shows it in red.
 

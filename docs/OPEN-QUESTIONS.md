@@ -43,6 +43,17 @@ These belong to later phases and get decided when that phase is built.
   file would load `share.png`, which the game must not).
 
 ## Resolved
+- Playtest round 2 (8c, user's choices). **Refolding a crease:** folding
+  the same line back from the other side lifts the flap back (docs/02
+  "Lifting a flap") instead of folding the whole side, so the paper
+  underneath, and a player pinned there, stays put. Costs a charge and a
+  turn like any fold. **Wasp sight:** a player on a taller stack is in
+  sight; only taller stacks in between block (f2-wasp loses the anchor
+  beside the way up; f8-crossing gets a thick block beside the Wasp).
+  **Scope:** 8c fixes these and the HUD clipping; visual polish moves to
+  8d (screen shake: on, subtle, never under reduced motion, a Settings
+  toggle; on player hurt, boss swat and void drops), the alignment audit
+  to 8e.
 - Ambient loop (8b, user's choices). **Where:** from the first tap on,
   on the title and every screen, one continuous loop. **Boss floor:** a
   darker variant (lower, a dark pentatonic, a little quicker), back to

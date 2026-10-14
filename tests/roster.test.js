@@ -135,6 +135,22 @@ test('Wasp: walls, creatures and taller stacks block the shot; holes don\'t', ()
   assert.deepEqual(lanes[1], [{ col: 2, row: 1 }, { col: 2, row: 2 }]); // down, ends on the Brute
 });
 
+test('Wasp: a player on a taller stack is still in sight (playtest round 2)', () => {
+  const sting = (board) => types(act(floor({ player: { col: 2, row: 3 }, enemies: [at('wasp', 2, 0)] }, board), WAIT)).includes('shoot');
+  const up = createBoard(5, 5);
+  getCell(up, 2, 3).layers.push(createLayer(TILE.FLOOR)); // one higher than the Wasp
+  assert.equal(sting(up), true);
+  getCell(up, 2, 3).layers.push(createLayer(TILE.FLOOR)); // two higher
+  assert.equal(sting(up), true);
+  // Right beside it, one higher: still stung.
+  const near = createBoard(5, 5);
+  getCell(near, 2, 1).layers.push(createLayer(TILE.FLOOR));
+  assert.equal(types(act(floor({ player: { col: 2, row: 1 }, enemies: [at('wasp', 2, 0)] }, near), WAIT)).includes('shoot'), true);
+  // A taller stack in between still blocks, however high the player stands.
+  getCell(up, 2, 2).layers.push(createLayer(TILE.FLOOR));
+  assert.equal(sting(up), false);
+});
+
 test('Wasp: pinned, it can\'t sting; it is never stranded', () => {
   const s = floor({ player: { col: 1, row: 4 }, enemies: [at('wasp', 1, 0), at('mite', 0, 0, 'm')] });
   // Column 0 folds onto column 1: the Wasp is pinned under the Mite's sheet.
@@ -165,4 +181,28 @@ test('playback: a sting plays as a dart clip from the Wasp to its target', () =>
   const dart = clips.find((c) => c.actor && c.actor.kind === 'shoot');
   assert.ok(dart);
   assert.deepEqual([dart.actor.from, dart.actor.to, dart.actor.skip], [{ col: 2, row: 0 }, { col: 2, row: 4 }, false]);
+});
+
+test('lift: folding back the fold that pinned the player frees it in place (playtest round 2)', () => {
+  const s = floor({ player: { col: 1, row: 2 }, enemies: [at('mite', 0, 2, 'm')], charges: 3 });
+  const pinned = act(s, FOLD_COL0); // column 0 onto column 1: the Mite lands on the player
+  assert.ok(pinned.events.some((e) => e.type === 'pin' && e.id === 'player'));
+  const back = { type: 'fold', fold: { axis: 'v', index: 1, side: 'after' } };
+  const pv = buildFoldPreview(pinned.state.board, back.fold);
+  assert.equal(pv.lift, true);
+  // Only column 1 leaves (one layer each); columns 2..4 hold no flap and stay.
+  for (let row = 0; row < 5; row++) {
+    assert.equal(pv.state[row * 5 + 1], CELL.LEAVING);
+    assert.equal(pv.moving[row * 5 + 1], 1);
+    assert.equal(pv.state[row * 5 + 2], CELL.NONE);
+  }
+  const r = act(pinned.state, back);
+  assert.ok(r.ok);
+  assert.deepEqual(pos(r.state, 'player'), { col: 1, row: 2 });
+  assert.equal(findCreature(r.state.board, 'player').top, true);
+  assert.deepEqual(pos(r.state, 'm'), { col: 0, row: 2 });
+  for (let row = 0; row < 5; row++) {
+    assert.equal(r.state.board.cells[row * 5].layers.length, 1);
+    assert.equal(r.state.board.cells[row * 5 + 1].layers.length, 1);
+  }
 });
