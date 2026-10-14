@@ -28,6 +28,7 @@ import { createHintSearch } from './hintSearch.js';
 import { shareGame, shareUrl, challengeUrl } from './share.js';
 import { encodeSaveCode, decodeSaveCode, isCodeSeed } from '../core/saveCode.js';
 import { relicDef } from '../core/relics.js';
+import { runSummary } from '../core/summary.js';
 import { SPIRIT_DEFS, spiritDef } from '../core/spirits.js';
 import { HINTS, hintDef, hintsFor } from '../core/hints.js';
 import { loadSeenHints, saveSeenHints } from './hintStore.js';
@@ -461,11 +462,14 @@ export const spiritScreen = {
   mount(root, ctx, params) {
     ctx.renderer.setScene(null);
     const spirits = Object.values(SPIRIT_DEFS);
-    // Accepting a challenge (title screen) brings its seed.
-    const seed = params.challenge || null;
+    // Back returns to the run summary when it sent us here.
+    const back = () => ctx.router.go(params.retry && ctx.lastRun ? 'summary' : 'title');
+    // Accepting a challenge (title screen) brings its seed; so does Retry
+    // this seed (run summary).
+    const seed = params.challenge || params.retry || null;
     const choose = (id, index) => {
       ctx.abandonRun(); // the title screen already asked
-      ctx.startRun({ spirit: id, seed });
+      ctx.startRun({ spirit: id, seed, retry: !params.challenge && !!params.retry });
       if (seed) ctx.clearChallenge();
       ctx.telemetry.track('spirit.pick', { ...runTag(ctx.run), index, offered: spirits.map((d) => d.id) });
       ctx.router.go('floor', { floor: ctx.run.floor });
@@ -487,10 +491,11 @@ export const spiritScreen = {
       el('div', { class: 'menu offer' },
         el('h2', { class: 'outcome-title', text: 'Choose your spirit' }),
         el('p', { class: 'subtitle', text: 'It sets your HP and gives one perk for the whole run.' }),
-        seed ? el('p', { class: 'save-summary', text: 'Challenge run: your friend\'s floors and relic offers.' }) : null,
+        params.challenge ? el('p', { class: 'save-summary', text: 'Challenge run: your friend\'s floors and relic offers.' })
+          : seed ? el('p', { class: 'save-summary', text: 'Same seed: the floors and relic offers of your last run.' }) : null,
         el('div', { class: 'offer-cards', role: 'group', 'aria-label': 'Spirits' }, cards),
         el('div', { class: 'menu-buttons' },
-          el('button', { class: 'btn btn-secondary', type: 'button', onclick: () => ctx.router.go('title') }, 'Back')),
+          el('button', { class: 'btn btn-secondary', type: 'button', onclick: back }, 'Back')),
       ),
     );
     cards[0]?.focus({ preventScroll: true });
@@ -501,7 +506,7 @@ export const spiritScreen = {
         e.preventDefault();
         choose(spirits[n - 1].id, n - 1);
       } else if (e.key === 'Escape') {
-        ctx.router.go('title');
+        back();
       }
     };
     window.addEventListener('keydown', onKey);
@@ -1038,7 +1043,7 @@ export const floorScreen = {
         if (!saving) ctx.run = addHints(finishFloor(run, state), floorNo, hintCount); // else persist() did
         // Cleared with more to come: the relic offer replaces the panel.
         if (ctx.run.offer) ctx.router.go('offer', params);
-        else hud.showOutcome(runPanel(ctx, ctx.run, floorNo, cause, params));
+        else hud.showOutcome(runPanel(ctx, ctx.run, floorNo, params));
         return;
       }
       if (state.status === 'won') {
@@ -1360,12 +1365,12 @@ function cleanText() {
 
 /**
  * End-of-floor panel for a run floor, given the run after finishFloor():
- * on to the next floor, the run won, or the run lost. Ends the run (and
- * reports run.end) when it is over.
+ * on to the next floor, or (the run over, won or lost) a short panel
+ * that leads to the run summary. Ends the run (and reports run.end) when
+ * it is over.
  */
-function runPanel(ctx, run, floorNo, cause, params) {
+function runPanel(ctx, run, floorNo, params) {
   const menu = { label: 'Menu', onclick: () => ctx.router.go('title') };
-  const newRun = { label: 'New run', primary: true, onclick: () => startNewRun(ctx) };
   const relics = run.relics.length ? ` Relics: ${run.relics.map((id) => relicDef(id).name).join(', ')}.` : '';
   if (run.status === 'playing') {
     return {
@@ -1375,27 +1380,68 @@ function runPanel(ctx, run, floorNo, cause, params) {
     };
   }
   ctx.endRun(run.status);
-  if (run.status === 'won') {
-    // 6c replaces this with the full run summary.
-    if (cause === 'boss') {
-      return {
-        title: 'The Crane falls',
-        text: `You folded the Great Crane out of the sky with ${run.hp}/${run.maxHp} HP left. The run is won.${relics}`,
-        actions: [newRun, menu],
-      };
-    }
-    return {
-      title: 'Run complete',
-      text: `You cleared all ${run.lastFloor} floors.`,
-      actions: [newRun, menu],
-    };
-  }
+  // A short panel over the final board, then the full summary screen.
+  const summary = runSummary(run);
   return {
-    title: 'Torn',
-    text: `${cause === 'fall' ? 'You fell through the paper' : 'Out of HP'} on floor ${floorNo}. The run is over.`,
-    actions: [newRun, menu],
+    title: summary.title,
+    text: summary.text,
+    actions: [{ label: 'Run summary', primary: true, onclick: () => ctx.router.go('summary') }],
   };
 }
+
+/**
+ * Run summary (docs/04 screen 5, Phase 6c): the run just won or lost
+ * (ctx.lastRun) with New run, Retry this seed (same floors and relic
+ * offers, a spirit of your choice), Challenge a friend and Menu. Esc is
+ * Menu; in the challenge sheet it is Back.
+ */
+export const summaryScreen = {
+  mount(root, ctx) {
+    ctx.renderer.setScene(null);
+    const run = ctx.lastRun;
+    const toMenu = () => ctx.router.go('title');
+    if (!run) {
+      root.append(el('div', { class: 'menu' },
+        el('p', { class: 'subtitle', text: 'No run to sum up.' }),
+        el('button', { class: 'btn btn-primary', type: 'button', onclick: toMenu }, 'Menu')));
+      return escapeTo(toMenu);
+    }
+    const summary = runSummary(run);
+    let onEscape = toMenu;
+
+    const show = (panel, escape) => {
+      root.replaceChildren(panel);
+      onEscape = escape;
+      (panel.querySelector('.btn-primary') || panel.querySelector('button'))?.focus({ preventScroll: true });
+    };
+    const showSummary = () => show(summaryPanel(), toMenu);
+    const showChallenge = () => show(challengePanel(ctx, run.seed, showSummary), showSummary);
+
+    function summaryPanel() {
+      const rows = summary.rows.map((r) => el('div', { class: 'summary-row' },
+        el('dt', { text: r.label }),
+        el('dd', {},
+          r.items && r.items.length
+            ? el('ul', { class: 'summary-list' }, r.items.map((name) => el('li', { text: name })))
+            : r.value)));
+      const button = (label, onclick, primary = false) =>
+        el('button', { class: `btn ${primary ? 'btn-primary' : 'btn-secondary'}`, type: 'button', onclick }, label);
+      return el('div', { class: `menu settings summary summary-${summary.outcome}` },
+        el('h2', { class: 'outcome-title', text: summary.title }),
+        el('p', { class: 'subtitle', text: summary.text }),
+        el('dl', { class: 'summary-rows' }, rows),
+        el('div', { class: 'menu-buttons' },
+          button('New run', () => startNewRun(ctx), true),
+          button('Retry this seed', () => ctx.router.go('spirit', { retry: run.seed })),
+          button('Challenge a friend', showChallenge),
+          button('Menu', toMenu)),
+      );
+    }
+
+    showSummary();
+    return escapeTo(() => onEscape());
+  },
+};
 
 /**
  * createFloorState() options for a dev floor.

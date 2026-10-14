@@ -134,7 +134,7 @@ Run events share a run tag: `seed`, `floor`, `hp`, `maxHp`, `relics`,
 | `session.start` | Page load | `device` (viewport, screen, dpr, orientation, pointer, hover, touchPoints, reducedMotion, colorScheme, lang, tzOffset, ua, standalone), `settings`, `palette`, `entry` (start screen, dev params used, `challenge`: opened from a challenge link) |
 | `session.hide` | Page hidden / closed | `ms` since load |
 | `screen.view` | Every screen change | `name`, `floor` |
-| `run.start` | New Run | run tag, `daily`, `challenge` (on a friend's challenge seed), `lastFloor` |
+| `run.start` | New Run | run tag, `daily`, `challenge` (on a friend's challenge seed), `retry` (Retry this seed on the run summary), `lastFloor` |
 | `run.end` | Run won, lost, or given up (`abandoned`: a new run started over it; Menu no longer ends a run, it stays saved) | run tag, `outcome`, `cause`, `cleared`, `lastFloor` |
 | `run.resume` | Continue Run on the title screen (the session's later events carry the run's saved id) | run tag, `cleared`, `lastFloor`, `offer` (resumed on a relic offer), `savedMs` (age of the save) |
 | `run.load` | Load run pressed in Settings > Data > Save code (title screen). Loaded: a new run id, the run starts at its floor's start or on its offer; any run in progress ends as `abandoned` first | `ok`; when loaded, run tag, `cleared`, `lastFloor`, `offer`; when refused, `reason` (`empty`, `format`, `check`, `version`, `data`) |
@@ -148,7 +148,7 @@ Run events share a run tag: `seed`, `floor`, `hp`, `maxHp`, `relics`,
 | `hint.dismiss` | Hint closed | floor tag, `id`, `by` (`player` / `replaced`), `ms` shown |
 | `hint.ask` | Hint button pressed (free, unlimited) | floor tag, `level` (1 the floor's tip, 2 a next step or "can't be won from here"), `count` (presses on this floor so far, kept through Restart Floor), `turn` |
 | `settings.change` | Any setting changed | `patch`, `settings` |
-| `share` | Share Foldwork pressed (title screen), or Share link in Challenge a friend (pause menu) | `result`: `shared`, `copied`, `cancelled` or `manual` (link shown to copy); `what`: `game` or `challenge` |
+| `share` | Share Foldwork pressed (title screen), or Share link in Challenge a friend (pause menu or run summary) | `result`: `shared`, `copied`, `cancelled` or `manual` (link shown to copy); `what`: `game` or `challenge` |
 | `error` | Uncaught error / rejection (≤ 20 per session) | `message`, `source`, `line`, `col`, `stack`, `rejection` |
 
 `log` entries are `[ms since floor start, action code, input source,
