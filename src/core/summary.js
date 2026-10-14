@@ -1,8 +1,8 @@
 // Run summary (docs/04 screen 5, Phase 6c): what the summary screen shows
 // for a run that is over, won or lost. Pure: the screen only lays it out.
 //
-// Rows (user's choice, 6c): spirit, floors cleared, HP, relics, seed.
-// Scraps and unlocks join in Phase 7.
+// Rows (user's choice, 6c): spirit, floors cleared, HP, relics, seed;
+// paper scraps (7a) when the screen passes them in. Unlocks join in 7b.
 
 import { BOSS_FLOOR } from './run.js';
 import { relicDef } from './relics.js';
@@ -17,9 +17,11 @@ const LOSS_TEXT = {
 /**
  * The summary of a run that is over (status 'won' or 'lost'):
  * { outcome, title, text, rows: [{ id, label, value, items? }] }.
- * `items` (relics) is a list of names; `value` is its short form.
+ * `items` (relics, scraps) is a list of lines; `value` is its short form.
+ * `scraps` is ctx.lastScraps ({ earned (core/scraps.js runScraps), total,
+ * banked }), or null for no scraps row.
  */
-export function runSummary(run) {
+export function runSummary(run, scraps = null) {
   const won = run.status === 'won';
   const boss = run.lastFloor === BOSS_FLOOR;
   let title;
@@ -45,7 +47,17 @@ export function runSummary(run) {
       { id: 'floors', label: 'Floors cleared', value: `${run.cleared} / ${run.lastFloor}` },
       { id: 'hp', label: 'HP', value: `${won ? run.hp : 0} / ${run.maxHp}` },
       { id: 'relics', label: 'Relics', value: relics.length ? String(relics.length) : 'None', items: relics },
+      ...(scraps ? [scrapsRow(scraps)] : []),
       { id: 'seed', label: 'Seed', value: run.seed },
     ],
   };
+}
+
+// "+27 (140 saved)": the run's scraps and the bank after it. The list
+// shows how they were earned, then that total. A dev run shows what it
+// would earn, not banked.
+function scrapsRow({ earned, total, banked }) {
+  const value = banked ? `+${earned.total} (${total} saved)` : `+${earned.total} (dev run, not saved)`;
+  const lines = earned.lines.map((l) => (l.count > 1 ? `${l.label}: ${l.count} × ${l.each} = ${l.amount}` : `${l.label}: ${l.amount}`));
+  return { id: 'scraps', label: 'Paper scraps', value, items: lines.length ? [...lines, `Total: ${value}`] : [] };
 }

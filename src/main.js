@@ -44,6 +44,9 @@ import {
 } from './ui/settings.js';
 import { createSave } from './core/save.js';
 import { createSaveStore } from './ui/saveStore.js';
+import { createMetaStore } from './ui/metaStore.js';
+import { bankScraps } from './core/meta.js';
+import { runScraps } from './core/scraps.js';
 
 const params = Object.fromEntries(new URLSearchParams(location.search));
 const canvas = document.getElementById('board');
@@ -79,6 +82,7 @@ const devSpirit = isSpirit(params.spirit) ? params.spirit : null;
 const DEV_RUN_PARAMS = ['screen', 'floor', 'seed', 'relics', 'spirit', 'charges', 'mites', 'map', 'size', 'demo'];
 const devRun = DEV_RUN_PARAMS.some((k) => k in params);
 const saves = createSaveStore();
+const metaStore = createMetaStore();
 const newRunId = () => `r_${Date.now().toString(36)}${Math.floor(Math.random() * 1e6).toString(36)}`;
 
 const ctx = {
@@ -89,6 +93,13 @@ const ctx = {
   run: null,
   /** The run that just ended, won or lost (run summary screen), or null. */
   lastRun: null,
+  /**
+   * Paper scraps for ctx.lastRun: { earned (core/scraps.js), total (the
+   * bank after it), banked (false for dev runs, which never bank) }.
+   */
+  lastScraps: null,
+  /** Meta-progression (core/meta.js): scraps and, later, unlocks. */
+  meta: metaStore.load(),
   /** Telemetry id of the run in progress (kept in its save). */
   runId: null,
   telemetry: tele.telemetry,
@@ -191,7 +202,8 @@ const ctx = {
   },
   /**
    * Record the run's end (won, lost, or abandoned when the player starts a
-   * new run over it), clear it and its save. Safe to call more than once.
+   * new run over it), clear it and its save. A won or lost run banks its
+   * paper scraps (an abandoned one earns none). Safe to call more than once.
    */
   endRun(outcome) {
     if (!devRun) saves.clear();
@@ -199,8 +211,20 @@ const ctx = {
     if (!run) return;
     ctx.run = null;
     ctx.runId = null;
-    if (outcome !== 'abandoned') ctx.lastRun = run;
-    ctx.telemetry.track('run.end', { ...runTag(run), outcome, cause: run.cause, cleared: run.cleared, lastFloor: run.lastFloor });
+    let scraps = 0;
+    if (outcome !== 'abandoned') {
+      const earned = runScraps(run);
+      scraps = earned.total;
+      if (!devRun) {
+        ctx.meta = bankScraps(ctx.meta, scraps);
+        metaStore.write(ctx.meta);
+      }
+      ctx.lastRun = run;
+      ctx.lastScraps = { earned, total: ctx.meta.scraps, banked: !devRun };
+    }
+    ctx.telemetry.track('run.end', {
+      ...runTag(run), outcome, cause: run.cause, cleared: run.cleared, lastFloor: run.lastFloor, foldKills: run.foldKills || 0, scraps,
+    });
     ctx.telemetry.flush();
     ctx.telemetry.setRun(null);
   },

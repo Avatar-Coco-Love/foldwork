@@ -3,7 +3,7 @@
 //
 // A code holds the run as it was at the start of its current floor (or on
 // its waiting relic offer): seed, spirit, floor, HP, relics, landings,
-// floors cleared, hint counts. Moves made on the floor are not in it, so
+// floors cleared, fold kills (paper scraps), hint counts. Moves made on the floor are not in it, so
 // the floor starts over on the other device, as Restart Floor would (no
 // new power). The offer itself is not stored: it is rolled again from the
 // seed, which gives the same relics.
@@ -16,20 +16,22 @@
 //
 //   version 4 | seed 32 | spirit 3 | floor 4 | lastFloor 4 | hp 4 |
 //   maxHp 4 | landings 3 | cleared 4 | offer 1 | clean 1 |
+//   fold kills 6 (version 2+, capped at 63) |
 //   relic count 5, then 6 per relic (CODE_RELICS index), in order taken |
 //   hint floors 4, then floor 4 + presses 6 each (capped at 63) |
 //   CRC-10 of everything before it | zero padding to a whole character
 //
 // The CRC catches any one mistyped character and any swap of two
 // neighbours. Only runs on a plain number seed (every saved run) have a
-// code; daily seeds (Phase 7) will take a new version.
+// code; daily seeds (Phase 7) will take a new version. Version 1 codes
+// (no fold kills) still read, with 0 fold kills.
 
 import { RUN_VERSION, BOSS_FLOOR, rollOffer, runLength } from './run.js';
 import { RELIC_DEFS } from './relics.js';
 import { SPIRIT_DEFS } from './spirits.js';
 import { templateFloors } from './floors.js';
 
-export const SAVE_CODE_VERSION = 1;
+export const SAVE_CODE_VERSION = 2;
 
 /**
  * Code order for spirits and relics. Append only: an id's position is
@@ -47,6 +49,7 @@ const PREFIX = 'FW';
 const CRC_BITS = 10;
 const CRC_POLY = 0x233;
 const MAX_HINTS = 63;
+const MAX_FOLD_KILLS = 63;
 
 /** Whether `seed` is a plain run seed: a whole number below 2^32, no leading zeros. */
 export function isCodeSeed(seed) {
@@ -64,7 +67,7 @@ export function encodeSaveCode(run) {
   const fields = [
     [SAVE_CODE_VERSION, 4], [Number(run.seed), 32], [spirit, 3], [run.floor, 4], [run.lastFloor, 4],
     [run.hp, 4], [run.maxHp, 4], [run.landings || 0, 3], [run.cleared, 4], [run.offer ? 1 : 0, 1],
-    [run.clean ? 1 : 0, 1], [relics.length, 5], ...relics.map((r) => [r, 6]),
+    [run.clean ? 1 : 0, 1], [Math.min(MAX_FOLD_KILLS, run.foldKills || 0), 6], [relics.length, 5], ...relics.map((r) => [r, 6]),
     [hints.length, 4], ...hints.flatMap(([floor, n]) => [[floor, 4], [n, 6]]),
   ];
   // Anything that doesn't fit (or is unknown) means no code, never a wrong one.
@@ -107,11 +110,12 @@ export function decodeSaveCode(text, { floors = templateFloors() } = {}) {
   try {
     const version = read(4);
     // A newer game's layout can't be read here, so not even checked.
-    if (version !== SAVE_CODE_VERSION) return { ok: false, reason: version > SAVE_CODE_VERSION ? 'version' : 'format' };
+    if (version < 1 || version > SAVE_CODE_VERSION) return { ok: false, reason: version > SAVE_CODE_VERSION ? 'version' : 'format' };
     f = {
       version, seed: read(32), spirit: read(3), floor: read(4), lastFloor: read(4), hp: read(4), maxHp: read(4),
       landings: read(3), cleared: read(4), offer: read(1), clean: read(1),
     };
+    f.foldKills = version >= 2 ? read(6) : 0;
     f.relics = Array.from({ length: read(5) }, () => read(6));
     f.hints = Array.from({ length: read(4) }, () => [read(4), read(6)]);
     const sum = crc10(bits.slice(0, at));
@@ -150,6 +154,7 @@ function toRun(f, floors) {
     relics,
     landings: f.landings,
     cleared: f.cleared,
+    foldKills: f.foldKills,
     offer: null,
     clean: !!f.clean,
     ...(f.hints.length ? { hints } : {}),

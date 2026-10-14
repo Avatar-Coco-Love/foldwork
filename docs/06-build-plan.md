@@ -69,7 +69,6 @@ Build one phase at a time. Finish, test, and summarize before moving on. Each ph
 
 ## Open questions log
 Keep `docs/OPEN-QUESTIONS.md` updated. Current open items:
-- Exact scrap costs and earn rates.
 - Relic rarity assignments.
 - Great Crane balance and arena templates.
 - Names and mechanics for the two later spirits.
