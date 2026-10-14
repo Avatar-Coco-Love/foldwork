@@ -27,6 +27,14 @@
 // - A cell whose mirror falls off the board is clipped: its stack stays on its
 //   own cell, unfolded and still active.
 // - Vacated cells keep `layers: []`. Gameplay treats an empty cell as a void.
+// - Lifting a flap (playtest round 2): every layer a fold moves remembers
+//   that crease (layer.hinge, hingeKey()). A fold along the same line from
+//   the other side, when its folding side holds any such layers, lifts the
+//   flap back instead of folding the whole side: on each cell only the
+//   layers from the lowest flap layer up (the flap and anything lying on it)
+//   move; the paper underneath, and anything pinned there, stays. Cells with
+//   no flap layers don't move. Mirroring is its own inverse, so the flap
+//   lands back where it came from.
 // - A fold is invalid if any resulting stack exceeds board.maxStack.
 // - A fold is invalid if a stack would land on a heavy creature (Card
 //   Brute: can't be pinned), unless the landing stack's top is a hole, which
@@ -195,6 +203,48 @@ export function foldMapping(board, fold) {
   return moves;
 }
 
+/** The crease a layer remembers after `fold` moves it (pocket lanes share it). */
+export function hingeKey(fold) {
+  return `${fold.axis}${fold.index}${fold.side === 'before' ? 'b' : 'a'}`;
+}
+
+/** The hinge of the flaps this fold would lift: the same line, the other side. */
+export function liftKey(fold) {
+  return hingeKey({ ...fold, side: fold.side === 'before' ? 'after' : 'before' });
+}
+
+// How many top layers leave a cell's stack: from the lowest layer hinged on
+// `key` up, or 0 when it has none.
+function flapCount(layers, key) {
+  for (let d = 0; d < layers.length; d++) {
+    if (layers[d].hinge === key) return layers.length - d;
+  }
+  return 0;
+}
+
+/**
+ * The fold's moves with what each carries: foldMapping() entries plus
+ * `count`, the layers that leave the source cell (its top `count`; 0 for a
+ * clipped or empty cell). Returns { lift, moves }: lift says the fold lifts
+ * flaps back (see the rules above) rather than folding whole stacks.
+ */
+export function foldMoves(board, fold) {
+  const moves = foldMapping(board, fold);
+  const key = liftKey(fold);
+  let lift = false;
+  for (const m of moves) {
+    if (!m.clipped && flapCount(board.cells[cellIndex(board, m.from.col, m.from.row)].layers, key)) {
+      lift = true;
+      break;
+    }
+  }
+  for (const m of moves) {
+    const layers = board.cells[cellIndex(board, m.from.col, m.from.row)].layers;
+    m.count = m.clipped ? 0 : lift ? flapCount(layers, key) : layers.length;
+  }
+  return { lift, moves };
+}
+
 /**
  * Check a fold without applying it.
  * Returns { ok, reasons, perCellHeights, moves }:
@@ -203,19 +253,19 @@ export function foldMapping(board, fold) {
  *                   the creature's kind)
  *   perCellHeights  resulting stack height per cell (row-major), or null if
  *                   the crease is malformed
- *   moves           foldMapping() result, or null if malformed
+ *   moves           foldMoves() entries (with `count`), or null if malformed
+ *   lift            the fold lifts flaps back (foldMoves)
  */
 export function validateFold(board, fold) {
   const errors = creaseErrors(board, fold);
-  if (errors.length) return { ok: false, reasons: errors, perCellHeights: null, moves: null };
+  if (errors.length) return { ok: false, reasons: errors, perCellHeights: null, moves: null, lift: false };
 
   const perCellHeights = board.cells.map((cell) => cell.layers.length);
-  const moves = foldMapping(board, fold);
+  const { lift, moves } = foldMoves(board, fold);
   for (const m of moves) {
-    if (m.clipped) continue;
-    const src = cellIndex(board, m.from.col, m.from.row);
-    perCellHeights[cellIndex(board, m.to.col, m.to.row)] += perCellHeights[src];
-    perCellHeights[src] = 0;
+    if (!m.count) continue;
+    perCellHeights[cellIndex(board, m.to.col, m.to.row)] += m.count;
+    perCellHeights[cellIndex(board, m.from.col, m.from.row)] -= m.count;
   }
 
   const max = maxStackOf(board);
@@ -227,13 +277,13 @@ export function validateFold(board, fold) {
     }
   }
   for (const m of moves) {
-    if (m.clipped) continue;
+    if (!m.count) continue;
     const dest = topLayer(board, m.to.col, m.to.row);
     const src = topLayer(board, m.from.col, m.from.row);
     if (!src || !dest || !isHeavy(dest.creature) || tileDef(src.tile).hole) continue;
     reasons.push({ code: 'heavy', col: m.to.col, row: m.to.row, kind: dest.creature.kind });
   }
-  return { ok: reasons.length === 0, reasons, perCellHeights, moves };
+  return { ok: reasons.length === 0, reasons, perCellHeights, moves, lift };
 }
 
 /**
@@ -255,14 +305,15 @@ export function applyFold(board, fold, { resolve = null } = {}) {
   }
   const next = cloneBoard(board);
   const landings = [];
+  const hinge = hingeKey(fold);
   for (const m of check.moves) {
-    if (m.clipped) continue;
+    if (!m.count) continue;
     const src = next.cells[cellIndex(next, m.from.col, m.from.row)];
-    if (!src.layers.length) continue;
     const dst = next.cells[cellIndex(next, m.to.col, m.to.row)];
-    landings.push({ from: m.from, to: m.to, baseHeight: dst.layers.length, count: src.layers.length });
-    dst.layers.push(...src.layers);
-    src.layers = [];
+    landings.push({ from: m.from, to: m.to, baseHeight: dst.layers.length, count: m.count });
+    const moving = src.layers.splice(src.layers.length - m.count, m.count);
+    for (const l of moving) l.hinge = hinge;
+    dst.layers.push(...moving);
   }
   return resolve ? resolve(next, landings) : next;
 }

@@ -537,19 +537,23 @@ function drawFoldPreview(r, ctx) {
     const row = (i - col) / board.w;
     const o = cellOrigin(L, col, row);
     if (st === CELL.LEAVING) {
+      // A lifted flap leaves the layers under it: fade only what goes.
+      const keep = board.cells[i].layers.length - pv.moving[i];
+      const y = o.y - keep * lift;
       ctx.globalAlpha = 0.55;
       ctx.fillStyle = p.background;
-      ctx.fillRect(o.x, o.y - lift, size, size + lift);
+      ctx.fillRect(o.x, y - lift, size, size + lift);
       ctx.globalAlpha = 1;
-      outline(ctx, o.x, o.y, size, p.inkSoft, 1.5, [dash, dash]);
+      outline(ctx, o.x, y, size, p.inkSoft, 1.5, [dash, dash]);
     } else if (st === CELL.CLIPPED) {
       outline(ctx, o.x, o.y, size, p.inkSoft, 1.5, [1.5, dash / 2]);
     } else {
       const src = board.cells[pv.source[i]].layers;
       const base = board.cells[i].layers.length;
-      if (src.length) {
+      const count = pv.moving[pv.source[i]];
+      if (count) {
         ctx.globalAlpha = 0.6;
-        drawLayer(ctx, p, src[src.length - 1], o.x, o.y - (base + src.length - 1) * lift, size, true);
+        drawLayer(ctx, p, src[src.length - 1], o.x, o.y - (base + count - 1) * lift, size, true);
         ctx.globalAlpha = 1;
       }
       const heavy = st === CELL.HEAVY;
@@ -730,7 +734,7 @@ function drawFoldAnim(r, ctx) {
   for (let n = 0; n < sheets.length; n++) {
     const s = sheets[forward ? n : sheets.length - 1 - n];
     const o = cellOrigin(L, s.col, s.row);
-    const baseLift = f.stack * s.baseHeight * lift + rise;
+    const baseLift = (s.keep + f.stack * (s.baseHeight - s.keep)) * lift + rise;
     for (let i = 0; i < s.layers.length; i++) {
       const up = baseLift + i * lift;
       ctx.save();

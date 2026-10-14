@@ -196,7 +196,7 @@ export function chooseCrease(board, me, player, { needMoves = false } = {}) {
         let moved = 0;
         let self = false;
         for (const m of check.moves) {
-          if (m.clipped || !board.cells[m.from.row * board.w + m.from.col].layers.length) continue;
+          if (!m.count) continue;
           moved += 1;
           if (player && player.top && m.to.col === player.col && m.to.row === player.row) covers = 1;
           if (m.to.col === me.col && m.to.row === me.row) self = true;

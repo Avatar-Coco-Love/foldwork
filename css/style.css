@@ -228,7 +228,10 @@ body {
   height: var(--hud-top);
   flex-direction: column;
   align-items: flex-start;
+  /* Never let content spill upward under the address bar (playtest round
+     2): `safe` sends any overflow down; browsers without it centre. */
   justify-content: center;
+  justify-content: safe center;
   gap: 2px;
   font-weight: 700;
   font-size: calc(18px * var(--text-scale));
@@ -238,6 +241,34 @@ body {
   flex-wrap: wrap;
   align-items: center;
   gap: 4px 12px;
+}
+/* Portrait: the meters stay on one line so the status bar keeps its
+   height; many relics scroll sideways instead of wrapping to a second row
+   (which pushed the bar's top off screen). */
+@media (orientation: portrait) {
+  .hud-meters {
+    flex-wrap: nowrap;
+    max-width: 100%;
+    min-width: 0;
+  }
+  .hud-floor,
+  .hud-meter {
+    flex-shrink: 0;
+  }
+  .hud-relics {
+    flex: 0 1 auto;
+    min-width: 0;
+    overflow-x: auto;
+    scrollbar-width: none;
+    pointer-events: auto;
+    touch-action: pan-x;
+  }
+  .hud-relics::-webkit-scrollbar {
+    display: none;
+  }
+  .hud-relic {
+    flex-shrink: 0;
+  }
 }
 .hud-meter {
   display: inline-flex;

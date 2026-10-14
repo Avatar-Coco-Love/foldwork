@@ -4,7 +4,7 @@ import { createBoard, createLayer, getCell, topLayer, stackHeight, cellIndex } f
 import { TILE } from '../src/core/tiles.js';
 import {
   mirrorCell, foldMapping, validateFold, applyFold, createUndoSnapshot, unfold, foldWithUndo,
-  creaseErrors, AXES, isDiagonal, axesFor,
+  creaseErrors, AXES, isDiagonal, axesFor, hingeKey, liftKey,
 } from '../src/core/fold.js';
 
 // Board whose every base layer carries an item tagged with its origin cell.
@@ -118,9 +118,62 @@ test('default max stack is 3: third fold onto the same column is rejected', () =
   n = applyFold(n, { axis: 'v', index: 2, side: 'after' }); // cols 2,3 → 1,0
   assert.equal(stackHeight(n, 1, 0), 3);
   assert.equal(validateFold(n, { axis: 'v', index: 2, side: 'after' }).ok, true); // cols 2,3 now empty
-  const r = validateFold(n, { axis: 'v', index: 1, side: 'after' });
+  // Cols 3..5 fold onto 2..0: col 4 lands on col 1's three layers.
+  const r = validateFold(n, { axis: 'v', index: 3, side: 'after' });
   assert.equal(r.ok, false);
-  assert.ok(r.reasons.every((x) => x.code === 'stack-overflow' && x.col === 0 && x.max === 3));
+  assert.ok(r.reasons.every((x) => x.code === 'stack-overflow' && x.col === 1 && x.max === 3));
+});
+
+test('lift: folding the same line back lifts the flap; the paper under it stays', () => {
+  const b = tagged(5, 5);
+  const there = applyFold(b, { axis: 'v', index: 2, side: 'before' }); // cols 0,1 onto 3,2
+  assert.deepEqual(ids(there, 2, 0), ['2,0', '1,0']);
+  assert.equal(topLayer(there, 2, 0).hinge, hingeKey({ axis: 'v', index: 2, side: 'before' }));
+  assert.equal(getCell(there, 2, 0).layers[0].hinge, undefined); // the paper underneath never moved
+  const back = { axis: 'v', index: 2, side: 'after' };
+  assert.equal(liftKey(back), hingeKey({ axis: 'v', index: 2, side: 'before' }));
+  const check = validateFold(there, back);
+  assert.equal(check.ok, true);
+  assert.equal(check.lift, true);
+  // Only cells holding the flap move, and only the flap's layer.
+  assert.deepEqual(check.moves.filter((m) => m.count).map((m) => [m.from.col, m.from.row, m.count]),
+    [0, 1, 2, 3, 4].flatMap((row) => [[2, row, 1], [3, row, 1]]));
+  const home = applyFold(there, back);
+  for (let row = 0; row < 5; row++) {
+    for (let col = 0; col < 5; col++) assert.deepEqual(ids(home, col, row), [`${col},${row}`], `${col},${row}`);
+  }
+  // Whole stacks would have moved instead, leaving cols 2 and 3 empty.
+  assert.equal(stackHeight(home, 2, 0), 1);
+  assert.equal(stackHeight(home, 3, 0), 1);
+});
+
+test('lift: a creature pinned under the flap stays; whatever lies on the flap rides back', () => {
+  const b = tagged(5, 5, { maxStack: 4 });
+  const player = { id: 'player', hp: 3 };
+  const mite = { id: 'mite', hp: 1 };
+  getCell(b, 2, 1).layers[0].creature = player;
+  getCell(b, 1, 1).layers[0].creature = mite;
+  const pinned = applyFold(b, { axis: 'v', index: 2, side: 'before' }); // the Mite's column lands on the player
+  assert.deepEqual(getCell(pinned, 2, 1).layers.map((l) => l.creature && l.creature.id), ['player', 'mite']);
+  // Something folded on top of the flap afterwards (a row fold) rides back with it.
+  const covered = applyFold(pinned, { axis: 'h', index: 4, side: 'after' }); // row 4 onto row 3
+  assert.equal(stackHeight(covered, 2, 3), 4);
+  const back = applyFold(covered, { axis: 'v', index: 2, side: 'after' });
+  assert.deepEqual(getCell(back, 2, 1).layers.map((l) => l.creature && l.creature.id), ['player']);
+  assert.deepEqual(getCell(back, 1, 1).layers.map((l) => l.creature && l.creature.id), ['mite']);
+  // On row 3 the flap (1,3) carries the row-4 sheets folded onto it home;
+  // the paper under it stays.
+  assert.deepEqual(ids(back, 1, 3), ['1,3', '2,4', '1,4']);
+  assert.deepEqual(ids(back, 2, 3), ['2,3']);
+});
+
+test('lift: no flap on the folding side → an ordinary whole-stack fold', () => {
+  const b = tagged(5, 5);
+  const n = applyFold(b, { axis: 'v', index: 2, side: 'before' });
+  // Same side again: nothing hinged on v2 'after' lies on the left, so cols 0,1 (now empty) fold as usual.
+  const check = validateFold(n, { axis: 'v', index: 3, side: 'after' });
+  assert.equal(check.lift, false);
+  assert.equal(check.moves.find((m) => m.from.col === 3).count, 2); // col 3: its base and the flap
 });
 
 test('layers keep internal order; creatures and items ride with their layer', () => {

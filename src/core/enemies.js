@@ -259,7 +259,9 @@ function planSting(board, me, { player }) {
  * stops before a blocker and at the first creature (that cell included):
  *   - a solid top tile (not walkable, not a hole: wall, lock, shut gate)
  *   - a stack taller than the attacker's own: a layer stacked over the
- *     line of sight (docs/03)
+ *     line of sight (docs/03). A creature standing on a taller stack is
+ *     still in sight (the shot goes up to it); only taller stacks in
+ *     between block (playtest round 2)
  * Holes and empty cells don't block: the shot flies over them. Pure; the
  * renderer draws the same lanes.
  */
@@ -275,7 +277,8 @@ export function sightLanes(board, from, range) {
       const top = topLayer(board, col, row);
       if (top) {
         const def = tileDef(top.tile);
-        if ((!def.walkable && !def.hole) || stackHeight(board, col, row) > own) break;
+        if (!def.walkable && !def.hole) break;
+        if (!top.creature && stackHeight(board, col, row) > own) break;
       }
       lane.push({ col, row });
       if (top && top.creature) break;

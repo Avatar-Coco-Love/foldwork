@@ -10,7 +10,7 @@
 // Game logic never waits on this: the board is already folded when the
 // animation starts. The animation only shows how it got there.
 
-import { foldMapping } from '../core/fold.js';
+import { validateFold } from '../core/fold.js';
 import { creaseSegment } from './preview.js';
 import { cellIndex, cloneBoard } from '../core/board.js';
 
@@ -47,30 +47,33 @@ export function foldDurationMs(motion) {
  * the fold:
  *   fold    the crease
  *   line    creaseSegment(): where it crosses the board, and its normal
- *   base    the board minus the moving stacks (what stays put)
- *   sheets  [{ index, col, row, to, layers, baseHeight }] one per moving
- *           stack: `layers` lift off (col,row) and land on cell index `to`
- *           above `baseHeight` layers already there.
+ *   base    the board minus the moving layers (what stays put)
+ *   sheets  [{ index, col, row, to, layers, keep, baseHeight }] one per
+ *           moving stack: `layers` lift off (col,row) from above the `keep`
+ *           layers that stay there (a lifted flap: core/fold.js) and land
+ *           on cell index `to` above `baseHeight` layers already there.
  * Clipped and empty source cells don't move, so they are not sheets.
  */
 export function buildFoldAnim(boardBefore, fold) {
   const base = cloneBoard(boardBefore);
   const sheets = [];
-  for (const m of foldMapping(boardBefore, fold)) {
-    if (m.clipped) continue;
+  const moves = validateFold(boardBefore, fold).moves || [];
+  for (const m of moves) {
+    if (!m.count) continue;
     const index = cellIndex(boardBefore, m.from.col, m.from.row);
-    const layers = boardBefore.cells[index].layers;
-    if (!layers.length) continue;
+    const all = boardBefore.cells[index].layers;
+    const keep = all.length - m.count;
     const to = cellIndex(boardBefore, m.to.col, m.to.row);
     sheets.push({
       index,
       col: m.from.col,
       row: m.from.row,
       to,
-      layers,
+      layers: keep ? all.slice(keep) : all,
+      keep,
       baseHeight: boardBefore.cells[to].layers.length,
     });
-    base.cells[index].layers = [];
+    base.cells[index].layers.length = keep;
   }
   return { fold, base, sheets, line: creaseSegment(boardBefore, fold) };
 }

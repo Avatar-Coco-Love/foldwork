@@ -11,7 +11,7 @@ export const PROJECTS_URL = 'https://avatar-coco-love.github.io/';
  * action log replay differently (core/replay.js), so analysis replays each
  * log with matching rules, or skips it.
  */
-export const LOGIC_VERSION = 4; // 3: Lockjaw opens its jaws a turn before it bites; 4: Crane phases 2-3
+export const LOGIC_VERSION = 5; // 3: Lockjaw opens its jaws a turn before it bites; 4: Crane phases 2-3; 5: lifting a flap, Wasp sees up (playtest round 2)
 
 /**
  * Telemetry (src/telemetry, docs/07-telemetry.md).

@@ -74,7 +74,7 @@ export const HINTS = Object.freeze({
   },
   'wasp-sting': {
     title: 'Paper Wasps',
-    text: 'A Wasp never moves, but stings you from up to 4 tiles away along its row or column (the dashed line). Walls, other creatures and taller stacks block the shot.',
+    text: 'A Wasp never moves, but stings you from up to 4 tiles away along its row or column (the dashed line). Walls, other creatures and taller stacks in between block the shot; standing up high won\'t hide you.',
     on: 'start',
   },
   'brute-heavy': {

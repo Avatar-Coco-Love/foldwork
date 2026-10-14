@@ -4,7 +4,8 @@
 //
 //   Board = { w, h, maxStack, cells: Cell[] }   (cells indexed row-major)
 //   Cell  = { layers: Layer[] }                 (layers[length-1] is the top)
-//   Layer = { tile, creature, item, flags }
+//   Layer = { tile, creature, item, flags, hinge? }
+//     hinge: the crease that last moved it (core/fold.js hingeKey)
 
 import { TILE, tileDef } from './tiles.js';
 

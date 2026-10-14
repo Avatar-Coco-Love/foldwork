@@ -10,7 +10,7 @@ import { bossMarks, bossIds } from '../core/boss.js';
 
 export const CELL = Object.freeze({
   NONE: 0,
-  LEAVING: 1, // on the folding side; its stack moves away
+  LEAVING: 1, // on the folding side; its stack (or lifted flap) moves away
   LANDING: 2, // receives a stack
   OVERFLOW: 3, // receives a stack and exceeds max stack
   CLIPPED: 4, // on the folding side but mirrors off-board; stays put
@@ -26,9 +26,12 @@ export const EFFECT = Object.freeze({
 
 /**
  * @returns {{ fold, ok, reasons, heights: number[], state: Uint8Array,
- *   source: Int16Array, effect: Uint8Array, unlock: Uint8Array,
- *   unlocks: number, player: 'pin'|'drop'|null, line, slides }}
+ *   source: Int16Array, moving: Uint8Array, effect: Uint8Array,
+ *   unlock: Uint8Array, unlocks: number, player: 'pin'|'drop'|null, lift,
+ *   line, slides }}
  *   `source[dest]` is the cell index whose stack lands on `dest` (or -1).
+ *   `moving[src]` is how many top layers leave cell `src` (all of them,
+ *   or a lifted flap's: `lift`, core/fold.js foldMoves).
  *   `effect[dest]` is an EFFECT; `unlock[dest]` is 1 where the landing
  *   stacks a key and a lock together (the lock opens), `unlocks` counts
  *   them. `player` says what the fold does to the player. `line` is
@@ -40,18 +43,21 @@ export function buildFoldPreview(board, fold) {
   const n = board.w * board.h;
   const state = new Uint8Array(n);
   const source = new Int16Array(n).fill(-1);
+  const moving = new Uint8Array(n);
   const effect = new Uint8Array(n);
   const unlock = new Uint8Array(n);
   let unlocks = 0;
   let player = null;
   for (const m of check.moves) {
     const from = cellIndex(board, m.from.col, m.from.row);
+    if (check.lift && !m.count) continue; // no flap here: the cell stays
     if (m.clipped) {
       state[from] = CELL.CLIPPED;
       continue;
     }
     state[from] = CELL.LEAVING;
-    if (!board.cells[from].layers.length) continue; // nothing actually moves
+    if (!m.count) continue; // nothing actually moves
+    moving[from] = m.count;
     const to = cellIndex(board, m.to.col, m.to.row);
     state[to] = CELL.LANDING;
     source[to] = from;
@@ -70,7 +76,7 @@ export function buildFoldPreview(board, fold) {
     else if (r.code === 'heavy') state[cellIndex(board, r.col, r.row)] = CELL.HEAVY;
   }
   return {
-    fold, ok: check.ok, reasons: check.reasons, heights: check.perCellHeights, state, source, effect, unlock, unlocks, player,
+    fold, ok: check.ok, reasons: check.reasons, heights: check.perCellHeights, state, source, moving, effect, unlock, unlocks, player, lift: check.lift,
     line: creaseSegment(board, fold),
     slides: [], // filled by the caller from slidePreview(), which needs the floor state
   };

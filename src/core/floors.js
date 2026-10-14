@@ -102,16 +102,18 @@ export const FLOOR_TEMPLATES = Object.freeze([
     hints: ['plate-gate', 'thick-stack', 'pin', 'pinned-self'],
   },
   // Floor 2 (alternate): plates plus the Paper Wasp. The same thick exit
-  // and gate, but a Wasp watches the way up. Walking straight in takes a
-  // sting; a second fold that stacks paper across its line of fire (or
-  // pins it) gets you through clean.
+  // and gate, but a Wasp watches the way up from row 2. Walking straight in
+  // takes a sting; folding the doubled row on up onto its row pins it and
+  // gets you through clean. (No anchor beside the way up since playtest
+  // round 2: a Wasp sees you on a taller stack too, and one there can't be
+  // passed clean with two charges.)
   {
     id: 'f2-wasp',
     floor: 2,
     charges: 2,
     rows: [
       'E a 1 . .',
-      '# # . . ?',
+      '# # . . .',
       '. . . ? ?',
       'o o o o o',
       '. . @ . .',
@@ -126,7 +128,7 @@ export const FLOOR_TEMPLATES = Object.freeze([
     transforms: ['id', 'flipH'],
     enemies: [{ kind: 'wasp', count: 1 }],
     needs: ['fold', 'plate'],
-    tip: 'Ride your row across the void: drag from your own tile up across its edge. The Wasp watches the way up, so before you climb, fold more paper between you and it: a taller stack blocks its sting.',
+    tip: 'Ride your row across the void: drag from your own tile up across its edge. The Wasp watches the way up, so before you climb, fold your row on up onto the Wasp\'s row: paper folded onto it pins it, and a pinned Wasp can\'t sting.',
     hints: ['wasp-sting', 'plate-gate', 'thick-stack'],
   },
   // Floor 3: keys and locks. A thick wall with one lock splits the board.
@@ -439,10 +441,12 @@ export const FLOOR_TEMPLATES = Object.freeze([
   // Floor 8: everything at once, two charges. The F4 exit row (exit, lock,
   // gate, plate) is thick card across the void; the key sits behind a
   // pillar with a Mite on guard, a Wasp watches the far landing and a
-  // Creaseling slides with every fold. The quick line takes two hits. The
+  // Creaseling slides with every fold. The quick line takes a hit. The
   // clean one folds row 5 down onto row 6 (the key rides along), takes
-  // the key, then bridges on the doubled paper, which stands taller than
-  // the Wasp, so it can't see you climb up beside it.
+  // the key, then bridges on the doubled paper and climbs up behind the
+  // thick block beside the Wasp: a taller stack between you blocks its
+  // sting. (Playtest round 2: a Wasp sees you on a taller stack too, so
+  // climbing beside it is no longer clean.)
   {
     id: 'f8-crossing',
     floor: 8,
@@ -459,7 +463,7 @@ export const FLOOR_TEMPLATES = Object.freeze([
     under: thick([
       'X X X _ X X X',
       'X X X _ _ _ _',
-      '_ _ _ _ _ _ _',
+      '_ _ _ _ _ X _',
       '_ _ _ _ _ _ _',
       '_ _ _ _ _ X _',
       '_ _ _ _ _ _ _',
@@ -467,7 +471,7 @@ export const FLOOR_TEMPLATES = Object.freeze([
     ]),
     transforms: ['id', 'flipH'],
     needs: ['fold', 'key', 'plate'],
-    tip: 'Step onto the key\'s row, then fold it down onto the bottom row: you and the key ride along. Then bridge on the doubled paper: it stands taller than the Wasp, so it can\'t see you climb up beside it.',
+    tip: 'Step onto the key\'s row, then fold it down onto the bottom row: you and the key ride along. Then bridge on the doubled paper and climb up behind the thick block beside the Wasp: a taller stack between you and it blocks its sting.',
     hints: ['fold-enemies', 'key-lock', 'plate-gate', 'thick-stack'],
   },
   // Floor 8 (alternate): two Lockjaws and a loose key, same exit row.
@@ -509,11 +513,13 @@ export const FLOOR_TEMPLATES = Object.freeze([
   // sit at the corners and on the edges, off the centre lines, so its
   // first strip creases carry voids and the player has sheets to aim.
   // Too big to search (the solver runs out of memory), so the proof is a
-  // stored line, replayed by the tests: spoil its first fold, herd it with
-  // a bump, then three drops (each of the first two spawns a Mite), and
-  // spoil its double crease on the way. It takes no hit, so it wins at 1
-  // HP. 7 charges since 6b: with phase 2-3 a beam search found no line
-  // with 6 (it stalled at two drops), as 6 did for 5 in 6a.
+  // stored line, replayed by the tests: let its first crease double the
+  // bottom rows, fold rows 3-4 down (it rides to the bottom row), bump it
+  // into the corner, then flip the void-topped flap back and forth across
+  // the bottom crease (lifting a flap, playtest round 2): each flip drops a
+  // void on it, and it flees into the next one's path. It takes no hit, so
+  // it wins at 1 HP, with 4 of its 7 charges (7 since 6b, when the old
+  // rules needed them all).
   {
     id: 'f9-crane',
     floor: 9,
@@ -527,7 +533,7 @@ export const FLOOR_TEMPLATES = Object.freeze([
       '. . . . . . .',
       'o . o @ o . o',
     ],
-    line: ['u', 'fv6b', 'fv6a', 'u', 'u', 'fv1b', 'fv5b', 'fv3b', 'fv2a', 'fv4a'],
+    line: ['u', 'u', 'fh5b', 'd', 'fh6b', 'fh6a', 'fh6b'],
     needs: ['fold'],
     tip: 'Bumps only startle the Crane; only a void dropped on it hurts. When it marks a crease you get one action: step out of the marked strip, or fold first to spoil it. To hurt it, fold paper with a void onto it.',
     hints: ['crane-telegraph', 'crane-swat', 'crane-minions', 'crane-double'],

@@ -460,6 +460,7 @@ function onResize() {
   const w = Math.round(vv ? vv.width : window.innerWidth);
   const h = Math.round(vv ? vv.height : window.innerHeight);
   renderer.resize(w, h, readSafeInsets());
+  pinScroll();
 }
 
 let resizeQueued = false;
@@ -474,6 +475,19 @@ function queueResize() {
 
 window.addEventListener('resize', queueResize);
 window.visualViewport?.addEventListener('resize', queueResize);
+
+// The page never scrolls, but a phone browser can still shift it (a field
+// focused for typing, the keyboard closing, a swipe that hides the address
+// bar), which slid the HUD's top under the address bar (playtest round 2).
+// Put it back, except while a text field has the keyboard up.
+function pinScroll() {
+  const a = document.activeElement;
+  if (a && (a.tagName === 'INPUT' || a.tagName === 'TEXTAREA') && !a.readOnly) return;
+  if (window.scrollX || window.scrollY) window.scrollTo(0, 0);
+}
+window.addEventListener('scroll', pinScroll, { passive: true });
+window.visualViewport?.addEventListener('scroll', pinScroll);
+document.addEventListener('focusout', () => setTimeout(pinScroll, 100));
 window.matchMedia('(orientation: landscape)').addEventListener?.('change', queueResize);
 // Block pinch zoom / double-tap zoom gestures that slip past the viewport meta.
 document.addEventListener('gesturestart', (e) => e.preventDefault());

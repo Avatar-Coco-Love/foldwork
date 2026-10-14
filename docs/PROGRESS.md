@@ -4,10 +4,11 @@
 small. At the end of each conversation, update this file in the same PR.
 
 ## Next up
-**Phase 8c: visual polish** (docs/04: paper grain, shadows, fold polish,
-screen shake). Ask: how strong the grain and shadows are, whether screen
-shake is on by default (and off under reduced motion), and which events
-shake.
+**Phase 8d: visual polish** (docs/04: paper grain, shadows, fold polish,
+screen shake). Decided in 8c (OPEN-QUESTIONS "Playtest round 2"): screen
+shake is on by default, subtle, never under reduced motion, with a
+Settings toggle; it shakes on player hurt, boss swat and void drops. Ask:
+how strong the grain and shadows are.
 
 ## Phase checklist
 Larger phases are split into PR-sized chunks so each conversation stays small.
@@ -66,8 +67,11 @@ Larger phases are split into PR-sized chunks so each conversation stays small.
 - [ ] **Phase 8** — Audio and polish
   - [x] 8a Audio engine, sound effects, Settings > Audio (PR 34)
   - [x] 8b Generative ambient loop (music bus) (PR 35)
-  - [ ] 8c Visual polish: paper grain, shadows, fold polish, screen shake
-  - [ ] 8d Alignment audit (phone, tablet, desktop, both orientations)
+  - [x] 8c Playtest round 2 fixes: lifting a flap (refolding a crease
+    unfolds it), Wasp sees a player standing higher, HUD top no longer
+    slides under the address bar (PR 36)
+  - [ ] 8d Visual polish: paper grain, shadows, fold polish, screen shake
+  - [ ] 8e Alignment audit (phone, tablet, desktop, both orientations)
     and the accessibility checklist
 - [ ] **Phase 9** — Playtesting, balance, manifest
 
@@ -1172,3 +1176,36 @@ Larger phases are split into PR-sized chunks so each conversation stays small.
   Checked in Chromium (390x844): nothing before a gesture; title and
   boss floor play on their scales; pause ducks and Resume restores; no
   console errors.
+
+### PR 36: Phase 8c, playtest round 2 fixes
+- Decisions (user's choices; OPEN-QUESTIONS "Playtest round 2"): a fold
+  back along the same crease lifts the flap; it costs a charge and a turn
+  like any fold. Visual polish moves to 8d, the audit to 8e.
+- Lifting a flap (`core/fold.js`, docs/02): every layer a fold moves
+  records the crease (`layer.hinge`, `hingeKey`). A fold along the same
+  line from the other side, when its folding side holds any such layers,
+  moves only those (from the lowest flap layer up, so whatever was folded
+  onto the flap rides along); the paper under it, and a player pinned
+  there, stays; cells with no flap stay. `foldMoves` gives each move its
+  `count`; `validateFold` reports `lift`. The preview fades only the
+  flap (`moving`, `lift`), the fold animation lifts sheets off the layers
+  that stay (`keep`), the boss AI counts moved layers, and the solver key
+  includes the hinge.
+- Wasp sight (`sightLanes`): a creature on a taller stack is in sight;
+  only taller stacks in between block. Hint text and docs/03 updated.
+- Floors re-proved: f2-wasp drops the anchor beside the way up (two
+  charges can't pass it clean now); f8-crossing gets a thick block beside
+  the Wasp (the clean line climbs behind it; tip rewritten); the Crane
+  arena's stored line is now `u u fh5b d fh6b fh6a fh6b` (the old one
+  relied on refolding a whole column off). LOGIC_VERSION 5, so a floor
+  saved mid-play under the old rules starts over.
+- HUD: the portrait status bar kept a fixed 56 px and centred its
+  content, so with many relics the meters wrapped to two rows and the
+  top row went off the screen. The meters now stay on one row (relic
+  chips scroll sideways), and overflow goes down (`safe center`). The
+  page is also pinned at the top (a scroll, a closed keyboard or a
+  focus could shift it under the address bar).
+- Tests: lift (fold, fx, preview, the pinned player freed in place),
+  Wasp sight from below; 408 pass. Checked in Chromium (390x844 and
+  narrower): fold and fold back restores the board; the HUD stays in its
+  bar with every relic; no console errors.

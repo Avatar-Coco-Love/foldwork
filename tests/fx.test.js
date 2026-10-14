@@ -67,10 +67,22 @@ test('fold anim: base + landed sheets equals the applied fold', () => {
   assert.equal(anim.base.cells[cellIndex(b, 1, 2)].layers.length, 2);
   // Landing the sheets on base reproduces applyFold.
   const landed = structuredClone(anim.base);
-  for (const sh of anim.sheets) landed.cells[sh.to].layers.push(...sh.layers);
+  for (const sh of anim.sheets) landed.cells[sh.to].layers.push(...sh.layers.map((l) => ({ ...l, hinge: 'v2a' })));
   assert.deepEqual(landed, applyFold(b, fold));
   // The input board is not touched.
   assert.equal(getCell(b, 2, 2).layers.length, 1);
+});
+
+test('fold anim: a lifted flap leaves the layers under it in base', () => {
+  const b = createBoard(5, 5);
+  const there = applyFold(b, { axis: 'v', index: 2, side: 'before' });
+  const anim = buildFoldAnim(there, { axis: 'v', index: 2, side: 'after' });
+  assert.equal(anim.sheets.length, 10); // cols 2 and 3, each its flap only
+  for (const s of anim.sheets) {
+    assert.equal(s.keep, 1);
+    assert.equal(s.layers.length, 1);
+    assert.equal(anim.base.cells[s.index].layers.length, 1);
+  }
 });
 
 test('shake decays to rest', () => {
