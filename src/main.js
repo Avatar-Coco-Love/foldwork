@@ -19,6 +19,8 @@
 //                   (core/relics.js ids, or 'all')
 //   ?spirit=frog    spirit for runs started without the select screen
 //                   (?screen=floor, ?screen=offer); default none
+//   ?challenge=123  a friend's challenge link (not a dev param): the title
+//                   offers a run on that seed (ui/share.js)
 //   ?telemetry=console   log telemetry events (also: off, or a localhost
 //                   collector URL, see tools/telemetry-collector.js)
 
@@ -28,8 +30,9 @@ import { getPalette, cssVarName } from './render/palette.js';
 import { createRouter } from './ui/router.js';
 import { createBackButton } from './ui/backButton.js';
 import {
-  titleScreen, floorScreen, howToScreen, offerScreen, spiritScreen, settingsScreen,
+  titleScreen, floorScreen, howToScreen, offerScreen, spiritScreen, settingsScreen, saveCodeScreen,
 } from './ui/screens.js';
+import { challengeSeed, CHALLENGE_PARAM } from './ui/share.js';
 import { setupTelemetry, telemetryActive } from './telemetry/browser.js';
 import { TELEMETRY } from './config.js';
 import { createRun, runTag, rollOffer } from './core/run.js';
@@ -79,6 +82,8 @@ const newRunId = () => `r_${Date.now().toString(36)}${Math.floor(Math.random() *
 
 const ctx = {
   seed: newSeed(),
+  /** The seed a friend's challenge link offers (title screen), or null. */
+  challenge: challengeSeed(params),
   /** The run in progress (core/run.js), or null. Screens replace it as it advances. */
   run: null,
   /** Telemetry id of the run in progress (kept in its save). */
@@ -90,15 +95,48 @@ const ctx = {
   telemetryOffered: TELEMETRY.collect,
   /**
    * Start a new run as `spirit` (spirit select; dev runs use ?spirit=): a
-   * fresh seed (unless ?seed= pins one) and run id.
+   * fresh seed (unless ?seed= pins one, or `seed` is a challenge's) and
+   * run id.
    */
-  startRun({ floor = 1, spirit = devSpirit } = {}) {
-    ctx.seed = newSeed();
+  startRun({ floor = 1, spirit = devSpirit, seed = null } = {}) {
+    ctx.seed = seed || newSeed();
     ctx.run = createRun({ seed: ctx.seed, relics: devRelics, floor, spirit });
     ctx.runId = newRunId();
     ctx.telemetry.setRun(ctx.runId);
-    ctx.telemetry.track('run.start', { ...runTag(ctx.run), daily: false, lastFloor: ctx.run.lastFloor });
+    ctx.telemetry.track('run.start', {
+      ...runTag(ctx.run), daily: false, challenge: !!seed, lastFloor: ctx.run.lastFloor,
+    });
     ctx.saveRun();
+  },
+  /** Drop the challenge (taken, or Not now), and its link from the address bar. */
+  clearChallenge() {
+    ctx.challenge = null;
+    try {
+      const url = new URL(location.href);
+      url.searchParams.delete(CHALLENGE_PARAM);
+      history.replaceState(history.state, '', url.href);
+    } catch {
+      // The address keeps the link; the title just won't offer it again.
+    }
+  },
+  /**
+   * Play a run loaded from a save code (Settings > Data, title screen; the
+   * panel already asked before replacing a saved run): any run in
+   * progress ends as abandoned, and the loaded one carries on as a new
+   * run id, at the start of its floor or on its relic offer.
+   */
+  loadRun(run) {
+    ctx.abandonRun();
+    ctx.run = run;
+    ctx.seed = run.seed;
+    ctx.runId = newRunId();
+    ctx.telemetry.setRun(ctx.runId);
+    ctx.telemetry.track('run.load', {
+      ok: true, ...runTag(run), cleared: run.cleared, lastFloor: run.lastFloor, offer: !!run.offer,
+    });
+    ctx.saveRun();
+    if (run.offer) ctx.router.go('offer', { floor: run.floor });
+    else ctx.router.go('floor', { floor: run.floor });
   },
   /**
    * Save the run in progress (core/save.js), with the floor being played:
@@ -218,6 +256,7 @@ function applySettings() {
 ctx.router
   .register('title', titleScreen)
   .register('floor', floorScreen)
+  .register('savecode', saveCodeScreen)
   .register('offer', offerScreen)
   .register('spirit', spiritScreen)
   .register('howto', howToScreen)
@@ -269,7 +308,11 @@ ctx.telemetry.track('session.start', {
   device: tele.deviceInfo(),
   settings: ctx.settings,
   palette: renderer.palette.id,
-  entry: { screen: params.screen || 'title', dev: Object.keys(params).filter((k) => k !== 'telemetry') },
+  entry: {
+    screen: params.screen || 'title',
+    dev: Object.keys(params).filter((k) => k !== 'telemetry' && k !== CHALLENGE_PARAM),
+    challenge: !!ctx.challenge,
+  },
 });
 ctx.telemetry.flush(); // anything left from an offline session
 if (params.screen === 'floor') ctx.startRun({ floor: Number(params.floor) || 1 });
