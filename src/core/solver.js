@@ -79,7 +79,7 @@ export function stateKey(state, { playerHp = true } = {}) {
 
 function creatureKey(c, withHp) {
   const hp = withHp || c.id !== PLAYER_ID ? c.hp : '';
-  return `${code(c.kind)}${hp}${c.rest != null ? `r${c.rest}` : ''}${c.item ? code(c.item) : ''}${c.sprout != null ? `s${c.sprout}` : ''}${c.mark ? `m${c.mark}` : ''}`;
+  return `${code(c.kind)}${hp}${c.rest != null ? `r${c.rest}` : ''}${c.item ? code(c.item) : ''}${c.sprout != null ? `s${c.sprout}` : ''}${c.mark ? `m${c.mark}` : ''}${c.jaws ? 'j' : ''}`;
 }
 
 // Short codes for ids, handed out on first use (letters, so they never

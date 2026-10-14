@@ -6,7 +6,7 @@ import { parseMap } from '../src/core/maps.js';
 import { createFloorState, act, playerOf, PLAYER_ID } from '../src/core/turn.js';
 import { RELIC_DEFS, RARITY_WEIGHTS, applyRelics, relicDef } from '../src/core/relics.js';
 import {
-  createRun, addRelic, floorSetupFor, finishFloor, rollOffer, takeOffer, OFFER_SIZE, REST_FLOORS, REST_HEAL,
+  createRun, addRelic, floorSetupFor, finishFloor, rollOffer, takeOffer, OFFER_SIZE, REST_FLOORS, REST_HEAL, CLEAN_HEAL,
 } from '../src/core/run.js';
 import { solve, stateKey } from '../src/core/solver.js';
 
@@ -167,12 +167,25 @@ test('Soft Landing: the run carries it until used', () => {
   assert.equal(createFloorState(floorSetupFor(run, parseMap(['@ E']))).uses.landings, 0);
 });
 
+test('no-damage heal: +1 HP for a floor cleared without damage, capped at max; none after a hit', () => {
+  const run = { ...createRun({ seed: 'c', lastFloor: 3 }), hp: 1 };
+  const clean = finishFloor(run, winFloor(run));
+  assert.deepEqual([clean.hp, clean.clean], [1 + CLEAN_HEAL, true]);
+  const full = finishFloor({ ...run, hp: 3 }, winFloor({ ...run, hp: 3 }));
+  assert.deepEqual([full.hp, full.clean], [3, true], 'never over max');
+  const hurt = winFloor({ ...run, hp: 2 });
+  const me = hurt.board.cells.flatMap((c) => c.layers).find((l) => l.creature && l.creature.id === 'player').creature;
+  me.hp = 1;
+  const after = finishFloor({ ...run, hp: 2 }, hurt);
+  assert.deepEqual([after.hp, after.clean], [1, false]);
+});
+
 test('Mender: heal 1 after every second floor cleared', () => {
   let run = { ...createRun({ seed: 'm', relics: ['mender'], lastFloor: 3 }), hp: 1 };
   run = finishFloor(run, winFloor(run));
-  assert.equal(run.hp, 1);
-  run = finishFloor(takeOffer(run, run.offer.relics[0]), winFloor(run));
-  assert.deepEqual([run.cleared, run.hp], [2, 2]);
+  assert.equal(run.hp, 1 + CLEAN_HEAL, 'floor 1: only the no-damage heal');
+  run = finishFloor(takeOffer({ ...run, hp: 1 }, run.offer.relics[0]), winFloor(run));
+  assert.deepEqual([run.cleared, run.hp], [2, 1 + CLEAN_HEAL + 1], 'floor 2: no-damage heal and Mender');
 });
 
 // --- Utility relics -------------------------------------------------------

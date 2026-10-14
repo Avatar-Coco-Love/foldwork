@@ -9,6 +9,8 @@
 //        | { type: 'slide', to, path }  glide along `path` (Creaseling)
 //        | { type: 'spawn', to, kind }  a new `kind` appears on `to`
 //                                       (Spore Bloom; turn.js decides when)
+//        | { type: 'jaws', open }  open or close its jaws (Lockjaw's bite
+//                                    warning, def `warn`)
 //        | { type: 'mark', fold }   mark a crease to fold next turn (Crane)
 //        | { type: 'crease', fold } fold the marked crease (Crane)
 //
@@ -175,10 +177,15 @@ export function slidePath(board, from, fold, target, max) {
 }
 
 // Lockjaw (docs/03): a stationary guard that bites the player on any
-// adjacent tile. A pinned player can't be attacked.
+// adjacent tile. With def `warn` it opens its jaws first: the player next
+// to it with jaws shut opens them (no bite); still next to it with jaws
+// open, it bites (and they stay open). Not next to it, open jaws close. A
+// pinned player can't be attacked, so counts as not next to it.
 function planGuard(board, me, { player }) {
-  if (!player || !player.top) return WAIT;
-  if (Math.abs(player.col - me.col) + Math.abs(player.row - me.row) !== 1) return WAIT;
+  const near = !!player && !!player.top && Math.abs(player.col - me.col) + Math.abs(player.row - me.row) === 1;
+  const warns = !!creatureDef(me.creature.kind).warn;
+  if (!near) return warns && me.creature.jaws ? { type: 'jaws', open: false } : WAIT;
+  if (warns && !me.creature.jaws) return { type: 'jaws', open: true };
   return { type: 'bump', to: { col: player.col, row: player.row } };
 }
 

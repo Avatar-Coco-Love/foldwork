@@ -149,6 +149,17 @@ These belong to later phases and get decided when that phase is built.
     restart: the floor goes on as one attempt, with a `floor.rewind`
     event and an `x<n>` code in the telemetry log so replays stay exact.
     The saved log is cut to the rewind point.
+    Decided while building P5: the warning is the Lockjaw's own state
+    (`jaws`, def flag `warn`), set in the enemy phase, so a Lockjaw that
+    a fold carries next to you also warns first. Open jaws stay open
+    while you stay (it bites every turn, as before), and shut when you
+    aren't next to it or when it's pinned. A pinned player counts as not
+    next to it. Shown as an open-mouth pose plus a "!" tag (shape, not
+    color). A fight now costs one bite. "Cleared without damage" means
+    the player's HP at the win is not below the floor's start HP (no
+    in-floor healing exists; blocked hits don't count as damage); the
+    heal is capped at max HP and comes before Mender. Every template
+    still proves (needs and no-damage lines) with the new rules.
 - Great Crane bumps (6a part 2, user's choice after a solver check): on
   the draft arena a no-fold search won at 1 HP (dodge every marked strip,
   bump 6 times; its own folds pile the paper to full stacks, then it has

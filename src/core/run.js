@@ -15,6 +15,8 @@
 //     cleared,    floors cleared
 //     offer,      null, or the relic offer waiting to be taken after a
 //                 floor: { floor, relics: [ids], rest } (rollOffer)
+//     clean,      whether the last floor won was cleared without damage
+//                 (it healed CLEAN_HEAL; the HUD says so), else false
 //     hints,      optional { [floor]: Hint button presses } (run summary)
 //     status,     'playing' | 'won' | 'lost'
 //     cause,      why it was lost ('hp', 'fall'), else null
@@ -41,8 +43,11 @@ export const OFFER_SIZE = 3;
 /** Floors whose offer also has a rest option (docs/03). */
 export const REST_FLOORS = Object.freeze([4, 7]);
 
-/** HP the rest option heals. */
-export const REST_HEAL = 1;
+/** HP the rest option heals (playtest round 1: was 1). */
+export const REST_HEAL = 2;
+
+/** HP healed for a floor cleared without taking damage (playtest round 1). */
+export const CLEAN_HEAL = 1;
 
 /** Floors in a full run before the boss (docs/03). */
 export const RUN_FLOORS = 8;
@@ -80,6 +85,7 @@ export function createRun({ seed, relics = [], spirit = null, floor = 1, lastFlo
     landings: 0,
     cleared: 0,
     offer: null,
+    clean: false,
     status: 'playing',
     cause: null,
   };
@@ -113,7 +119,9 @@ export function floorSetupFor(run, setup) {
 
 /**
  * The run after a floor ends. A win carries the player's HP (and Soft
- * Landings left) over, runs the relics' `cleared` hooks, and moves to the
+ * Landings left) over, heals CLEAN_HEAL if the floor took no damage (HP
+ * never drops below the floor's start, run.hp, with no healing mid-floor),
+ * runs the relics' `cleared` hooks, and moves to the
  * next floor with an offer to take first, or wins the run after lastFloor
  * (no offer after the last floor). A loss ends the run. A floor still being
  * played changes nothing.
@@ -127,8 +135,14 @@ export function finishFloor(run, floorState) {
   if (floorState.status !== 'won') return run;
   const me = playerOf(floorState);
   const uses = floorState.uses || {};
+  const hp = me ? me.hp : run.hp;
+  const clean = hp >= run.hp;
   let next = {
-    ...run, hp: me ? me.hp : run.hp, landings: uses.landings ?? run.landings, cleared: run.cleared + 1,
+    ...run,
+    hp: clean ? Math.min(run.maxHp, hp + CLEAN_HEAL) : hp,
+    landings: uses.landings ?? run.landings,
+    cleared: run.cleared + 1,
+    clean,
   };
   next = runHooks(next.relics, 'cleared', next);
   if (run.floor >= run.lastFloor) return { ...next, status: 'won' };

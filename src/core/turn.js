@@ -62,6 +62,8 @@
 //                                                (Great Crane); none for
 //                                                the player's own fold
 //   { type: 'unfold', fold }
+//   { type: 'jaws', id, open, at }              a Lockjaw opened (bite next
+//                                                turn) or closed its jaws
 //   { type: 'mark', id, fold }                   a boss marked the crease it
 //                                                folds next turn
 //   { type: 'fizzle', id, fold }                 its marked fold was invalid
@@ -251,6 +253,7 @@ export function resolveFold(s, landings, emit, { swat = null } = {}) {
     else if (tileDef(cell.layers[cell.layers.length - 1].tile).hole) fall(s, covered, at, emit);
     else {
       if (isBoss(covered)) covered.mark = null; // pinned: its fold fizzles
+      if (covered.jaws) covered.jaws = false; // pinned: its warning is off
       emit({ type: 'pin', id: covered.id, at });
     }
   }
@@ -490,6 +493,9 @@ function runEnemies(s, emit, { action } = {}) {
       getCell(s.board, me.col, me.row).layers[me.depth].creature = null;
       topLayer(s.board, plan.to.col, plan.to.row).creature = me.creature;
       emit({ type: 'slide', id, from: { col: me.col, row: me.row }, to: { ...plan.to }, path: plan.path.map((c) => ({ ...c })) });
+    } else if (plan.type === 'jaws') {
+      me.creature.jaws = plan.open;
+      emit({ type: 'jaws', id, open: plan.open, at: { col: me.col, row: me.row } });
     } else if (plan.type === 'mark') {
       me.creature.mark = markCode(plan.fold);
       emit({ type: 'mark', id, fold: { ...plan.fold } });
