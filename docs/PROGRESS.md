@@ -4,11 +4,12 @@
 small. At the end of each conversation, update this file in the same PR.
 
 ## Next up
-**Phase 7e: Stats & History screen** (title row), Settings > Data >
-Reset progress, and unlock/daily telemetry. Read docs/04 (screens 1 and
-7), docs/07, and OPEN-QUESTIONS "Daily seed" (`meta.daily` holds one
-record per day played, for the history). Ask what the screen shows
-(totals, best run, daily streak?) and what Reset progress clears.
+**Phase 8: split it into PR-sized chunks first** (docs/06 Phase 8:
+synthesized SFX and ambient loop with volume controls; visual polish;
+the alignment audit), then start the audio chunk. Read docs/04 (Audio)
+and ask which sounds come first and the Settings > Audio rows (master,
+music, effects, mute). All audio is synthesized (Web Audio API, hard
+rule 1).
 
 ## Phase checklist
 Larger phases are split into PR-sized chunks so each conversation stays small.
@@ -54,7 +55,7 @@ Larger phases are split into PR-sized chunks so each conversation stays small.
     - [x] arena template, stored-line proof, run to floor 9, telegraph render (PR 18)
   - [x] 6b Crane phases 2–3 (minions, double creases, shrinking arena) (PR 27)
   - [x] 6c Run summary and win/lose flow through the boss (PR 28)
-- [ ] **Phase 7** — Meta-progression, daily seed, persistence
+- [x] **Phase 7** — Meta-progression, daily seed, persistence
   - [x] 7a Paper scraps: earned per run, shown on the summary, banked in
     meta (PR 29)
   - [x] 7b Unlocks shop: relics, spirits (Frog, Turtle), palettes; title
@@ -62,8 +63,8 @@ Larger phases are split into PR-sized chunks so each conversation stays small.
   - [x] 7c Remaining relics (9, to 24 total) with rarities and unlock
     flags (PR 31)
   - [x] 7d Daily seed mode (same run on every device) + title row (PR 32)
-  - [ ] 7e Stats & History screen; Settings > Data Reset progress;
-    unlock/daily telemetry
+  - [x] 7e Stats & History screen; Settings > Data Reset progress;
+    unlock/daily telemetry (PR 33)
 - [ ] **Phase 8** — Audio and polish
 - [ ] **Phase 9** — Playtesting, balance, manifest
 
@@ -1091,3 +1092,27 @@ Larger phases are split into PR-sized chunks so each conversation stays small.
 - Tests: `tests/daily.test.js` (12), including the same floors and
   offers whatever the device's unlocks. Checked in Chromium at phone
   size: title → spirit → floor, abandon → practice; no console errors.
+
+### PR 33: Phase 7e, Stats & History and Reset progress
+- Decisions (user's choices; OPEN-QUESTIONS "Stats & History and Reset
+  progress"): totals, best run, by spirit, last 20 runs; daily history
+  with streaks; Reset clears the meta and the saved run, not settings.
+- `core/stats.js` (pure): `meta.stats` (no version bump: parseMeta fills
+  it in, unknown fields kept), `recordRun` (won, lost and given-up runs),
+  `dailyStreaks`, `statsView` (the screen's sections, all words) and
+  `metaSummary` (telemetry).
+- `main.js`: `endRun` records every non-dev run's end; `resetProgress()`
+  (fresh meta, save cleared, palette falls back to the default when
+  unowned).
+- UI: `ui/stats.js` screen (rows like the run summary, lists for runs
+  and days; Back/Esc to the title); title row "Stats & History" with
+  "n runs · n won". Settings > Data > Reset progress, title only (the
+  panel drops a row whose action it wasn't given), with a confirm that
+  names what goes ("Keep my progress" is focused; Esc keeps it).
+- Telemetry: `unlock.buy`, `progress.reset`, and a `meta` summary on
+  `session.start` (docs/07). Daily runs already carry `daily` and
+  `practice` on `run.start`/`run.end` (7d).
+- Tests: `tests/stats.test.js` (7); an old unlocks test used `stats` as
+  its "unknown field" example and now uses another name. Checked in
+  Chromium (390x844, 844x390): empty screen, filled screen, title note,
+  reset confirm, Esc, erase; no console errors, no sideways scroll.

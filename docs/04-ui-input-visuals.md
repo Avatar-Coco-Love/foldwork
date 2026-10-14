@@ -58,6 +58,7 @@
 6. Unlocks shop (spirits, relics, palettes; scrap bank on top; Buy then Confirm; locked items show a lock and their cost; owned palettes have Use)
 7. Settings, in groups: Display (palette, text size, animation speed, reduced motion, left-handed layout), Gameplay (tap-to-confirm folds, tutorial hints), Data (share play data, save code, reset progress), Audio, About (version, credits, feedback / bug report)
 8. Pause menu, from the floor's Menu button (Resume, Restart Floor, How to Play, Settings, Abandon Run, Save & Quit to Title)
+9. Stats & History (totals, best run, by spirit, the last 20 runs, daily history with current and best streaks; read only)
 
 ## Tutorial
 - Floors 1–2 are scripted guided puzzles with short on-screen hints:

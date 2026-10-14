@@ -36,6 +36,7 @@ import {
   summaryScreen, settingsScreen, saveCodeScreen,
 } from './ui/screens.js';
 import { unlocksScreen } from './ui/unlocks.js';
+import { statsScreen } from './ui/stats.js';
 import { challengeSeed, CHALLENGE_PARAM } from './ui/share.js';
 import { setupTelemetry, telemetryActive } from './telemetry/browser.js';
 import { TELEMETRY } from './config.js';
@@ -48,9 +49,10 @@ import {
 import { createSave } from './core/save.js';
 import { createSaveStore } from './ui/saveStore.js';
 import { createMetaStore } from './ui/metaStore.js';
-import { bankScraps } from './core/meta.js';
+import { bankScraps, createMeta } from './core/meta.js';
+import { recordRun, metaSummary } from './core/stats.js';
 import {
-  owns, buyUnlock, relicPool, newlyAffordable,
+  owns, ownedIds, unlockCost, buyUnlock, relicPool, newlyAffordable,
 } from './core/unlocks.js';
 import { runScraps } from './core/scraps.js';
 import { claimDaily, finishDaily } from './core/daily.js';
@@ -126,8 +128,31 @@ const ctx = {
     if (result.ok) {
       ctx.meta = result.meta;
       metaStore.write(ctx.meta);
+      ctx.telemetry.track('unlock.buy', {
+        kind, id, cost: unlockCost(kind, id), scraps: ctx.meta.scraps, owned: ownedIds(ctx.meta, kind).length,
+      });
     }
     return result;
+  },
+  /**
+   * Settings > Data > Reset progress (title screen only; user's choice,
+   * 7e): paper scraps, unlocks, stats, the daily history and the saved
+   * run go; settings, tutorial hints and the install id stay. An unowned
+   * palette setting shows the default (shownPalette). Dev runs reset
+   * nothing.
+   */
+  resetProgress() {
+    if (devRun || unlockOpts.all) return false;
+    ctx.telemetry.track('progress.reset', { before: metaSummary(ctx.meta), saved: !!ctx.savedRun() });
+    saves.clear();
+    ctx.run = null;
+    ctx.runId = null;
+    ctx.lastRun = null;
+    ctx.lastScraps = null;
+    ctx.meta = createMeta();
+    metaStore.write(ctx.meta);
+    applySettings();
+    return true;
   },
   /** The relics a run on the player's own unlocks may offer. */
   relicPool() {
@@ -284,7 +309,7 @@ const ctx = {
       let unlocks = [];
       if (!devRun) {
         const before = ctx.meta;
-        ctx.meta = finishDaily(bankScraps(ctx.meta, scraps), run, outcome, scraps);
+        ctx.meta = recordRun(finishDaily(bankScraps(ctx.meta, scraps), run, outcome, scraps), run, outcome, scraps, Date.now());
         metaStore.write(ctx.meta);
         unlocks = newlyAffordable(before, ctx.meta);
       }
@@ -292,8 +317,8 @@ const ctx = {
       ctx.lastScraps = {
         earned, total: ctx.meta.scraps, banked: !devRun, affordable: unlocks, practice: !!run.practice,
       };
-    } else if (!devRun && run.daily) {
-      ctx.meta = finishDaily(ctx.meta, run, outcome);
+    } else if (!devRun) {
+      ctx.meta = recordRun(finishDaily(ctx.meta, run, outcome), run, outcome, 0, Date.now());
       metaStore.write(ctx.meta);
     }
     ctx.telemetry.track('run.end', {
@@ -382,7 +407,8 @@ ctx.router
   .register('howto', howToScreen)
   .register('settings', settingsScreen)
   .register('summary', summaryScreen)
-  .register('unlocks', unlocksScreen);
+  .register('unlocks', unlocksScreen)
+  .register('stats', statsScreen);
 
 // --- Viewport tracking -----------------------------------------------------
 
@@ -430,6 +456,7 @@ ctx.telemetry.track('session.start', {
   device: tele.deviceInfo(),
   settings: ctx.settings,
   palette: renderer.palette.id,
+  meta: metaSummary(ctx.meta),
   entry: {
     screen: params.screen || 'title',
     dev: Object.keys(params).filter((k) => k !== 'telemetry' && k !== CHALLENGE_PARAM),

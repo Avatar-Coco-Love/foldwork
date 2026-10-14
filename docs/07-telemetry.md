@@ -131,7 +131,7 @@ Run events share a run tag: `seed`, `floor`, `hp`, `maxHp`, `relics`,
 
 | Type | When | `data` |
 |---|---|---|
-| `session.start` | Page load | `device` (viewport, screen, dpr, orientation, pointer, hover, touchPoints, reducedMotion, colorScheme, lang, tzOffset, ua, standalone), `settings`, `palette`, `entry` (start screen, dev params used, `challenge`: opened from a challenge link) |
+| `session.start` | Page load | `device` (viewport, screen, dpr, orientation, pointer, hover, touchPoints, reducedMotion, colorScheme, lang, tzOffset, ua, standalone), `settings`, `palette`, `meta` (progress so far: `scraps`, `earned`, `runs` and `won` since stats were kept, `unlocks` {kind: count bought}, `dailyDays`, `dailyStreak`), `entry` (start screen, dev params used, `challenge`: opened from a challenge link) |
 | `session.hide` | Page hidden / closed | `ms` since load |
 | `screen.view` | Every screen change | `name`, `floor` |
 | `run.start` | New Run, or Daily Seed | run tag, `daily` (the daily's date, else null), `practice` (a daily run after the day's scored one), `challenge` (on a friend's challenge seed), `retry` (Retry this seed on the run summary), `lastFloor` |
@@ -149,6 +149,8 @@ Run events share a run tag: `seed`, `floor`, `hp`, `maxHp`, `relics`,
 | `hint.dismiss` | Hint closed | floor tag, `id`, `by` (`player` / `replaced`), `ms` shown |
 | `hint.ask` | Hint button pressed (free, unlimited) | floor tag, `level` (1 the floor's tip, 2 a next step or "can't be won from here"), `count` (presses on this floor so far, kept through Restart Floor), `turn` |
 | `settings.change` | Any setting changed | `patch`, `settings` |
+| `unlock.buy` | Something bought in the Unlocks shop | `kind`, `id`, `cost`, `scraps` (left after), `owned` (that kind owned now, starters included) |
+| `progress.reset` | Settings > Data > Reset progress confirmed (title screen) | `before` (the `meta` summary as in `session.start`), `saved` (a saved run was erased too) |
 | `share` | Share Foldwork pressed (title screen), or Share link in Challenge a friend (pause menu or run summary) | `result`: `shared`, `copied`, `cancelled` or `manual` (link shown to copy); `what`: `game` or `challenge` |
 | `error` | Uncaught error / rejection (≤ 20 per session) | `message`, `source`, `line`, `col`, `stack`, `rejection` |
 

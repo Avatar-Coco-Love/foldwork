@@ -941,3 +941,23 @@ body {
   height: 32px;
   border-radius: 3px;
 }
+/* Stats & History (Phase 7e): rows as in the run summary, runs and days as a list. */
+.stats .summary-rows {
+  width: 100%;
+  margin: 0;
+}
+.stats-list {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.stats-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--c-ui-border);
+  font-size: calc(15px * var(--text-scale));
+}
