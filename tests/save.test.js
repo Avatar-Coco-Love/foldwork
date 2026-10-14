@@ -114,7 +114,7 @@ test('save: summary for the title screen', () => {
   const { run } = floorOne();
   const sum = saveSummary(createSave({ run: { ...run, relics: ['extra-crease'], hp: 2 }, at: 9 }));
   assert.deepEqual(sum, {
-    floor: 1, lastFloor: run.lastFloor, spirit: 'fox', hp: 2, maxHp: playerOf(floorOne().start()).maxHp, relics: 1, offer: false, at: 9,
+    floor: 1, lastFloor: run.lastFloor, spirit: 'fox', hp: 2, maxHp: playerOf(floorOne().start()).maxHp, relics: 1, offer: false, daily: null, practice: false, at: 9,
   });
 });
 

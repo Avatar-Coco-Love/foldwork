@@ -8,6 +8,8 @@
 //     runs,     runs banked (won or lost)
 //     unlocks,  { [kind]: [ids] } bought or granted (core/unlocks.js);
 //               starters are never listed
+//     daily,    { [date]: DailyRecord } days the daily seed was played
+//               (core/daily.js)
 //   }
 //
 // The meta only grows: later phases add fields, and parseMeta() fills any
@@ -18,6 +20,7 @@
 // changes takes a META_MIGRATIONS step and a META_VERSION bump.
 
 import { SHOP_KINDS } from './unlocks.js';
+import { parseDaily } from './daily.js';
 
 export const META_VERSION = 1;
 
@@ -34,7 +37,9 @@ function emptyUnlocks() {
 
 /** A new player's meta. */
 export function createMeta() {
-  return { v: META_VERSION, scraps: 0, earned: 0, runs: 0, unlocks: emptyUnlocks() };
+  return {
+    v: META_VERSION, scraps: 0, earned: 0, runs: 0, unlocks: emptyUnlocks(), daily: {},
+  };
 }
 
 const count = (n) => (Number.isInteger(n) && n >= 0 ? n : 0);
@@ -65,6 +70,7 @@ export function parseMeta(data) {
     earned: count(m.earned),
     runs: count(m.runs),
     unlocks: parseUnlocks(m.unlocks),
+    daily: parseDaily(m.daily),
   };
 }
 

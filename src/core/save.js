@@ -102,6 +102,8 @@ export function saveSummary(save) {
     maxHp: run.maxHp,
     relics: run.relics.length,
     offer: !!run.offer,
+    daily: run.daily || null,
+    practice: !!run.practice,
     at: save.at,
   };
 }

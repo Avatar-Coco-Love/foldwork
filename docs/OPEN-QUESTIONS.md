@@ -43,6 +43,21 @@ These belong to later phases and get decided when that phase is built.
   file would load `share.png`, which the game must not).
 
 ## Resolved
+- Daily seed (7d, user's choices). **Name and day:** the UTC date,
+  `YYYY-MM-DD`, is both the day and the run's seed (docs/05), so the whole
+  world shares one run and it rolls over at UTC midnight; the game shows
+  it as "Daily · Oct 14" (English month names, the same on every
+  device). **Attempts:** the first daily run started on a day is the
+  scored one; its result is the day's (won, lost, or "given up" when
+  another run is started over it, so restarting can't fish for a better
+  start). Later daily runs that day are practice: the same run, no paper
+  scraps. **Spirits and relics:** every spirit and every relic is open on
+  daily runs, owned or not. The meta keeps one record per day played
+  (`meta.daily`, for Stats in 7e). A daily run's save code (version 5)
+  carries its day and practice flag; loaded on a device that already
+  played that day, it becomes practice. Daily runs have no Challenge a
+  friend link (the daily is everyone's run already); Retry this seed
+  starts a practice daily.
 - Unlocks shop (7b, user's choices). **Starter relics (12):** Extra
   Crease, Spring Crease, Paper Heart, Laminate, Mender, Master Key, Paper
   Cut, Wax Coat, Soft Landing, Folded Shield, and (when built, 7c) Sharp
