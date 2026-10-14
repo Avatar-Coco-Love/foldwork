@@ -45,7 +45,7 @@ test('save code: relics (in order), hints, landings and clean round-trip', () =>
   for (const id of ['soft-landing', 'paper-heart', 'origami-luck', 'extra-crease', 'mender', 'wax-coat']) run = addRelic(run, id);
   run = { ...run, floor: 4, cleared: 3, hp: 2, clean: true, hints: { 1: 2, 3: 70 } };
   const code = encodeSaveCode(run);
-  assert.ok(code.replace(/-/g, '').length <= 31, code);
+  assert.ok(code.replace(/-/g, '').length <= 32, code); // 31 before the pool bit (v3)
   const back = decodeSaveCode(code);
   assert.ok(back.ok);
   assert.deepEqual(back.run, { ...run, hints: { 1: 2, 3: 63 } }, 'hint presses cap at 63');

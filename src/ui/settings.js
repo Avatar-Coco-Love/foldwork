@@ -30,7 +30,11 @@ export const TELEMETRY_MODES = Object.freeze([
   { id: 'off', name: 'Off' },
 ]);
 
-/** Color palettes (render/palette.js); every one is colorblind-safe. */
+/**
+ * Color palettes (render/palette.js); every one is colorblind-safe. All
+ * are valid settings; the Settings row offers only the ones the player
+ * owns (core/unlocks.js), and main.js shows the default for any other.
+ */
 export const PALETTE_OPTIONS = Object.freeze(Object.values(PALETTES).map((p) => ({ id: p.id, name: p.name })));
 
 /** Text size for menus, the HUD and hint cards: a multiplier on font sizes. */
@@ -77,7 +81,8 @@ const CHOICES = Object.freeze({
  * The Settings screen, in groups. A row is either a choice
  * ({ id, label, key }: tapping cycles `settings[key]` through its list) or
  * an action ({ id, label, action }: the screen runs `actions[action]`).
- * `show(ctx)` hides a row; a group with no rows shown is hidden. The
+ * `show(ctx)` hides a row; a group with no rows shown is hidden. A choice
+ * row's `allowed(ctx, id)` narrows its list (palettes the player owns). The
  * About group is drawn by the screen (version, credits).
  */
 export const SETTINGS_GROUPS = Object.freeze([
@@ -85,7 +90,13 @@ export const SETTINGS_GROUPS = Object.freeze([
     id: 'display',
     title: 'Display',
     rows: [
-      { id: 'palette', label: 'Palette', key: 'palette' },
+      {
+        id: 'palette',
+        label: 'Palette',
+        key: 'palette',
+        allowed: (ctx, id) => ctx.owns('palette', id),
+        note: (ctx) => (PALETTE_OPTIONS.some((o) => !ctx.owns('palette', o.id)) ? 'More palettes in Unlocks.' : null),
+      },
       { id: 'text-size', label: 'Text size', key: 'textSize' },
       { id: 'anim-speed', label: 'Animation', key: 'animSpeed' },
       { id: 'reduced-motion', label: 'Reduced motion', key: 'reducedMotion' },
@@ -114,6 +125,14 @@ export const SETTINGS_GROUPS = Object.freeze([
 /** The option list for a choice setting (`palette`, `animSpeed`, …). */
 export function choicesFor(key) {
   return CHOICES[key] || null;
+}
+
+/** A choice row's options for this player (its `allowed`), never empty. */
+export function rowChoices(row, ctx) {
+  const list = choicesFor(row.key);
+  if (!list || !row.allowed) return list;
+  const mine = list.filter((o) => row.allowed(ctx, o.id));
+  return mine.length ? mine : list;
 }
 
 /** Fill defaults and drop unknown values (bad or old saves reset per field). */

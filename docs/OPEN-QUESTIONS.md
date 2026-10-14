@@ -11,7 +11,7 @@ These belong to later phases and get decided when that phase is built.
   playtests). Weights common 6 / uncommon 3 / rare 1. Common: Extra Crease,
   Spring Crease, Paper Heart, Laminate, Mender, Master Key, Paper Cut,
   Wax Coat. Uncommon: Thick Paper, Recycled Crease, Soft Landing, Folded
-  Shield, Heavy Stamp. Rare: Origami Luck. The 10 relics not built yet get theirs
+  Shield, Heavy Stamp. Rare: Origami Luck. The 9 relics not built yet get theirs
   when they arrive (aim: ~12/8/4 overall, docs/03).
 - Telemetry start: collection is off (`TELEMETRY.collect: false`) until the
   first playtests have been watched; then deploy the Sheets collector and
@@ -42,6 +42,20 @@ These belong to later phases and get decided when that phase is built.
   file would load `share.png`, which the game must not).
 
 ## Resolved
+- Unlocks shop (7b, user's choices). **Starter relics (12):** Extra
+  Crease, Spring Crease, Paper Heart, Laminate, Mender, Master Key, Paper
+  Cut, Wax Coat, Soft Landing, Folded Shield, and (when built, 7c) Sharp
+  Edge, Compass. **Shop relics (12):** Diagonal Crease, Thick Paper,
+  Recycled Crease, Heavy Stamp, Origami Luck, and (7c) Echo Fold, Crease
+  Trap, Pocket Fold, Sticky Tape, Scout's Eye, Lucky Scrap, Rewind Charm.
+  **Palettes:** Paper, Night Ink, High Contrast free; Kraft and Blueprint
+  50 each. **Pools:** a run offers the relics the player owned when it
+  started; challenge runs (and retries of one) offer every relic, so
+  everyone on a seed draws from the same pool (7d's daily seed should do
+  the same). Buying takes two presses; nothing is refunded. **Growth
+  rules** (user's ask: many updates to come): new content is for sale
+  unless marked `unlock: 'starter'`; never turn a starter into a shop
+  item; ids are forever; the meta keeps what it doesn't know.
 - Paper scraps (7a, user's choices): **earn** 5 per floor cleared, 2 per
   enemy killed by the player's own fold (dropped into a void or killed
   by the fold's effects; not the boss, not a bump, not the Crane's

@@ -39,7 +39,7 @@
 - Creatures are simple origami-inspired polygons built from triangles and rhombi (Mite = small beetle, Wasp = triangular wasp, Brute = boxy golem, etc.). Defined as data, drawn by a shared vector routine.
 - Size and alignment guide (tested in `tests/creatures.test.js`): creature art stays inside 0.05–0.95 of the tile face, is centred left to right, and stands on a shared foot line (0.86) above its shadow. Height marks weight class: small (Mite, Wasp) 0.45–0.65, medium (player, Creaseling, Lockjaw, Spore Bloom) 0.65–0.85, large (Card Brute) up to 0.9. Tile glyphs are centred on the face; corners hold link marks, HP pips and clips.
 - Fold animation: the folding half rotates around the crease with perspective-like scaling (cosine of fold angle), then settles onto the stack. Duration 350–450ms, adjustable by an animation speed setting, and instant if reduced-motion is on.
-- Palette: 3 built-in palettes (default Paper, Night Ink, High Contrast). Extra palettes are unlockable cosmetics.
+- Palette: 3 built-in palettes (default Paper, Night Ink, High Contrast). Extra palettes are unlockable cosmetics (Kraft, Blueprint); Settings lists only owned ones.
 
 ## Audio (Web Audio API only)
 - Audio starts after the first user gesture (browser autoplay rules).
@@ -53,7 +53,7 @@
 3. Floor (gameplay)
 4. Relic choice (3 cards; 4th rest option on floors 4 and 7)
 5. Run summary (floors cleared, scraps earned, unlocks)
-6. Unlocks shop (relics, spirits, palettes)
+6. Unlocks shop (spirits, relics, palettes; scrap bank on top; Buy then Confirm; locked items show a lock and their cost; owned palettes have Use)
 7. Settings, in groups: Display (palette, text size, animation speed, reduced motion, left-handed layout), Gameplay (tap-to-confirm folds, tutorial hints), Data (share play data, save code, reset progress), Audio, About (version, credits, feedback / bug report)
 8. Pause menu, from the floor's Menu button (Resume, Restart Floor, How to Play, Settings, Abandon Run, Save & Quit to Title)
 

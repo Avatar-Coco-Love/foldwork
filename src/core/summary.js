@@ -2,11 +2,13 @@
 // for a run that is over, won or lost. Pure: the screen only lays it out.
 //
 // Rows (user's choice, 6c): spirit, floors cleared, HP, relics, seed;
-// paper scraps (7a) when the screen passes them in. Unlocks join in 7b.
+// paper scraps (7a) when the screen passes them in, and (7b) the unlocks
+// the banked scraps just made affordable.
 
 import { BOSS_FLOOR } from './run.js';
 import { relicDef } from './relics.js';
 import { spiritDef } from './spirits.js';
+import { shopKind } from './unlocks.js';
 
 /** How a lost run ended, by the floor's defeat cause (core/turn.js). */
 const LOSS_TEXT = {
@@ -19,7 +21,8 @@ const LOSS_TEXT = {
  * { outcome, title, text, rows: [{ id, label, value, items? }] }.
  * `items` (relics, scraps) is a list of lines; `value` is its short form.
  * `scraps` is ctx.lastScraps ({ earned (core/scraps.js runScraps), total,
- * banked }), or null for no scraps row.
+ * banked, affordable? (core/unlocks.js shop items) }), or null for no
+ * scraps row.
  */
 export function runSummary(run, scraps = null) {
   const won = run.status === 'won';
@@ -48,6 +51,7 @@ export function runSummary(run, scraps = null) {
       { id: 'hp', label: 'HP', value: `${won ? run.hp : 0} / ${run.maxHp}` },
       { id: 'relics', label: 'Relics', value: relics.length ? String(relics.length) : 'None', items: relics },
       ...(scraps ? [scrapsRow(scraps)] : []),
+      ...(scraps && scraps.affordable && scraps.affordable.length ? [unlocksRow(scraps.affordable)] : []),
       { id: 'seed', label: 'Seed', value: run.seed },
     ],
   };
@@ -60,4 +64,10 @@ function scrapsRow({ earned, total, banked }) {
   const value = banked ? `+${earned.total} (${total} saved)` : `+${earned.total} (dev run, not saved)`;
   const lines = earned.lines.map((l) => (l.count > 1 ? `${l.label}: ${l.count} × ${l.each} = ${l.amount}` : `${l.label}: ${l.amount}`));
   return { id: 'scraps', label: 'Paper scraps', value, items: lines.length ? [...lines, `Total: ${value}`] : [] };
+}
+
+// "2 ready": shop items the banked scraps just made affordable.
+function unlocksRow(items) {
+  const lines = items.map((it) => `${it.def.name} (${shopKind(it.kind)?.noun || it.kind}): ${it.cost} scraps`);
+  return { id: 'unlocks', label: 'Now affordable', value: `${items.length} in Unlocks`, items: lines };
 }

@@ -27,6 +27,7 @@
     run.js           // run state, relic offers, floor progression
     save.js          // run saves: run state + the floor's action log
     meta.js          // paper scraps, unlocks, persistence
+    unlocks.js       // the unlocks shop: what can be bought, costs, relic pools
   render/
     renderer.js      // board and layer drawing
     creatures.js     // vector creature drawing routines
@@ -75,7 +76,7 @@
 - Anonymous play data with one fixed envelope and opaque `data`, so the backend never changes for new events. Floors record their action log, so analysis replays them instead of needing new events. Full contract: `07-telemetry.md`.
 
 ## Persistence
-- `localStorage` keys: `foldwork.meta` (scraps, unlocks), `foldwork.settings`, `foldwork.run` (the run in progress: run state plus the current floor's action log, replayed on Continue; saved after every action and between floors; `core/save.js`), `foldwork.hints` (tutorial hints seen), `foldwork.install` and `foldwork.telemetry` (anonymous id, unsent events).
+- `localStorage` keys: `foldwork.meta` (scraps, unlocks; `core/meta.js` keeps fields and ids it doesn't know, so progress survives older and newer builds), `foldwork.settings`, `foldwork.run` (the run in progress: run state plus the current floor's action log, replayed on Continue; saved after every action and between floors; `core/save.js`), `foldwork.hints` (tutorial hints seen), `foldwork.install` and `foldwork.telemetry` (anonymous id, unsent events).
 - Version the save format and migrate or reset gracefully on mismatch.
 - All reads and writes wrapped in try/catch with in-memory fallback.
 

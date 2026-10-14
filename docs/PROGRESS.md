@@ -4,13 +4,15 @@
 small. At the end of each conversation, update this file in the same PR.
 
 ## Next up
-**Phase 7b: unlocks shop.** Read docs/03 (relics, spirits, meta), docs/04
-(screen 6 and the title's Unlocks row), OPEN-QUESTIONS "Paper scraps"
-(costs are settled). Store unlocks in `core/meta.js` (`parseMeta` fills
-missing fields). Which 12 relics start unlocked is still open: propose a
-list (the 15 built, 10 to come) and ask. Frog and Turtle lock (Frog 30,
-Turtle 50); a saved run already using one keeps working. Show the scrap
-bank on the shop and the title row.
+**Phase 7c: the remaining 9 relics** (15 built + 9 = 24; earlier notes
+said 10). Read docs/03 (relics), OPEN-QUESTIONS "Unlocks shop" and the
+rarity entry. Sharp Edge and Compass get `unlock: 'starter'` (making 12
+starters); the other 7 (Echo Fold, Crease Trap, Pocket Fold, Sticky
+Tape, Scout's Eye, Lucky Scrap, Rewind Charm) are shop relics, which is
+the default (no `unlock` field). Propose their rarities (aim ~12/8/4
+overall) and ask. Append every new id to `CODE_RELICS` (saveCode.js).
+Lucky Scrap uses the `scraps` hook. The shop, offers and save codes pick
+new relics up from `RELIC_DEFS` with no other changes.
 
 ## Phase checklist
 Larger phases are split into PR-sized chunks so each conversation stays small.
@@ -59,9 +61,9 @@ Larger phases are split into PR-sized chunks so each conversation stays small.
 - [ ] **Phase 7** — Meta-progression, daily seed, persistence
   - [x] 7a Paper scraps: earned per run, shown on the summary, banked in
     meta (PR 29)
-  - [ ] 7b Unlocks shop: relics, spirits (Frog, Turtle), palettes; title
-    Unlocks row
-  - [ ] 7c Remaining relics (10, to 24 total) with rarities and unlock
+  - [x] 7b Unlocks shop: relics, spirits (Frog, Turtle), palettes; title
+    Unlocks row (PR 30)
+  - [ ] 7c Remaining relics (9, to 24 total) with rarities and unlock
     flags
   - [ ] 7d Daily seed mode (same run on every device) + title row
   - [ ] 7e Stats & History screen; Settings > Data Reset progress;
@@ -990,3 +992,53 @@ Larger phases are split into PR-sized chunks so each conversation stays small.
   (390x844): a saved run continued and lost by walking into a void → the
   summary shows the breakdown and `foldwork.meta` grows. No console
   errors.
+
+### PR 30: Phase 7b unlocks shop
+- Decisions (user's, OPEN-QUESTIONS "Unlocks shop"): 12 starter relics
+  (the 8 built commons, Soft Landing, Folded Shield; Sharp Edge and
+  Compass when built), the other 12 in the shop; Paper, Night Ink and
+  High Contrast stay free, two new 50-scrap palettes (Kraft, Blueprint);
+  challenge runs offer every relic.
+- Built to grow (user's ask: many updates and expansions to come):
+  `core/unlocks.js` builds the shop from the content tables
+  (`SHOP_KINDS`: spirits, relics, palettes). A def's `unlock` is
+  `'starter'`, `'shop'` (the default, so new content is for sale unless
+  marked) or `'reward'` (granted by `grantUnlock`, shown with
+  `unlockText`); cost is `def.cost` or the kind's default (relics by
+  rarity). A new kind is one `SHOP_KINDS` entry plus, optionally, a card
+  look in `ui/unlocks.js` `CARDS`.
+- `core/meta.js`: `unlocks: { [kind]: [ids] }`, only what was bought or
+  granted (starters never stored, so the starter set can grow). `parseMeta`
+  now keeps unknown fields, kinds and ids (a newer build's, or removed
+  content) and keeps a newer version number instead of resetting, with a
+  `META_MIGRATIONS` table for future shape changes. Before, any other
+  version reset the meta.
+- `core/run.js`: `run.pool` (owned relic ids at the start, or
+  `RELIC_POOL_ALL`); `rollOffer` draws from it in `RELIC_DEFS` order.
+  Saves from before have no pool and offer every relic, as they did.
+  Challenge runs (and a retry of one) use every relic; normal runs and
+  retries use your unlocks.
+- Save code v3: one bit for an open pool. An own-pool code (and every
+  v1/v2 code) takes the loading device's unlocks. v2 codes still read
+  (test with a real v2 code).
+- UI: Unlocks screen (`ui/unlocks.js`): scrap bank, sections, two-press
+  buy (Buy, then Confirm; Esc cancels), Owned/In use/Use for palettes,
+  "🔒 cost · need n more" for locked items (words and marks, not color).
+  Title row "Unlocks" with the bank and "n ready to unlock". Spirit
+  select shows locked spirits (dashed, lock and cost); picking one opens
+  the shop, whose Back returns to spirit select. Run summary gets a "Now
+  affordable" row and an Unlocks button when banking made something
+  affordable. Settings > Palette offers owned palettes only, with "More
+  palettes in Unlocks."; an unowned saved palette shows the default.
+- Dev: `?unlocks=all` owns everything for the session (a dev-run param:
+  nothing saved or banked).
+- `RARITY_NAMES`/`GROUP_NAMES` moved to `core/relics.js` (offers and the
+  shop share them).
+- 12 new tests (`tests/unlocks.test.js`; 359 total): starters, costs, every item
+  priced, buying, grants, newly affordable, meta forward compatibility,
+  run pools and old saves, save code v3 and a real v2 code, palette
+  tokens and contrast. Checked in headless Chromium (390x844, 844x390):
+  title → Unlocks → buy Frog (two presses) → buy and use Blueprint → Esc
+  → spirit select (Turtle locked → shop → Back) → a Frog run saved with
+  the starter pool. Floors in Kraft and Blueprint read clearly. No
+  console errors, no sideways scroll.

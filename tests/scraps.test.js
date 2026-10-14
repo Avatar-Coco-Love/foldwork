@@ -71,10 +71,11 @@ test('scraps: a boss win adds the Crane bonus; a short won run does not; nothing
 
 test('meta: banking adds to scraps and earned; broken data starts fresh', () => {
   const m = bankScraps(bankScraps(createMeta(), 26), 0);
-  assert.deepEqual(m, { v: META_VERSION, scraps: 26, earned: 26, runs: 2 });
+  assert.deepEqual(m, { ...createMeta(), scraps: 26, earned: 26, runs: 2 });
+  assert.equal(m.v, META_VERSION);
   assert.deepEqual(parseMeta(m), m);
   assert.deepEqual(parseMeta(null), createMeta());
-  assert.deepEqual(parseMeta({ v: 99, scraps: 5 }), createMeta());
+  assert.deepEqual(parseMeta({ v: 0, scraps: 5 }), createMeta());
   assert.deepEqual(parseMeta({ v: META_VERSION, scraps: -3, earned: 1.5 }), createMeta());
 });
 

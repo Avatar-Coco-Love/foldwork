@@ -19,6 +19,8 @@
 //                   (core/relics.js ids, or 'all')
 //   ?spirit=frog    spirit for runs started without the select screen
 //                   (?screen=floor, ?screen=offer); default none
+//   ?unlocks=all    own every unlock this session (shop, spirits, relic
+//                   pool, palettes); nothing is bought or saved
 //   ?challenge=123  a friend's challenge link (not a dev param): the title
 //                   offers a run on that seed (ui/share.js)
 //   ?telemetry=console   log telemetry events (also: off, or a localhost
@@ -26,17 +28,18 @@
 
 import { createRenderer } from './render/renderer.js';
 import { HUD_METRICS } from './render/layout.js';
-import { getPalette, cssVarName } from './render/palette.js';
+import { getPalette, cssVarName, DEFAULT_PALETTE_ID } from './render/palette.js';
 import { createRouter } from './ui/router.js';
 import { createBackButton } from './ui/backButton.js';
 import {
   titleScreen, floorScreen, howToScreen, offerScreen, spiritScreen,
   summaryScreen, settingsScreen, saveCodeScreen,
 } from './ui/screens.js';
+import { unlocksScreen } from './ui/unlocks.js';
 import { challengeSeed, CHALLENGE_PARAM } from './ui/share.js';
 import { setupTelemetry, telemetryActive } from './telemetry/browser.js';
 import { TELEMETRY } from './config.js';
-import { createRun, runTag, rollOffer } from './core/run.js';
+import { createRun, runTag, rollOffer, RELIC_POOL_ALL } from './core/run.js';
 import { RELIC_DEFS, isRelic } from './core/relics.js';
 import { isSpirit } from './core/spirits.js';
 import {
@@ -46,6 +49,9 @@ import { createSave } from './core/save.js';
 import { createSaveStore } from './ui/saveStore.js';
 import { createMetaStore } from './ui/metaStore.js';
 import { bankScraps } from './core/meta.js';
+import {
+  owns, buyUnlock, relicPool, newlyAffordable,
+} from './core/unlocks.js';
 import { runScraps } from './core/scraps.js';
 
 const params = Object.fromEntries(new URLSearchParams(location.search));
@@ -79,8 +85,10 @@ const devRelics = params.relics === 'all'
 const devSpirit = isSpirit(params.spirit) ? params.spirit : null;
 // Dev params that change how runs start or play. Such runs are never
 // saved, so testing with them can't overwrite the player's run.
-const DEV_RUN_PARAMS = ['screen', 'floor', 'seed', 'relics', 'spirit', 'charges', 'mites', 'map', 'size', 'demo'];
+const DEV_RUN_PARAMS = ['screen', 'floor', 'seed', 'relics', 'spirit', 'charges', 'mites', 'map', 'size', 'demo', 'unlocks'];
 const devRun = DEV_RUN_PARAMS.some((k) => k in params);
+// core/unlocks.js options: dev ?unlocks=all owns everything.
+const unlockOpts = { all: params.unlocks === 'all' };
 const saves = createSaveStore();
 const metaStore = createMetaStore();
 const newRunId = () => `r_${Date.now().toString(36)}${Math.floor(Math.random() * 1e6).toString(36)}`;
@@ -98,8 +106,32 @@ const ctx = {
    * bank after it), banked (false for dev runs, which never bank) }.
    */
   lastScraps: null,
-  /** Meta-progression (core/meta.js): scraps and, later, unlocks. */
+  /** Meta-progression (core/meta.js): paper scraps and unlocks. */
   meta: metaStore.load(),
+  /** core/unlocks.js options for this session (dev ?unlocks=all). */
+  unlockOpts,
+  /** Whether the player has `kind`/`id` (core/unlocks.js). */
+  owns(kind, id) {
+    return owns(ctx.meta, kind, id, unlockOpts);
+  },
+  /**
+   * Buy `kind`/`id` with paper scraps (unlocks shop) and save the meta.
+   * Returns core/unlocks.js buyUnlock's result. Dev ?unlocks=all buys
+   * nothing.
+   */
+  buy(kind, id) {
+    if (unlockOpts.all) return { ok: false, reason: 'owned', meta: ctx.meta };
+    const result = buyUnlock(ctx.meta, kind, id);
+    if (result.ok) {
+      ctx.meta = result.meta;
+      metaStore.write(ctx.meta);
+    }
+    return result;
+  },
+  /** The relics a run on the player's own unlocks may offer. */
+  relicPool() {
+    return relicPool(ctx.meta, unlockOpts);
+  },
   /** Telemetry id of the run in progress (kept in its save). */
   runId: null,
   telemetry: tele.telemetry,
@@ -110,11 +142,18 @@ const ctx = {
   /**
    * Start a new run as `spirit` (spirit select; dev runs use ?spirit=): a
    * fresh seed (unless ?seed= pins one, or `seed` is a challenge's, or
-   * the last run's for `retry`) and run id.
+   * the last run's for `retry`) and run id. Its relic pool is the
+   * player's unlocks, or every relic for `openPool` (challenge runs, and
+   * a retry of one), so everyone on that seed draws from the same pool.
    */
-  startRun({ floor = 1, spirit = devSpirit, seed = null, retry = false } = {}) {
+  startRun({
+    floor = 1, spirit = devSpirit, seed = null, retry = false, openPool = false,
+  } = {}) {
     ctx.seed = seed || newSeed();
-    ctx.run = createRun({ seed: ctx.seed, relics: devRelics, floor, spirit });
+    const pool = openPool ? RELIC_POOL_ALL : ctx.relicPool();
+    ctx.run = createRun({
+      seed: ctx.seed, relics: devRelics, floor, spirit, pool,
+    });
     ctx.runId = newRunId();
     ctx.telemetry.setRun(ctx.runId);
     ctx.telemetry.track('run.start', {
@@ -215,12 +254,17 @@ const ctx = {
     if (outcome !== 'abandoned') {
       const earned = runScraps(run);
       scraps = earned.total;
+      let unlocks = [];
       if (!devRun) {
+        const before = ctx.meta;
         ctx.meta = bankScraps(ctx.meta, scraps);
         metaStore.write(ctx.meta);
+        unlocks = newlyAffordable(before, ctx.meta);
       }
       ctx.lastRun = run;
-      ctx.lastScraps = { earned, total: ctx.meta.scraps, banked: !devRun };
+      ctx.lastScraps = {
+        earned, total: ctx.meta.scraps, banked: !devRun, affordable: unlocks,
+      };
     }
     ctx.telemetry.track('run.end', {
       ...runTag(run), outcome, cause: run.cause, cleared: run.cleared, lastFloor: run.lastFloor, foldKills: run.foldKills || 0, scraps,
@@ -270,10 +314,20 @@ function applyMotionClass() {
 }
 reducedMotionQuery.addEventListener?.('change', applyMotionClass);
 
+/**
+ * The palette to show: the setting's, or the default when the player
+ * doesn't own it (progress reset, a save from elsewhere). Dev ?palette=
+ * shows any.
+ */
+function shownPalette() {
+  const id = ctx.settings.palette;
+  return params.palette || ctx.owns('palette', id) ? id : DEFAULT_PALETTE_ID;
+}
+
 /** Everything the settings change outside the game screens. */
 function applySettings() {
   const s = ctx.settings;
-  if (renderer.palette.id !== s.palette) ctx.setPalette(s.palette);
+  if (renderer.palette.id !== shownPalette()) ctx.setPalette(shownPalette());
   const left = s.hand === 'left';
   document.documentElement.toggleAttribute('data-left-handed', left);
   renderer.setLeftHanded(left);
@@ -289,7 +343,8 @@ ctx.router
   .register('spirit', spiritScreen)
   .register('howto', howToScreen)
   .register('settings', settingsScreen)
-  .register('summary', summaryScreen);
+  .register('summary', summaryScreen)
+  .register('unlocks', unlocksScreen);
 
 // --- Viewport tracking -----------------------------------------------------
 
@@ -330,7 +385,7 @@ document.addEventListener('dblclick', (e) => e.preventDefault());
 
 // --- Start -----------------------------------------------------------------
 
-ctx.setPalette(ctx.settings.palette);
+ctx.setPalette(shownPalette());
 applySettings();
 onResize();
 ctx.telemetry.track('session.start', {
