@@ -80,7 +80,7 @@ function createRelicTray() {
 }
 
 export function createHud(root, {
-  floor, lastFloor = null, onMenu, onUndo, onCancel, onWait, onHint = null, onConfirmFold = null,
+  floor, lastFloor = null, onMenu, onUndo, onCancel, onWait, onHint = null, onConfirmFold = null, onPocket = null,
 }) {
   const hp = createMeter('hud-hp', HEART, 'HP');
   const charges = createMeter('hud-charges', CHARGE, 'Fold charges');
@@ -120,11 +120,18 @@ export function createHud(root, {
   const hintBtn = onHint && el('button', {
     class: 'btn', type: 'button', onclick: onHint, 'aria-keyshortcuts': 'H',
   }, 'Hint');
+  // Pocket Fold's mode toggle (P): pressed, it folds one lane only. The
+  // check mark says so without color.
+  const pocketBtn = onPocket && el('button', {
+    class: 'btn hud-pocket', type: 'button', onclick: onPocket, 'aria-pressed': 'false', 'aria-keyshortcuts': 'P',
+    title: 'Pocket Fold: fold only the row or column your drag starts in',
+  }, 'Pocket');
   const actions = el('div', { class: 'hud-actions' },
     undoBtn,
     waitBtn,
     cancelBtn,
     foldBtn,
+    pocketBtn,
     hintBtn,
     // Opens the pause menu (Resume, Restart Floor, Settings, …).
     el('button', {
@@ -170,6 +177,13 @@ export function createHud(root, {
   return {
     setUndoEnabled(value) {
       undoBtn.disabled = !value;
+    },
+    /** Pocket mode on or off (the button exists only with Pocket Fold). */
+    setPocket(on) {
+      if (!pocketBtn) return;
+      pocketBtn.setAttribute('aria-pressed', on ? 'true' : 'false');
+      pocketBtn.classList.toggle('btn-primary', !!on);
+      pocketBtn.textContent = on ? 'Pocket ✓' : 'Pocket';
     },
     setHp(value, max) {
       hp.set(value, max);

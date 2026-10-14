@@ -33,7 +33,7 @@ export function createRenderer(canvas, { paletteId = DEFAULT_PALETTE_ID } = {}) 
     insets: { top: 0, right: 0, bottom: 0, left: 0 },
     leftHanded: false,
     palette: getPalette(paletteId),
-    scene: null, // { board, preview?, hint?, creases? } — extended by later phases
+    scene: null, // { board, preview?, hint?, creases?, traps?, compass? } — extended by later phases
     fx: null, // fx player (render/fx.js): foldAnim, actor, shake
     layout: null,
     frameRequested: false,
@@ -112,7 +112,7 @@ export function createRenderer(canvas, { paletteId = DEFAULT_PALETTE_ID } = {}) 
 // ---------------------------------------------------------------------------
 // Draw passes
 
-const PASSES = [drawBackground, drawBoardBase, drawTiles, drawCreaseMarks, drawSightLanes, drawSpawnMarks, drawTelegraph, drawFoldPreview, drawHintStep, drawFoldAnim, drawActor, drawFlash];
+const PASSES = [drawBackground, drawBoardBase, drawTiles, drawTraps, drawCreaseMarks, drawSightLanes, drawSpawnMarks, drawTelegraph, drawFoldPreview, drawHintStep, drawFoldAnim, drawActor, drawFlash];
 
 function draw(r) {
   const { ctx } = r;
@@ -168,8 +168,60 @@ function drawTiles(r, ctx) {
         const c = layers[i].creature;
         if (c && c.id !== skip) drawPinned(ctx, r.palette, c, o.x, o.y - (layers.length - 1) * lift, L.cellSize);
       }
+      // Compass: an exit under the paper shows as a small exit on top.
+      if (r.scene.compass) {
+        for (let i = 0; i < layers.length - 1; i++) {
+          if (layers[i].tile === TILE.EXIT) drawBuriedExit(ctx, r.palette, layers[i], o.x, o.y - (layers.length - 1) * lift, L.cellSize);
+        }
+      }
     }
   }
+}
+
+// Compass: a dashed outline and a small copy of the exit tile in the top
+// face's top-left corner (crease tags sit top-right), for an exit buried
+// under other layers.
+function drawBuriedExit(ctx, p, layer, x, y, size) {
+  const gap = layerGap(size);
+  const dash = Math.max(3, Math.round(size * 0.1));
+  outline(ctx, x + gap, y + gap, size - gap * 2, p.accent, Math.max(1.5, size * 0.04), [dash, dash / 2]);
+  const s = size * 0.4;
+  paintExit(ctx, p, x + gap * 2, y + gap * 2, s, true, layer);
+}
+
+// Crease Trap spikes (scene.traps, core/turn.js): a row of small triangles
+// along the bottom edge of each spiked cell's top face, so it reads by
+// shape and stays clear of the creature standing there.
+function drawTraps(r, ctx) {
+  const L = r.layout;
+  const traps = r.scene && r.scene.traps;
+  if (!L || !traps || !traps.length || (r.fx && r.fx.foldAnim)) return;
+  const board = r.scene.board;
+  const p = r.palette;
+  const size = L.cellSize;
+  const lift = layerLift(size);
+  ctx.save();
+  ctx.fillStyle = p.danger;
+  ctx.strokeStyle = p.tileFace;
+  ctx.lineWidth = 1;
+  for (const trap of traps) {
+    for (const c of trap.cells) {
+      const level = Math.max(0, stackHeight(board, c.col, c.row) - 1);
+      const o = cellOrigin(L, c.col, c.row);
+      const y = o.y - level * lift + size * 0.93;
+      const w = size / 6;
+      ctx.beginPath();
+      for (let k = 0; k < 5; k++) {
+        const x = o.x + size * 0.08 + k * w;
+        ctx.moveTo(x, y);
+        ctx.lineTo(x + w / 2, y - size * 0.11);
+        ctx.lineTo(x + w, y);
+      }
+      ctx.fill();
+      ctx.stroke();
+    }
+  }
+  ctx.restore();
 }
 
 // Ranged enemies' lines of fire (core/enemies.js sightLanes): a dashed line
@@ -536,7 +588,51 @@ function drawFoldPreview(r, ctx) {
     }
   }
   drawSlides(ctx, p, L, pv, lineW);
+  drawScout(ctx, p, L, pv, lineW);
   drawCrease(ctx, p, L, pv, lineW);
+}
+
+// Scout's Eye (pv.scout, render/preview.js scoutPreview): each enemy's next
+// action after the fold. A step is a thin dashed arrow; an attack a solid
+// arrow with a "!" badge on its target; a spawn a dashed ring with "+";
+// opening jaws a "!" badge on the Lockjaw. Shapes, not color, tell them apart.
+function drawScout(ctx, p, L, pv, lineW) {
+  if (!pv.scout || !pv.scout.length) return;
+  const size = L.cellSize;
+  const lift = layerLift(size);
+  const centre = (c) => {
+    const o = cellOrigin(L, c.col, c.row);
+    const level = Math.max(0, pv.heights[c.row * L.cols + c.col] - 1);
+    return { x: o.x + size / 2, y: o.y + size / 2 - level * lift };
+  };
+  ctx.save();
+  for (const s of pv.scout) {
+    const a = centre(s.from);
+    const b = centre(s.to);
+    if (s.kind === 'move' || s.kind === 'attack') {
+      const len = Math.hypot(b.x - a.x, b.y - a.y) || 1;
+      const ux = (b.x - a.x) / len;
+      const uy = (b.y - a.y) / len;
+      const start = { x: a.x + ux * size * 0.28, y: a.y + uy * size * 0.28 };
+      const end = { x: b.x - ux * size * 0.18, y: b.y - uy * size * 0.18 };
+      if (s.kind === 'move') ctx.setLineDash([size * 0.06, size * 0.06]);
+      drawArrow(ctx, start.x, start.y, end.x, end.y, Math.max(2, lineW * 0.7), p.danger, p.tileFace);
+      ctx.setLineDash([]);
+      if (s.kind === 'attack') badge(ctx, p, b.x + size * 0.28, b.y - size * 0.28, size * 0.15, '!', true);
+    } else if (s.kind === 'spawn') {
+      ctx.strokeStyle = p.danger;
+      ctx.lineWidth = lineW * 0.7;
+      ctx.setLineDash([size * 0.06, size * 0.06]);
+      ctx.beginPath();
+      ctx.arc(b.x, b.y, size * 0.3, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      badge(ctx, p, b.x, b.y, size * 0.13, '+', true);
+    } else {
+      badge(ctx, p, b.x + size * 0.28, b.y - size * 0.28, size * 0.15, '!', true);
+    }
+  }
+  ctx.restore();
 }
 
 // Creaseling slides the fold would cause (pv.slides): a dashed arrow from
@@ -910,7 +1006,26 @@ function drawLayer(ctx, p, layer, x, y, size, isTop, skip) {
   if (c && c.id !== skip) {
     drawCreature(ctx, p, c, x + gap, y + gap, s, null);
     drawCarried(ctx, p, c, x + gap, y + gap, s);
+    if (c.stuck > 0) drawTape(ctx, p, c.stuck, x + gap, y + gap, s);
   }
+}
+
+// Sticky Tape: a strip of tape across the creature's top corner, with the
+// turns it stays stuck in a badge.
+function drawTape(ctx, p, turns, x, y, s) {
+  ctx.save();
+  ctx.translate(x + s * 0.3, y + s * 0.22);
+  ctx.rotate(-Math.PI / 4);
+  ctx.globalAlpha = 0.85;
+  ctx.fillStyle = p.tileEdge;
+  ctx.fillRect(-s * 0.32, -s * 0.08, s * 0.64, s * 0.16);
+  ctx.globalAlpha = 1;
+  ctx.strokeStyle = p.ink;
+  ctx.lineWidth = 1;
+  ctx.setLineDash([2, 2]);
+  ctx.strokeRect(-s * 0.32, -s * 0.08, s * 0.64, s * 0.16);
+  ctx.restore();
+  badge(ctx, p, x + s * 0.82, y + s * 0.18, s * 0.14, String(turns), false);
 }
 
 // An item a creature holds (Lockjaw's key, core/creatures.js `carry`): a

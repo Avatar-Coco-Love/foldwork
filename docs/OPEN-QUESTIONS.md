@@ -7,12 +7,13 @@ to "Resolved" with the answer once decided.
 These belong to later phases and get decided when that phase is built.
 - Scrap rates and costs: settled in 7a (see Resolved "Paper scraps");
   tune in Phase 9.
-- Relic rarities and offer weights (provisional since 4b; tune in Phase 9
-  playtests). Weights common 6 / uncommon 3 / rare 1. Common: Extra Crease,
-  Spring Crease, Paper Heart, Laminate, Mender, Master Key, Paper Cut,
-  Wax Coat. Uncommon: Thick Paper, Recycled Crease, Soft Landing, Folded
-  Shield, Heavy Stamp. Rare: Origami Luck. The 9 relics not built yet get theirs
-  when they arrive (aim: ~12/8/4 overall, docs/03).
+- Relic rarities and offer weights (provisional; tune in Phase 9
+  playtests). Weights common 6 / uncommon 3 / rare 1; 12/8/4 since 7c.
+  Common: Extra Crease, Spring Crease, Paper Heart, Laminate, Mender,
+  Master Key, Paper Cut, Wax Coat, Sharp Edge, Compass, Sticky Tape,
+  Crease Trap. Uncommon: Thick Paper, Recycled Crease, Diagonal Crease,
+  Soft Landing, Folded Shield, Heavy Stamp, Scout's Eye, Lucky Scrap.
+  Rare: Origami Luck, Echo Fold, Pocket Fold, Rewind Charm.
 - Telemetry start: collection is off (`TELEMETRY.collect: false`) until the
   first playtests have been watched; then deploy the Sheets collector and
   switch it on (docs/07).
@@ -385,9 +386,38 @@ These belong to later phases and get decided when that phase is built.
   the player's bumps.
 - Heavy Stamp (4b): the plate stays pressed the turn you step off and the
   next 2 (3 turns in all). A creature standing on it keeps it topped up.
-- Not built yet (need later systems): Echo Fold, Crease Trap, Pocket
-  Fold, Sticky Tape, Sharp Edge (fold relics; timed effects), Scout's Eye and
-  Compass (render-side), Lucky Scrap (scraps, Phase 7), Rewind Charm.
+- The last 9 relics (7c, user's choices; rarities under Open "Relic
+  rarities"). Sharp Edge and Compass are starters, the rest shop relics.
+  - **Sharp Edge:** an enemy the player's fold pins takes 1 damage at
+    once (a Mite is crushed: a fold kill). Not the Crane (void drops only),
+    never the player, not pins by the Crane's folds.
+  - **Sticky Tape:** folds move whole stacks, so a pinned enemy is never
+    uncovered by a later fold; only undo unpins. So: undoing a fold that
+    pinned enemies leaves them stuck for their next 2 turns (no move,
+    attack, bite or spawn count; they can be bumped), and that undo keeps
+    the fold's charge spent (else fold + undo stuns forever for free).
+  - **Crease Trap:** the player's fold spikes the line of cells beside
+    the crease on the side that stays (the hinge cells for a diagonal)
+    for this turn's and next turn's enemy phases. An enemy that steps or
+    slides onto a spiked cell takes 1 damage, once per enemy per trap.
+    Never the player.
+  - **Echo Fold:** automatic. The first fold on each floor takes no turn:
+    enemies don't act and the player acts again.
+  - **Pocket Fold:** a toggle (HUD button, key P). With it on, only the
+    single row (vertical crease) or column (horizontal crease) where the
+    drag starts folds over the line. Straight creases only; one charge.
+  - **Scout's Eye:** while a fold is previewed, each enemy's next action
+    after that fold is drawn.
+  - **Compass:** the exit is drawn even when buried under layers.
+  - **Lucky Scrap:** +50% paper scraps at the end of a run (rounded down),
+    as its own line on the summary.
+  - **Rewind Charm:** once per run, take back the last full turn (enemy
+    phase included), from the pause menu, or from the defeat panel to
+    undo the move that lost the floor. Decided while building: the
+    take-back drops the free undo (that undo's state still holds the
+    use), and a loss it can take back is saved as in play.
+  - Decided while building: Scout's Eye shows nothing for an Echo Fold
+    (no enemy turn follows it); Crease Trap kills count as fold kills.
 - Telemetry hosting (4a): Google Sheets via an Apps Script web app for
   playtests (`tools/telemetry-sheets/`); a real database before launch.
 - Run rules (4a, provisional, playtest them): HP carries between floors;

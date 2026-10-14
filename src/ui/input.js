@@ -14,7 +14,10 @@
 //   onWait()                  Space
 //   onHint()                  H
 //   onRestart()               R (outside fold mode; the owner confirms)
-//   foldOptions() → { diagonal }  whether diagonal creases are unlocked
+//   onPocket()                P: toggle pocket mode (Pocket Fold; the
+//                             owner keeps the mode, foldOptions reports it)
+//   foldOptions() → { diagonal, pocket }  whether diagonal creases are
+//                             unlocked; whether pocket mode is on
 //   confirmFolds() → bool     tap-to-confirm setting: a drag released on a
 //                             valid crease holds its preview (pending)
 //                             until confirmPending() (the HUD Fold button)
@@ -41,7 +44,7 @@ import { cellAtPoint } from '../render/layout.js';
 
 export function createFoldInput({
   canvas, getLayout, getBoard, onPreview, onConfirm, onInvalid, onUndo, onMove, onTap, onWait, onHint, onRestart,
-  foldOptions = () => ({}), confirmFolds = () => false, isValid = () => true, onPending = null,
+  onPocket = null, foldOptions = () => ({}), confirmFolds = () => false, isValid = () => true, onPending = null,
 }) {
   let enabled = true;
   let busy = false;
@@ -212,7 +215,7 @@ export function createFoldInput({
     const dir = dirForKey(key);
     if (key === 'f' || key === 'F') {
       if (busy) return;
-      keyCrease = defaultCrease(board);
+      keyCrease = defaultCrease(board, foldOptions());
       show(keyCrease);
       e.preventDefault();
     } else if (key === 'u' || key === 'U' || key === 'z' || key === 'Z') {
@@ -229,6 +232,9 @@ export function createFoldInput({
       e.preventDefault();
     } else if ((key === 'r' || key === 'R') && onRestart && !e.repeat) {
       onRestart();
+      e.preventDefault();
+    } else if ((key === 'p' || key === 'P') && onPocket && !e.repeat) {
+      onPocket();
       e.preventDefault();
     }
   }

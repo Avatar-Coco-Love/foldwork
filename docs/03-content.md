@@ -85,7 +85,7 @@ A giant paper crane that refolds the arena itself. The player must out-fold it.
 23. Heavy Stamp: a pressure plate you step off stays triggered for 3 turns.
 24. Origami Luck: relic choices show 4 options instead of 3.
 
-- Rarity: common/uncommon/rare (roughly 12/8/4). Rarity affects offer weights, not raw power. **[OPEN]** Rarity assignments.
+- Rarity: common/uncommon/rare (12/8/4). Rarity affects offer weights, not raw power. Assignments (7c, provisional until Phase 9 playtests) are in OPEN-QUESTIONS "Relic rarities"; how the 7c relics play (Sticky Tape works on undo, Pocket Fold is a mode, and so on) is in OPEN-QUESTIONS "The last 9 relics".
 - Unlocks: 12 relics available at the start; 12 unlock with paper scraps (lists: OPEN-QUESTIONS "Unlocks shop").
 
 ## Meta-progression: paper scraps

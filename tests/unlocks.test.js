@@ -18,16 +18,15 @@ import { SETTINGS_GROUPS, rowChoices } from '../src/ui/settings.js';
 
 const rich = (scraps) => ({ ...createMeta(), scraps });
 
-// The starter set (user's choice, 7b). Sharp Edge and Compass join it
-// when they are built (7c), for 12.
+// The starter set (user's choice, 7b; Sharp Edge and Compass since 7c).
 const STARTER_RELICS = [
   'extra-crease', 'spring-crease', 'paper-heart', 'laminate', 'mender', 'master-key', 'paper-cut', 'wax-coat',
-  'soft-landing', 'folded-shield',
+  'soft-landing', 'folded-shield', 'sharp-edge', 'compass',
 ];
 
 test('unlocks: the starter relics, spirits and palettes', () => {
   assert.deepEqual(ownedIds(createMeta(), 'relic'), Object.keys(RELIC_DEFS).filter((id) => STARTER_RELICS.includes(id)));
-  assert.equal(ownedIds(createMeta(), 'relic').length, STARTER_RELICS.length);
+  assert.equal(ownedIds(createMeta(), 'relic').length, 12);
   assert.deepEqual(ownedIds(createMeta(), 'spirit'), ['fox']);
   assert.deepEqual(ownedIds(createMeta(), 'palette'), ['paper', 'night-ink', 'high-contrast']);
   assert.ok(owns(createMeta(), 'palette', DEFAULT_PALETTE_ID), 'the default palette is always owned');
@@ -95,7 +94,8 @@ test('unlocks: grants are free; the shop lists items with their state', () => {
 test('unlocks: what a run banked made affordable', () => {
   const before = rich(20);
   const after = bankScraps(before, 20);
-  assert.deepEqual(newlyAffordable(before, after).map((it) => it.id), ['frog']);
+  // 40: Frog and the common shop relics.
+  assert.deepEqual(newlyAffordable(before, after).map((it) => it.id), ['frog', 'crease-trap', 'sticky-tape']);
   assert.ok(newlyAffordable(before, bankScraps(before, 30)).some((it) => it.id === 'kraft'));
   assert.deepEqual(newlyAffordable(after, bankScraps(after, 1)), []);
   assert.equal(affordable(rich(0)).length, 0);

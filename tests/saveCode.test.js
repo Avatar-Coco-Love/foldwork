@@ -36,7 +36,7 @@ test('save code: a new run round-trips, short and readable', () => {
   const run = createRun({ seed: '4294967295', spirit: 'turtle' });
   const code = encodeSaveCode(run);
   assert.match(code, CODE_CHARS);
-  assert.ok(code.length <= 25, code); // 24 before fold kills (v2)
+  assert.ok(code.length <= 26, code); // 24 before fold kills (v2), 25 before rewinds (v4)
   assert.deepEqual(decodeSaveCode(code), { ok: true, run });
 });
 
