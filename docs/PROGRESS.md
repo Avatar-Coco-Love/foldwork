@@ -4,11 +4,12 @@
 small. At the end of each conversation, update this file in the same PR.
 
 ## Next up
-**Phase 6c: run summary and win/lose flow through the boss.** The Crane
-plays all three phases (PR 27). Read docs/03 (run end), docs/04 (summary
-screen), `runPanel` in `ui/screens.js` (the stub boss win panel from PR
-18) and OPEN-QUESTIONS "Save code" (the summary gets a Challenge a friend
-row). Ask what the summary shows before building it.
+**Phase 7a: paper scraps and the unlocks shop (start of meta-progression).**
+Read docs/03 (meta-progression, relic unlocks, spirits), docs/04 (screens
+5-6), docs/06 Phase 7 and OPEN-QUESTIONS "Exact scrap costs". Split
+Phase 7 into PR-sized chunks here first (e.g. 7a scraps earned + shown on
+the run summary and stored in meta; 7b unlocks shop; 7c daily seed; 7d
+stats and history). Ask for scrap earn rates and costs before building.
 
 ## Phase checklist
 Larger phases are split into PR-sized chunks so each conversation stays small.
@@ -48,12 +49,12 @@ Larger phases are split into PR-sized chunks so each conversation stays small.
     +1 HP for a floor cleared without damage); re-prove every floor (PR 25)
   - [x] P6 Save code (move a run between devices, in Settings > Data),
     Challenge-a-friend link (PR 26)
-- [ ] **Phase 6** — Great Crane boss, run summary
+- [x] **Phase 6** — Great Crane boss, run summary
   - [x] 6a Great Crane phase 1, telegraphed crease, floor 9 arena
     - [x] core rules: crane def, aimed strip crease, swat, drop, flee (PR 17)
     - [x] arena template, stored-line proof, run to floor 9, telegraph render (PR 18)
   - [x] 6b Crane phases 2–3 (minions, double creases, shrinking arena) (PR 27)
-  - [ ] 6c Run summary and win/lose flow through the boss
+  - [x] 6c Run summary and win/lose flow through the boss (PR 28)
 - [ ] **Phase 7** — Meta-progression, daily seed, persistence
 - [ ] **Phase 8** — Audio and polish
 - [ ] **Phase 9** — Playtesting, balance, manifest
@@ -933,3 +934,24 @@ Larger phases are split into PR-sized chunks so each conversation stays small.
   headless Chromium (phone 390x844, desktop 1280x800) from a seeded save
   mid-line: phase 2 single mark, phase 3 double mark with badges, Mites
   on the board. No console errors.
+
+### PR 28: Phase 6c run summary
+- Settled with the user (OPEN-QUESTIONS "Run summary").
+- `core/summary.js`: pure `runSummary(run)` → `{outcome, title, text,
+  rows}` for a won or lost run: "The Crane falls" (boss floor), "Run
+  complete" (a shorter run), "Torn" (fell / out of HP on floor n, with a
+  line when it was the Crane's floor). Rows: spirit, floors cleared, HP,
+  relics (a list), seed.
+- The last floor's end panel is now short (title, line, "Run summary")
+  and leads to the new `summary` screen (`summaryScreen`): the rows as a
+  `dl`, New run, Retry this seed, Challenge a friend (the pause menu's
+  sheet, shown in place; Esc/Back returns), Menu. Esc is Menu.
+- `ctx.lastRun`: `endRun` keeps a won or lost run for the summary.
+  Retry this seed opens spirit select with `{ retry: seed }` (a "Same
+  seed" note; Back returns to the summary); `startRun({ retry })`.
+- Telemetry: `run.start.retry`; `share` also from the summary (docs/07).
+- 3 new tests (`tests/summary.test.js`; 336 total). Checked in headless
+  Chromium (phone 390x844 and 844x390) on a seeded loss: end panel →
+  summary → Challenge a friend → Esc back → Retry this seed → spirit
+  select → Back to the summary → Esc to the title. Landscape scrolls. No
+  console errors.

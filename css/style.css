@@ -470,6 +470,34 @@ body {
 .challenge-card .save-summary {
   margin: 0;
 }
+/* Run summary (Phase 6c): label / value rows, relics as a list. */
+.summary-rows {
+  width: min(360px, 100%);
+  margin: 0 0 20px;
+  text-align: left;
+}
+.summary-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--c-ui-border);
+  font-size: calc(16px * var(--text-scale));
+}
+.summary-row dt {
+  color: var(--c-ink-soft);
+}
+.summary-row dd {
+  margin: 0;
+  font-weight: 600;
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+.summary-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
 /* Fold history (pause menu): numbered rows, the number in a square tag
    like the crease marks on the paper. */
 .history-list {

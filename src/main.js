@@ -30,7 +30,8 @@ import { getPalette, cssVarName } from './render/palette.js';
 import { createRouter } from './ui/router.js';
 import { createBackButton } from './ui/backButton.js';
 import {
-  titleScreen, floorScreen, howToScreen, offerScreen, spiritScreen, settingsScreen, saveCodeScreen,
+  titleScreen, floorScreen, howToScreen, offerScreen, spiritScreen,
+  summaryScreen, settingsScreen, saveCodeScreen,
 } from './ui/screens.js';
 import { challengeSeed, CHALLENGE_PARAM } from './ui/share.js';
 import { setupTelemetry, telemetryActive } from './telemetry/browser.js';
@@ -86,6 +87,8 @@ const ctx = {
   challenge: challengeSeed(params),
   /** The run in progress (core/run.js), or null. Screens replace it as it advances. */
   run: null,
+  /** The run that just ended, won or lost (run summary screen), or null. */
+  lastRun: null,
   /** Telemetry id of the run in progress (kept in its save). */
   runId: null,
   telemetry: tele.telemetry,
@@ -95,16 +98,16 @@ const ctx = {
   telemetryOffered: TELEMETRY.collect,
   /**
    * Start a new run as `spirit` (spirit select; dev runs use ?spirit=): a
-   * fresh seed (unless ?seed= pins one, or `seed` is a challenge's) and
-   * run id.
+   * fresh seed (unless ?seed= pins one, or `seed` is a challenge's, or
+   * the last run's for `retry`) and run id.
    */
-  startRun({ floor = 1, spirit = devSpirit, seed = null } = {}) {
+  startRun({ floor = 1, spirit = devSpirit, seed = null, retry = false } = {}) {
     ctx.seed = seed || newSeed();
     ctx.run = createRun({ seed: ctx.seed, relics: devRelics, floor, spirit });
     ctx.runId = newRunId();
     ctx.telemetry.setRun(ctx.runId);
     ctx.telemetry.track('run.start', {
-      ...runTag(ctx.run), daily: false, challenge: !!seed, lastFloor: ctx.run.lastFloor,
+      ...runTag(ctx.run), daily: false, challenge: !!seed && !retry, retry, lastFloor: ctx.run.lastFloor,
     });
     ctx.saveRun();
   },
@@ -196,6 +199,7 @@ const ctx = {
     if (!run) return;
     ctx.run = null;
     ctx.runId = null;
+    if (outcome !== 'abandoned') ctx.lastRun = run;
     ctx.telemetry.track('run.end', { ...runTag(run), outcome, cause: run.cause, cleared: run.cleared, lastFloor: run.lastFloor });
     ctx.telemetry.flush();
     ctx.telemetry.setRun(null);
@@ -260,7 +264,8 @@ ctx.router
   .register('offer', offerScreen)
   .register('spirit', spiritScreen)
   .register('howto', howToScreen)
-  .register('settings', settingsScreen);
+  .register('settings', settingsScreen)
+  .register('summary', summaryScreen);
 
 // --- Viewport tracking -----------------------------------------------------
 

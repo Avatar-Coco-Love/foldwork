@@ -176,6 +176,15 @@ These belong to later phases and get decided when that phase is built.
     Decided while building: a code drops the Hint presses on the floor
     in progress (the run keeps floors already won); the loaded run is a
     new telemetry run (`run.load`).
+- Run summary (6c, user's choices): one **summary screen for both a won
+  and a lost run**. Rows: result (title + one line: how and where it
+  ended), spirit, floors cleared (n / last floor), HP, relics, seed.
+  Run totals, a per-floor breakdown and scraps were left out (scraps and
+  unlocks join in Phase 7). Buttons: **New run**, **Retry this seed**
+  (spirit select on the same seed; Back returns to the summary),
+  **Challenge a friend** (the P6 sheet), **Menu**. Decided while
+  building: the run's last floor first shows a short panel over the
+  final board (title, line, "Run summary") so the ending stays visible.
 - Great Crane phases 2-3 (6b, user's choices; docs/03 left them open):
   - **Phase 2 on:** every fold it carries out (not a fizzle, not one that
     pins or hurts it) spawns **1 Scrap Mite** on the free footing of the
