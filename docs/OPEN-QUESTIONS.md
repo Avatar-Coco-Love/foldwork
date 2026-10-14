@@ -391,9 +391,11 @@ These belong to later phases and get decided when that phase is built.
   - **Sharp Edge:** an enemy the player's fold pins takes 1 damage at
     once (a Mite is crushed: a fold kill). Not the Crane (void drops only),
     never the player, not pins by the Crane's folds.
-  - **Sticky Tape:** an enemy the player pinned that a later fold
-    uncovers stays stuck for its next 2 turns (no move, attack, bite or
-    spawn count; it can be bumped). Not for the Crane's folds.
+  - **Sticky Tape:** folds move whole stacks, so a pinned enemy is never
+    uncovered by a later fold; only undo unpins. So: undoing a fold that
+    pinned enemies leaves them stuck for their next 2 turns (no move,
+    attack, bite or spawn count; they can be bumped), and that undo keeps
+    the fold's charge spent (else fold + undo stuns forever for free).
   - **Crease Trap:** the player's fold spikes the line of cells beside
     the crease on the side that stays (the hinge cells for a diagonal)
     for this turn's and next turn's enemy phases. An enemy that steps or
@@ -410,8 +412,12 @@ These belong to later phases and get decided when that phase is built.
   - **Lucky Scrap:** +50% paper scraps at the end of a run (rounded down),
     as its own line on the summary.
   - **Rewind Charm:** once per run, take back the last full turn (enemy
-    phase included), from the HUD/pause menu, or from the defeat screen
-    to undo the move that lost the floor.
+    phase included), from the pause menu, or from the defeat panel to
+    undo the move that lost the floor. Decided while building: the
+    take-back drops the free undo (that undo's state still holds the
+    use), and a loss it can take back is saved as in play.
+  - Decided while building: Scout's Eye shows nothing for an Echo Fold
+    (no enemy turn follows it); Crease Trap kills count as fold kills.
 - Telemetry hosting (4a): Google Sheets via an Apps Script web app for
   playtests (`tools/telemetry-sheets/`); a real database before launch.
 - Run rules (4a, provisional, playtest them): HP carries between floors;

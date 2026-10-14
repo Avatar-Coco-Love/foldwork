@@ -179,17 +179,19 @@ function drawTiles(r, ctx) {
 }
 
 // Compass: a dashed outline and a small copy of the exit tile in the top
-// face's corner, for an exit buried under other layers.
+// face's top-left corner (crease tags sit top-right), for an exit buried
+// under other layers.
 function drawBuriedExit(ctx, p, layer, x, y, size) {
   const gap = layerGap(size);
   const dash = Math.max(3, Math.round(size * 0.1));
   outline(ctx, x + gap, y + gap, size - gap * 2, p.accent, Math.max(1.5, size * 0.04), [dash, dash / 2]);
   const s = size * 0.4;
-  paintExit(ctx, p, x + size - s - gap * 2, y + gap * 2, s, true, layer);
+  paintExit(ctx, p, x + gap * 2, y + gap * 2, s, true, layer);
 }
 
 // Crease Trap spikes (scene.traps, core/turn.js): a row of small triangles
-// along the bottom of each spiked cell's top face, so it reads by shape.
+// along the bottom edge of each spiked cell's top face, so it reads by
+// shape and stays clear of the creature standing there.
 function drawTraps(r, ctx) {
   const L = r.layout;
   const traps = r.scene && r.scene.traps;
@@ -206,16 +208,15 @@ function drawTraps(r, ctx) {
     for (const c of trap.cells) {
       const level = Math.max(0, stackHeight(board, c.col, c.row) - 1);
       const o = cellOrigin(L, c.col, c.row);
-      const y = o.y - level * lift + size * 0.86;
-      const w = size / 5;
+      const y = o.y - level * lift + size * 0.93;
+      const w = size / 6;
       ctx.beginPath();
-      for (let k = 0; k < 4; k++) {
-        const x = o.x + size * 0.1 + k * w;
+      for (let k = 0; k < 5; k++) {
+        const x = o.x + size * 0.08 + k * w;
         ctx.moveTo(x, y);
-        ctx.lineTo(x + w / 2, y - size * 0.16);
+        ctx.lineTo(x + w / 2, y - size * 0.11);
         ctx.lineTo(x + w, y);
       }
-      ctx.closePath();
       ctx.fill();
       ctx.stroke();
     }

@@ -4,15 +4,12 @@
 small. At the end of each conversation, update this file in the same PR.
 
 ## Next up
-**Phase 7c: the remaining 9 relics** (15 built + 9 = 24; earlier notes
-said 10). Read docs/03 (relics), OPEN-QUESTIONS "Unlocks shop" and the
-rarity entry. Sharp Edge and Compass get `unlock: 'starter'` (making 12
-starters); the other 7 (Echo Fold, Crease Trap, Pocket Fold, Sticky
-Tape, Scout's Eye, Lucky Scrap, Rewind Charm) are shop relics, which is
-the default (no `unlock` field). Propose their rarities (aim ~12/8/4
-overall) and ask. Append every new id to `CODE_RELICS` (saveCode.js).
-Lucky Scrap uses the `scraps` hook. The shop, offers and save codes pick
-new relics up from `RELIC_DEFS` with no other changes.
+**Phase 7d: daily seed mode** (same run on every device) and its title
+row. Read docs/03 and docs/04 for the daily seed, OPEN-QUESTIONS
+"Unlocks shop" (daily runs offer every relic, like challenge runs) and
+the save-code notes in `core/saveCode.js` (daily seeds take a new code
+version). Ask how a daily seed is named and whether a day allows one
+attempt or many.
 
 ## Phase checklist
 Larger phases are split into PR-sized chunks so each conversation stays small.
@@ -63,8 +60,8 @@ Larger phases are split into PR-sized chunks so each conversation stays small.
     meta (PR 29)
   - [x] 7b Unlocks shop: relics, spirits (Frog, Turtle), palettes; title
     Unlocks row (PR 30)
-  - [ ] 7c Remaining relics (9, to 24 total) with rarities and unlock
-    flags
+  - [x] 7c Remaining relics (9, to 24 total) with rarities and unlock
+    flags (PR 31)
   - [ ] 7d Daily seed mode (same run on every device) + title row
   - [ ] 7e Stats & History screen; Settings > Data Reset progress;
     unlock/daily telemetry
@@ -1042,3 +1039,32 @@ Larger phases are split into PR-sized chunks so each conversation stays small.
   → spirit select (Turtle locked → shop → Back) → a Frog run saved with
   the starter pool. Floors in Kraft and Blueprint read clearly. No
   console errors, no sideways scroll.
+
+### PR 31: Phase 7c, the last 9 relics (24 in all)
+- Rarities 12/8/4 (user's choices; OPEN-QUESTIONS "Relic rarities").
+  Sharp Edge and Compass are starters (12 starters); the other 7 are
+  shop relics. All 9 ids appended to `CODE_RELICS`.
+- New turn rules (`DEFAULT_RULES`): `pinDamage` (Sharp Edge),
+  `tapeTurns` (Sticky Tape), `trapTurns` (Crease Trap), `echoFolds`
+  (Echo Fold), `pocket` (Pocket Fold), and render-only `scout` and
+  `compass`. FloorState gains `traps`, `prev` (Rewind Charm's one step
+  back), `uses.echo` and `uses.rewinds`; creatures can carry `stuck`.
+- Sticky Tape as designed could never trigger (folds move whole stacks,
+  so nothing is ever uncovered); user's call: undo of a fold that pinned
+  enemies leaves them stuck 2 turns and keeps the charge spent.
+- Pocket Fold: `fold.pocket` lane (`core/fold.js`), action code
+  `f<axis><index><side>p<lane>`, a HUD toggle and key P; drags fold the
+  start cell's lane, keyboard fold mode moves the lane.
+- Rewind Charm: action `takeback` (code `k`), run-wide `run.rewinds`
+  (save code version 4 adds it; older codes read 0). A loss it can take
+  back is saved as in play and offered again on Continue; the pause
+  menu has a row while it is usable. Taking back drops the free undo
+  (so no use comes back through it).
+- Crease Trap edges (`creaseEdge`) are drawn as spikes; trap kills count
+  as fold kills. Scout's Eye draws each enemy's next action in the fold
+  preview (`scoutPreview`); none for an Echo Fold, which takes no turn.
+  Compass draws a buried exit on top. Lucky Scrap adds its own summary
+  line (+50%, rounded down).
+- Tests: `tests/relics7c.test.js`; two unlock tests updated for the new
+  starters and the 40-scrap commons.
+

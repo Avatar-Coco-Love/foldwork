@@ -21,6 +21,8 @@
 | Cancel fold | Drag outside board / right click | Drag off board or tap Cancel | Esc |
 | Undo fold | Button / U | Button | U / Z |
 | Wait | Button / Space | Button | Space |
+| Pocket mode (Pocket Fold relic) | Pocket button / P | Pocket button | P; in fold mode the arrows along the crease move its lane, R turns it v ↔ h |
+| Take back last turn (Rewind Charm) | Pause menu, or the defeat panel | Same | Same |
 
 - All inputs use Pointer Events so mouse, touch, and pen share one code path.
 - Drag-to-fold: on pointer down, record the start cell (this defines the folding side). The crease sits at the midpoint of the drag, like pulling a paper edge over. While dragging, snap the crease to the nearest valid grid line and show a live preview. On release, confirm if valid, otherwise show a brief invalid shake and cancel.
