@@ -28,6 +28,10 @@
 //          `every` turns (ai 'spore'). Instances count down in `sprout`
 //          (turns left; 1 = spawns this enemy phase). Pinned or stranded
 //          (no walkable path to the player), the count waits.
+//   warn   bites only after a warning (ai 'guard'): when the player comes
+//          next to it, it opens its jaws (instance `jaws` true) instead of
+//          biting; it bites in a later enemy phase if the player is still
+//          next to it. Jaws close when the player isn't next to it.
 //   boss   { phases, drop }: a boss (core/boss.js). Its HP is split into
 //          `phases` equal phases. A void drop deals `drop` damage instead
 //          of killing it; any hit makes it flee. Instances keep `mark`
@@ -44,8 +48,9 @@ export const CREATURE_DEFS = Object.freeze({
   // After a fold, slides up to 3 tiles along the crease toward the player;
   // otherwise moves like a Mite.
   creaseling: { kind: 'creaseling', name: 'Creaseling', team: 'enemy', hp: 2, attack: 1, ai: 'creep', slide: 3 },
-  // Stationary guard: bites the player on any adjacent tile for 1. Holds a key.
-  lockjaw: { kind: 'lockjaw', name: 'Lockjaw', team: 'enemy', hp: 2, attack: 1, ai: 'guard', fixed: true, carry: 'key' },
+  // Stationary guard: opens its jaws when the player steps next to it,
+  // then bites for 1 if they're still there next turn. Holds a key.
+  lockjaw: { kind: 'lockjaw', name: 'Lockjaw', team: 'enemy', hp: 2, attack: 1, ai: 'guard', fixed: true, carry: 'key', warn: true },
   // Stationary; a Scrap Mite sprouts next to it every 3 turns. Never attacks.
   bloom: { kind: 'bloom', name: 'Spore Bloom', team: 'enemy', hp: 2, ai: 'spore', fixed: true, spawn: { kind: 'mite', every: 3 } },
   // Boss (floor 9): marks a crease, then folds it on its next turn. Its
@@ -75,6 +80,7 @@ export function createCreature(kind, { id = kind, hp, maxHp } = {}) {
   if (def.pace > 1) creature.rest = def.pace - 1;
   if (def.carry) creature.item = def.carry;
   if (def.spawn) creature.sprout = def.spawn.every;
+  if (def.warn) creature.jaws = false;
   if (def.boss) creature.mark = null;
   return creature;
 }

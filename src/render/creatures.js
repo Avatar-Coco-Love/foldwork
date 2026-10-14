@@ -3,9 +3,11 @@
 // shared vector routine"). Each kind has its own silhouette so creatures are
 // told apart by shape, not just color.
 //
-// Shape = { parts: [{ fill, stroke?, points: [[x, y], ...] }] }
+// Shape = { parts: [{ fill, stroke?, points: [[x, y], ...] }], poses? }
 //   points are in cell units (0..1 across the tile face); fill/stroke are
-//   palette token names. Parts are painted in order.
+//   palette token names. Parts are painted in order. `poses` holds other
+//   parts lists for a creature's states (posesFor picks one), held to the
+//   same guide below.
 // New creature kinds add an entry to CREATURE_SHAPES.
 //
 // Size and alignment guide (docs/04; tests/creatures.test.js checks it), so
@@ -110,6 +112,22 @@ export const CREATURE_SHAPES = Object.freeze({
       { fill: 'tileFace', stroke: 'ink', points: [[0.22, 0.44], [0.78, 0.44], [0.72, 0.56], [0.64, 0.47], [0.57, 0.56], [0.5, 0.47], [0.43, 0.56], [0.36, 0.47], [0.28, 0.56]] },
       { fill: 'ink', points: [[0.5, 0.24], [0.55, 0.3], [0.5, 0.36], [0.45, 0.3]] },
     ],
+    // Jaws open (core/creatures.js `jaws`: it bites next turn): the upper
+    // jaw lifts off a dark mouth, teeth on both jaws.
+    poses: {
+      open: [
+        { fill: 'ink', points: [[0.3, 0.74], [0.42, 0.74], [0.36, 0.86]] },
+        { fill: 'ink', points: [[0.58, 0.74], [0.7, 0.74], [0.64, 0.86]] },
+        { fill: 'ink', points: [[0.22, 0.38], [0.78, 0.38], [0.8, 0.58], [0.2, 0.58]] },
+        { fill: 'danger', stroke: 'ink', points: [[0.16, 0.56], [0.84, 0.56], [0.74, 0.78], [0.26, 0.78]] },
+        { fill: 'shadow', points: [[0.5, 0.56], [0.84, 0.56], [0.74, 0.78], [0.5, 0.78]] },
+        { fill: 'tileFace', stroke: 'ink', points: [[0.22, 0.58], [0.28, 0.49], [0.36, 0.58], [0.43, 0.49], [0.5, 0.58], [0.57, 0.49], [0.64, 0.58], [0.72, 0.49], [0.78, 0.58]] },
+        { fill: 'danger', stroke: 'ink', points: [[0.2, 0.38], [0.3, 0.15], [0.7, 0.15], [0.8, 0.38]] },
+        { fill: 'shadow', points: [[0.5, 0.15], [0.7, 0.15], [0.8, 0.38], [0.5, 0.38]] },
+        { fill: 'tileFace', stroke: 'ink', points: [[0.22, 0.36], [0.78, 0.36], [0.72, 0.46], [0.64, 0.37], [0.57, 0.46], [0.5, 0.37], [0.43, 0.46], [0.36, 0.37], [0.28, 0.46]] },
+        { fill: 'ink', points: [[0.5, 0.19], [0.55, 0.25], [0.5, 0.31], [0.45, 0.25]] },
+      ],
+    },
   },
   // Spore Bloom: a four-petal paper flower on a short stem, with two
   // leaves, standing in a folded cup. The pale centre is where spores show.
@@ -163,6 +181,12 @@ function polygon(n, cx, cy, r) {
   return pts;
 }
 
+/** The parts to paint for `creature`'s current state (Shape `poses`). */
+export function partsFor(shape, creature) {
+  if (shape.poses && creature.jaws && shape.poses.open) return shape.poses.open;
+  return shape.parts;
+}
+
 /**
  * Draw `creature` on a tile face at (x, y) with side `s` (CSS px).
  * opts: alpha (1), scale (1, around the centre), rot (radians), shadow (true).
@@ -173,6 +197,7 @@ export function drawCreature(ctx, p, creature, x, y, s, opts) {
   const rot = (opts && opts.rot) || 0;
   if (alpha <= 0.01 || scale <= 0.01) return;
   const shape = CREATURE_SHAPES[creature.kind] || FALLBACK;
+  const parts = partsFor(shape, creature);
 
   ctx.save();
   ctx.globalAlpha *= alpha;
@@ -190,7 +215,7 @@ export function drawCreature(ctx, p, creature, x, y, s, opts) {
 
   ctx.lineJoin = 'round';
   ctx.lineWidth = Math.max(1, s * 0.035);
-  for (const part of shape.parts) {
+  for (const part of parts) {
     const pts = part.points;
     ctx.beginPath();
     ctx.moveTo(pts[0][0] * s, pts[0][1] * s);
@@ -215,6 +240,31 @@ export function drawCreature(ctx, p, creature, x, y, s, opts) {
   if (creature.kind !== 'player' && creature.maxHp > 1) drawHpPips(ctx, p, creature, x, y, s, alpha);
   if (creature.rest > 0) drawRest(ctx, p, x, y, s, alpha);
   if (creature.sprout > 0) drawSprout(ctx, p, creature.sprout, x, y, s, alpha);
+  if (creature.jaws) drawWarn(ctx, p, x, y, s, alpha);
+}
+
+// A Lockjaw with its jaws open (core/creatures.js `jaws`): a "!" in a
+// triangle in the tile's top-left corner, besides the open-mouth pose, so
+// the warning reads by shape: it bites if you're still next to it.
+function drawWarn(ctx, p, x, y, s, alpha) {
+  const cx = x + s * 0.15;
+  ctx.save();
+  ctx.globalAlpha *= alpha;
+  ctx.lineJoin = 'round';
+  ctx.lineWidth = Math.max(1, s * 0.03);
+  ctx.beginPath();
+  ctx.moveTo(cx, y + s * 0.03);
+  ctx.lineTo(cx + s * 0.13, y + s * 0.26);
+  ctx.lineTo(cx - s * 0.13, y + s * 0.26);
+  ctx.closePath();
+  ctx.fillStyle = p.glyph;
+  ctx.fill();
+  ctx.fillStyle = p.tileFace;
+  ctx.font = `700 ${Math.round(s * 0.16)}px system-ui, sans-serif`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('!', cx, y + s * 0.175);
+  ctx.restore();
 }
 
 // A slow creature sitting out its next turn (core/creatures.js `rest`):

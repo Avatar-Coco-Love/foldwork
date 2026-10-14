@@ -4,7 +4,7 @@ import { createBoard, findCreature } from '../src/core/board.js';
 import { TILE } from '../src/core/tiles.js';
 import { createFloorState, act, canUndo, playerOf, PLAYER_ID, DEFAULT_RULES } from '../src/core/turn.js';
 import { RELIC_DEFS, relicDef, rulesFor, applyRelics, runHooks } from '../src/core/relics.js';
-import { createRun, addRelic, floorSetupFor, finishFloor, runLength, runTag, RUN_FLOORS, BOSS_FLOOR } from '../src/core/run.js';
+import { createRun, addRelic, floorSetupFor, finishFloor, runLength, runTag, RUN_FLOORS, BOSS_FLOOR, CLEAN_HEAL } from '../src/core/run.js';
 import { generateFloor, templateFloors, templateById } from '../src/core/floors.js';
 import { decodeAction } from '../src/core/replay.js';
 import { solve } from '../src/core/solver.js';
@@ -170,8 +170,11 @@ test('run: winning floors carries HP forward and wins after the last floor', () 
     const line = stored ? stored.map(decodeAction) : solve(s).actions;
     for (const a of line) s = act(s, a).state;
     assert.equal(s.status, 'won');
+    const before = run.hp;
     run = finishFloor(run, s);
-    assert.equal(run.hp, playerOf(s).hp);
+    const clean = playerOf(s).hp >= before;
+    assert.equal(run.clean, clean);
+    assert.equal(run.hp, Math.min(run.maxHp, playerOf(s).hp + (clean ? CLEAN_HEAL : 0)));
   }
   assert.equal(run.status, 'won');
   assert.equal(run.cleared, run.lastFloor);

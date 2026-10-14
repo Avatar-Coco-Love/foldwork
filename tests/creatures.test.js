@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from './harness.js';
-import { CREATURE_SHAPES, ART_BOUNDS, FOOT_LINE, SIZE_CLASSES, drawCreature } from '../src/render/creatures.js';
-import { CREATURE_DEFS } from '../src/core/creatures.js';
+import { CREATURE_SHAPES, ART_BOUNDS, FOOT_LINE, SIZE_CLASSES, drawCreature, partsFor } from '../src/render/creatures.js';
+import { CREATURE_DEFS, createCreature } from '../src/core/creatures.js';
 
 function bounds(shape) {
   const pts = shape.parts.flatMap((p) => p.points);
@@ -16,7 +16,9 @@ test('creature art: every kind has a shape', () => {
 
 // The size and alignment guide in render/creatures.js (docs/04).
 test('creature art: inside the art bounds, centred, on the foot line, sized by class', () => {
-  for (const [kind, shape] of Object.entries(CREATURE_SHAPES)) {
+  const all = Object.entries(CREATURE_SHAPES).flatMap(([kind, shape]) => [[kind, shape],
+    ...Object.entries(shape.poses || {}).map(([pose, parts]) => [`${kind} (${pose})`, { ...shape, parts }])]);
+  for (const [kind, shape] of all) {
     const b = bounds(shape);
     for (const v of [b.x0, b.x1, b.y0, b.y1]) {
       assert.ok(v >= ART_BOUNDS.min && v <= ART_BOUNDS.max, `${kind} stays in bounds (${v})`);
@@ -51,4 +53,10 @@ test('creature art: every kind paints, with its rest, carried key and spawn mark
   const { ctx, calls } = stubCanvas();
   drawCreature(ctx, palette, { id: 'b', kind: 'brute', hp: 3, maxHp: 3, rest: 1 }, 0, 0, 48, {});
   assert.ok(calls.some(([k, text]) => k === 'fillText' && text === 'z'));
+  // Open jaws: the open pose plus a "!" warning tag.
+  const open = stubCanvas();
+  drawCreature(open.ctx, palette, { ...createCreature('lockjaw'), jaws: true }, 0, 0, 48, {});
+  assert.ok(open.calls.some(([k, text]) => k === 'fillText' && text === '!'));
+  assert.equal(partsFor(CREATURE_SHAPES.lockjaw, { jaws: true }), CREATURE_SHAPES.lockjaw.poses.open);
+  assert.equal(partsFor(CREATURE_SHAPES.lockjaw, { jaws: false }), CREATURE_SHAPES.lockjaw.parts);
 });

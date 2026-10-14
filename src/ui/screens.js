@@ -18,7 +18,7 @@ import { createBoard, findCreature } from '../core/board.js';
 import { TILE } from '../core/tiles.js';
 import { parseMap, DEV_MAPS } from '../core/maps.js';
 import { generateFloor, templateFloors } from '../core/floors.js';
-import { floorSetupFor, finishFloor, takeOffer, runTag, addHints } from '../core/run.js';
+import { floorSetupFor, finishFloor, takeOffer, runTag, addHints, REST_HEAL, CLEAN_HEAL } from '../core/run.js';
 import { encodeAction } from '../core/replay.js';
 import { foldsInEffect, foldText, rewindTo } from '../core/foldHistory.js';
 import { resumeFloor, saveSummary, savedHints } from '../core/save.js';
@@ -1116,12 +1116,12 @@ export const offerScreen = {
       choices.push({
         id: 'rest',
         rarity: 'rest',
-        label: `Rest. Heal 1 HP.${full ? ' Your HP is full.' : ''}`,
+        label: `Rest. Heal ${REST_HEAL} HP.${full ? ' Your HP is full.' : ''}`,
         body: [
           el('span', { class: 'offer-glyph', 'aria-hidden': 'true', text: '☾' }),
           el('strong', { class: 'offer-name', text: 'Rest' }),
           el('span', { class: 'offer-tags', text: 'Instead of a relic' }),
-          el('span', { class: 'offer-text', text: full ? 'Heal 1 HP (your HP is full).' : 'Heal 1 HP.' }),
+          el('span', { class: 'offer-text', text: full ? `Heal ${REST_HEAL} HP (your HP is full).` : `Heal ${REST_HEAL} HP.` }),
         ],
       });
     }
@@ -1133,6 +1133,7 @@ export const offerScreen = {
     root.append(
       el('div', { class: 'menu offer' },
         el('h2', { class: 'outcome-title', text: `Floor ${offer.floor} cleared` }),
+        run.clean ? el('p', { class: 'subtitle', text: cleanText() }) : null,
         el('p', { class: 'subtitle', text: empty
           ? `No relics left to offer. HP ${run.hp}/${run.maxHp}.`
           : `Choose ${choices.length > 1 ? 'one' : 'it'} to take to floor ${run.floor}. HP ${run.hp}/${run.maxHp}.` }),
@@ -1162,6 +1163,11 @@ export const offerScreen = {
   },
 };
 
+/** The note for a floor cleared without damage (core/run.js CLEAN_HEAL). */
+function cleanText() {
+  return `No damage taken: +${CLEAN_HEAL} HP.`;
+}
+
 /**
  * End-of-floor panel for a run floor, given the run after finishFloor():
  * on to the next floor, the run won, or the run lost. Ends the run (and
@@ -1174,7 +1180,7 @@ function runPanel(ctx, run, floorNo, cause, params) {
   if (run.status === 'playing') {
     return {
       title: `Floor ${floorNo} cleared`,
-      text: `The stairs fold down to floor ${run.floor}. HP ${run.hp}/${run.maxHp}.${relics}`,
+      text: `${run.clean ? `${cleanText()} ` : ''}The stairs fold down to floor ${run.floor}. HP ${run.hp}/${run.maxHp}.${relics}`,
       actions: [{ label: 'Next floor', primary: true, onclick: () => ctx.router.go('floor', { ...params, floor: run.floor }) }, menu],
     };
   }

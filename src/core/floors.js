@@ -337,8 +337,8 @@ export const FLOOR_TEMPLATES = Object.freeze([
     hints: ['fold-enemies', 'pin', 'brute-heavy', 'thick-stack'],
   },
   // Floor 6: guarded keys. The only key is the one the Lockjaw holds, and
-  // it guards the far edge of the void. Walk over and it bites twice
-  // before it dies; fold the void row up onto it instead and it drops
+  // it guards the far edge of the void. Fighting it costs a bite once its
+  // jaws open; fold the void row up onto it instead and it drops
   // through, its key landing on the nearest free tile. Line up under it
   // before you fold and you land right by the key.
   {
@@ -366,7 +366,7 @@ export const FLOOR_TEMPLATES = Object.freeze([
     transforms: ['id', 'flipH'],
     enemies: [{ kind: 'mite', count: 1 }],
     needs: ['fold', 'key'],
-    tip: 'Don\'t walk up to the Lockjaw: it bites twice before it dies. Fold the void row up onto it and it drops through, leaving its key on the nearest free tile. Line up under it before you fold.',
+    tip: 'Drop the Lockjaw into the void: fold the void row up onto it and it falls through, leaving its key on the nearest free tile. Line up under it before you fold. Fighting it costs a bite: its jaws open when you step next to it.',
     hints: ['lockjaw-guard', 'key-lock', 'thick-stack'],
   },
   // Floor 6 (alternate): two locks in a row, two Lockjaws, two keys. Both
@@ -474,7 +474,8 @@ export const FLOOR_TEMPLATES = Object.freeze([
   // Weave round the near Lockjaw's bite to the key, then fold row 5 down
   // onto it: pinned, it can't bite while you cross it, and the doubled
   // row bridges the void on the second fold. The far Lockjaw's key is the
-  // spare. Walking past either one costs a bite each.
+  // spare. Stepping next to one opens its jaws; it bites only if you're
+  // still beside it after your next action.
   {
     id: 'f8-jaws',
     floor: 8,
@@ -499,7 +500,7 @@ export const FLOOR_TEMPLATES = Object.freeze([
     ]),
     transforms: ['id', 'flipH'],
     needs: ['fold', 'key', 'plate'],
-    tip: 'Weave past the near Lockjaw\'s bite to the key, then fold the row above down onto that Lockjaw: pinned, it can\'t bite while you cross. The doubled paper bridges the void on your second fold.',
+    tip: 'A Lockjaw\'s jaws open when you step next to it: keep moving and it can\'t bite. Get the key, then fold the row above down onto the near Lockjaw: pinned, it can\'t bite while you cross. The doubled paper bridges the void on your second fold.',
     hints: ['fold-enemies', 'lockjaw-guard', 'key-lock', 'plate-gate'],
   },
   // Floor 9: the Great Crane (docs/03; rules in core/boss.js). No exit:

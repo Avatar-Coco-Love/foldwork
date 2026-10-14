@@ -88,7 +88,7 @@ export const HINTS = Object.freeze({
   },
   'lockjaw-guard': {
     title: 'Lockjaws',
-    text: 'A Lockjaw never moves and bites you on any tile next to it. It holds a key (shown at its feet) and drops it when it dies. Fold it onto a lock, or a lock onto it, to use its key without a fight.',
+    text: 'A Lockjaw never moves. Step next to it and its jaws open: still next to it after your next move, it bites. Walk on past, or fold a void onto it to drop it through: its key (shown at its feet) lands on the nearest free tile. Folding it onto a lock, or a lock onto it, uses the key too.',
     on: 'start',
   },
   'bloom-spawn': {

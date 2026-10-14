@@ -695,6 +695,8 @@ function drawActor(r, ctx) {
     y = fromY + (toY - fromY) * t - Math.sin(Math.PI * u) * size * 0.2;
     opts.alpha = Math.min(1, u * 2);
     opts.scale = 0.3 + 0.7 * t;
+  } else if (a.kind === 'jaws') {
+    opts.scale = 1 + Math.sin(Math.PI * u) * 0.12;
   } else if (a.kind === 'death') {
     opts.alpha = 1 - u;
     opts.scale = 1 - 0.5 * u;

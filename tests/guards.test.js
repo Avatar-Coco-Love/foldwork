@@ -2,7 +2,7 @@
 // Bloom (a stationary Mite spawner), docs/03 and docs/OPEN-QUESTIONS.md.
 import assert from 'node:assert/strict';
 import { test } from './harness.js';
-import { createBoard, findCreature, topLayer } from '../src/core/board.js';
+import { createBoard, cloneBoard, findCreature, topLayer } from '../src/core/board.js';
 import { TILE, ITEM } from '../src/core/tiles.js';
 import { CREATURE_DEFS, createCreature } from '../src/core/creatures.js';
 import { pendingSpawns, reachField, spawnSpot } from '../src/core/enemies.js';
@@ -40,13 +40,21 @@ test('defs: Lockjaw 2 HP guard holding a key (J), Spore Bloom 2 HP spawner (S); 
   assert.deepEqual(parseMap(['J S', '. @']).enemies.map((e) => e.kind), ['lockjaw', 'bloom']);
 });
 
-test('Lockjaw: bites an adjacent player for 1 and never moves', () => {
+test('Lockjaw: opens its jaws when you step next to it, bites next turn if you stay; never moves', () => {
   let s = floor({ player: { col: 2, row: 4 }, enemies: [at('lockjaw', 2, 2)] });
+  assert.equal(findCreature(s.board, 'lockjaw').creature.jaws, false);
   let r = act(s, WAIT);
   assert.deepEqual(types(r), ['wait'], 'two tiles away: nothing');
   r = act(r.state, move('up'));
-  assert.deepEqual(types(r), ['move', 'bump', 'damage']);
+  assert.deepEqual(types(r), ['move', 'jaws'], 'arriving: a warning, no bite');
+  assert.deepEqual([r.events[1].open, r.events[1].at], [true, { col: 2, row: 2 }]);
+  assert.equal(findCreature(r.state.board, 'lockjaw').creature.jaws, true);
+  assert.equal(playerOf(r.state).hp, 3);
+  r = act(r.state, WAIT);
+  assert.deepEqual(types(r), ['wait', 'bump', 'damage'], 'still next to it: it bites');
   assert.equal(playerOf(r.state).hp, 2);
+  r = act(r.state, WAIT);
+  assert.deepEqual(types(r), ['wait', 'bump', 'damage'], 'jaws stay open while you stay');
   const j = findCreature(r.state.board, 'lockjaw');
   assert.deepEqual([j.col, j.row], [2, 2]);
   // Diagonal is not adjacent.
@@ -54,6 +62,43 @@ test('Lockjaw: bites an adjacent player for 1 and never moves', () => {
   assert.deepEqual(types(act(s, WAIT)), ['wait']);
 });
 
+test('Lockjaw: step away (or past) after the warning and it shuts its jaws without biting', () => {
+  const s = floor({ player: { col: 1, row: 4 }, enemies: [at('lockjaw', 2, 2)] });
+  let r = act(s, move('up')); // (1, 3): diagonal, nothing
+  assert.deepEqual(types(r), ['move']);
+  r = act(r.state, move('up')); // (1, 2): next to it
+  assert.deepEqual(types(r), ['move', 'jaws']);
+  r = act(r.state, move('up')); // (1, 1): diagonal again
+  assert.deepEqual(types(r), ['move', 'jaws']);
+  assert.equal(r.events[1].open, false);
+  assert.equal(playerOf(r.state).hp, 3);
+  // Shuts, the next arrival warns again.
+  r = act(r.state, move('right')); // (2, 1): next to it
+  assert.deepEqual(types(r), ['move', 'jaws']);
+  assert.equal(playerOf(r.state).hp, 3);
+});
+
+test('Lockjaw: a fight costs one bite (it warns, you hit, it bites, you kill it)', () => {
+  let s = floor({ player: { col: 2, row: 4 }, enemies: [at('lockjaw', 2, 2)] });
+  for (const a of [move('up'), move('up'), move('up')]) s = act(s, a).state;
+  assert.equal(findCreature(s.board, 'lockjaw'), null);
+  assert.equal(playerOf(s).hp, 2);
+});
+
+test('Lockjaw: pinned, its jaws shut; open jaws are part of the solver key and the playback', () => {
+  // Fold row 0 down onto row 1: it covers the Lockjaw at (2, 1).
+  let s = floor({ player: { col: 2, row: 3 }, enemies: [at('lockjaw', 2, 1)] });
+  const r = act(s, move('up'), { snapshots: true });
+  assert.ok(findCreature(r.state.board, 'lockjaw').creature.jaws);
+  const board = cloneBoard(r.state.board);
+  findCreature(board, 'lockjaw').creature.jaws = false;
+  assert.notEqual(stateKey(r.state), stateKey({ ...r.state, board }));
+  const clip = buildClips(s.board, r.events, MOTION).find((c) => c.actor && c.actor.kind === 'jaws');
+  assert.ok(clip && clip.actor.creature.jaws, 'the clip draws the open pose');
+  s = act(r.state, fold('h', 1, 'before')).state;
+  const pinned = s.board.cells.flatMap((c) => c.layers).find((l) => l.creature && l.creature.kind === 'lockjaw');
+  assert.equal(pinned.creature.jaws, false);
+});
 test('Lockjaw: killed, it drops its key on its own tile; the player picks it up', () => {
   let s = floor({ player: { col: 2, row: 3 }, enemies: [at('lockjaw', 2, 2)] });
   let r = act(s, move('up'));

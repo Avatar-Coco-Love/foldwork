@@ -4,16 +4,14 @@
 small. At the end of each conversation, update this file in the same PR.
 
 ## Next up
-**Playtest P5: Lockjaw bite warning + HP economy.** Read OPEN-QUESTIONS
-"Playtest round 1" (Lockjaw and HP items), `core/enemies.js` (Lockjaw),
-`core/run.js` (rest, floor clear), `render/creatures.js`, the Lockjaw
-tip in `core/hints.js` / floor templates, and `core/solver.js` for the
-re-proofs.
-- Bite warning: jaws open when you step next to a Lockjaw; it bites only
-  if you're still adjacent next turn. Tip says to drop it into a void.
-- HP: rest heals 2; +1 HP for a floor cleared without damage.
-- Re-prove every floor (templates' `needs` and winning lines).
-Then P6, then back to Phase 6b (Crane phases 2-3).
+**Playtest P6: Save code + Challenge-a-friend link.** Read OPEN-QUESTIONS
+"Playtest round 1" (saves, Share), `core/save.js`, `ui/saveStore.js`,
+`ui/share.js`, `ui/settings.js` (Data group) and the title rows in
+`ui/screens.js`.
+- Save code: move a run between devices (Settings > Data: copy a code,
+  paste one to load it). Ask the user about format and length first.
+- Challenge-a-friend: a link that starts a run on the same seed.
+Then back to Phase 6b (Crane phases 2-3).
 
 ## Phase checklist
 Larger phases are split into PR-sized chunks so each conversation stays small.
@@ -49,8 +47,8 @@ Larger phases are split into PR-sized chunks so each conversation stays small.
   - [x] P4a Fold history: numbered crease marks, optional tap-to-confirm
     folds (a Settings row) (PR 23)
   - [x] P4b Fold history: list (pause menu) with peek and rewind (PR 24)
-  - [ ] P5 Lockjaw bite warning + tip rewrite; HP economy (rest heals 2,
-    +1 HP for a floor cleared without damage); re-prove every floor
+  - [x] P5 Lockjaw bite warning + tip rewrite; HP economy (rest heals 2,
+    +1 HP for a floor cleared without damage); re-prove every floor (PR 25)
   - [ ] P6 Save code (move a run between devices, in Settings > Data),
     Challenge-a-friend link
 - [ ] **Phase 6** — Great Crane boss, run summary
@@ -687,7 +685,8 @@ Larger phases are split into PR-sized chunks so each conversation stays small.
   solver's `stateKey`). Run-wide state → `core/run.js`; floors get it
   through `floorSetupFor` and hand it back in `finishFloor`.
 - Creature art follows the guide in `render/creatures.js` (bounds,
-  centring, foot line, `size` class); `tests/creatures.test.js` checks it.
+  centring, foot line, `size` class); `tests/creatures.test.js` checks it,
+  poses included (Shape `poses`, picked by `partsFor`).
   Changed `data` shape → bump `dv`. Rule change that alters replays →
   bump `LOGIC_VERSION` (`src/config.js`). New actions → a code in
   `core/replay.js`.
@@ -713,7 +712,8 @@ Larger phases are split into PR-sized chunks so each conversation stays small.
   counts `rest`), `heavy` (can't be pinned), `range` (ranged lanes via
   `sightLanes`, drawn by `drawSightLanes`), `fixed` (never stranded),
   `slide` (fold-aware glide via `slidePath`; previewed by `slidePreview`).
-  Turn phases get `(state, emit, { action })`.
+  Turn phases get `(state, emit, { action })`. Def flag `warn` (a
+  guard opens its `jaws` a turn before it bites; plan `jaws`).
   New per-creature counters must be primitives and go in `stateKey`
   (`creatureKey` in solver.js). Def flags `carry` (held item, dropped on
   death or fall) and `spawn` (`sprout` countdown, ai `spore`).
@@ -854,3 +854,27 @@ Larger phases are split into PR-sized chunks so each conversation stays small.
   and landscape, on the open 5x5 dev board: empty note, two folds
   listed, peek, phone Back to the list, rewind leaves fold 1 only. No
   console errors.
+
+### PR 25: Playtest P5 Lockjaw bite warning, HP economy
+- Lockjaw (def flag `warn`, instance `jaws`): you come next to it and it
+  opens its jaws instead of biting (event `jaws`, `open: true`); still
+  next to it in the next enemy phase, it bites, and keeps biting while
+  you stay. Not next to it, the jaws shut (`open: false`); pinned, they
+  shut too. A fight now costs one bite (was two). Solver `creatureKey`
+  includes `jaws`. `LOGIC_VERSION` 3 (old floor saves restart, as
+  designed).
+- Render: open-mouth pose (Shape `poses.open`, `partsFor`) plus a "!"
+  tag in the top-left corner (`drawWarn`); playback clip `jaws` (a short
+  pulse in the new pose).
+- Hint `lockjaw-guard` and the F6/F8 tips rewritten: jaws open as a
+  warning, keep moving, or drop it into a void.
+- HP: rest heals 2 (`REST_HEAL`); a floor won with HP not below its
+  start heals `CLEAN_HEAL` 1, capped at max, before the relics'
+  `cleared` hooks. `run.clean` says so on the floor-cleared panel and
+  the offer screen ("No damage taken: +1 HP."). docs/03 updated.
+- Re-proved every floor: all template proofs (needs, no-damage lines,
+  the boss's stored line) pass unchanged.
+- Dev map `?map=jaws` (a Lockjaw guarding the lock's key).
+- 4 new tests, 3 updated (312 total). Checked in headless Chromium
+  (phone portrait, `?map=jaws`): step next to it, jaws open with "!",
+  step diagonal, jaws shut, no damage. No console errors.

@@ -137,4 +137,17 @@ export const DEV_MAPS = Object.freeze({
       '. . @ . .',
     ],
   },
+  // A Lockjaw guarding the lock's key: walk past its warning, fight it
+  // (one bite), or fold the void onto it.
+  jaws: {
+    charges: 2,
+    rows: [
+      '. . E . .',
+      '# # L # #',
+      '. . . . .',
+      'o . J . .',
+      '. . . . .',
+      '. . @ . .',
+    ],
+  },
 });
