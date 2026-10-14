@@ -1,7 +1,12 @@
 // Build-wide constants. Edit here; nothing else hard-codes them.
 
-/** Shown to players and sent with telemetry. Bump with each release. */
-export const APP_VERSION = '0.4.0';
+import { LATEST_VERSION } from './core/changelog.js';
+
+/**
+ * Shown to players and sent with telemetry: the newest What's new entry
+ * (core/changelog.js), so adding that entry is the version bump.
+ */
+export const APP_VERSION = LATEST_VERSION;
 
 /** Back to Projects (title screen, playtest P3): the author's project page. */
 export const PROJECTS_URL = 'https://avatar-coco-love.github.io/';

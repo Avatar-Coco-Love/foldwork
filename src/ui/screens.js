@@ -16,6 +16,8 @@ import { scatterEnemies } from '../core/enemies.js';
 import { CREATURE_DEFS } from '../core/creatures.js';
 import { SETTINGS_GROUPS, rowChoices, cycleOption, optionName } from './settings.js';
 import { APP_VERSION, PROJECTS_URL } from '../config.js';
+import { newSince } from '../core/changelog.js';
+import { whatsNewPanel } from './whatsNew.js';
 import { createBoard, findCreature } from '../core/board.js';
 import { TILE } from '../core/tiles.js';
 import { parseMap, DEV_MAPS } from '../core/maps.js';
@@ -46,7 +48,8 @@ import { createRng, fork, nextInt, chance } from '../core/rng.js';
  * Title menu rows (OPEN-QUESTIONS "Menu redesign"): { id, label, show(c),
  * note(c), go(ctx, c) }, where c is { save, scraps, ready, daily,
  * confirmNewRun(start?) } (ready: shop items the player can buy now;
- * daily: core/daily.js dailyTitle). The first row shown is the primary
+ * daily: core/daily.js dailyTitle; fresh: core/changelog.js entries the
+ * player hasn't seen, newest first). The first row shown is the primary
  * button. Later phases add rows here (Stats & History).
  */
 export const TITLE_ROWS = [
@@ -89,6 +92,14 @@ export const TITLE_ROWS = [
     note: (c) => (c.stats.runs ? `${c.stats.runs} ${c.stats.runs === 1 ? 'run' : 'runs'} · ${c.stats.won} won` : null),
     go: (ctx) => ctx.router.go('stats'),
   },
+  // What's new (8f): only while there is an update the player hasn't seen.
+  {
+    id: 'whats-new',
+    label: 'What\'s New',
+    show: (c) => c.fresh.length > 0,
+    note: (c) => `Version ${c.fresh[0].version}: ${c.fresh[0].title}`,
+    go: (ctx) => ctx.router.go('whatsnew'),
+  },
   { id: 'howto', label: 'How to Play', go: (ctx) => ctx.router.go('howto') },
   { id: 'settings', label: 'Settings', go: (ctx) => ctx.router.go('settings', { from: 'title' }) },
 ];
@@ -108,6 +119,7 @@ export const titleScreen = {
       ready: affordable(ctx.meta, ctx.unlockOpts).length,
       daily: dailyTitle(ctx.meta, save, Date.now()),
       stats: parseStats(ctx.meta.stats),
+      fresh: newSince(ctx.seenVersion),
       confirmNewRun: (start = () => startNewRun(ctx)) => confirmNewRun(start),
     };
     const rows = TITLE_ROWS.filter((r) => !r.show || r.show(c));
@@ -282,7 +294,9 @@ const CREDITS = 'Made by Cody Joshua Clements, built with Claude. Every picture 
  * (ui/settings.js). Choices apply at once. A screen from the title, a
  * sheet over the board from the pause menu; Back returns there.
  */
-function settingsPanel(ctx, onBack, { saveCode, resetProgress = null, said = '' }) {
+function settingsPanel(ctx, onBack, {
+  saveCode, whatsNew, resetProgress = null, said = '',
+}) {
   const actions = {
     saveCode: () => saveCode(),
     // Only from the title's Settings; in a run the row isn't shown.
@@ -331,7 +345,12 @@ function settingsPanel(ctx, onBack, { saveCode, resetProgress = null, said = '' 
     el('div', { class: 'settings-groups' },
       groups,
       group('about', 'About', [
-        el('p', { class: 'settings-about', text: `Foldwork version ${APP_VERSION}` }),
+        // Tap the version for What's new (8f).
+        el('button', {
+          class: 'btn setting-row', type: 'button', 'data-setting': 'whats-new', onclick: whatsNew,
+        }, el('span', { class: 'setting-text' },
+          el('span', { class: 'setting-label', text: `Foldwork version ${APP_VERSION}` }),
+          el('span', { class: 'setting-note', text: 'What\'s new: every update so far.' }))),
         el('p', { class: 'settings-about', text: CREDITS }),
       ]),
     ),
@@ -348,6 +367,7 @@ export const settingsScreen = {
     let onEscape = back;
     const panel = settingsPanel(ctx, back, {
       saveCode,
+      whatsNew: () => ctx.router.go('whatsnew', { from: 'settings', settingsFrom: params.from }),
       resetProgress: params.from === 'title' ? confirmReset : null,
       said: params.said || '',
     });
@@ -1125,7 +1145,11 @@ export const floorScreen = {
         openPause();
       };
       const saveCode = () => hud.showSheet(saveCodePanel(ctx, { onBack: openSettings, canLoad: false }), { onEscape: openSettings });
-      hud.showSheet(settingsPanel(ctx, back, { saveCode }), { onEscape: back });
+      const whatsNew = () => {
+        hud.showSheet(whatsNewPanel(openSettings, ctx.seenVersion), { onEscape: openSettings });
+        ctx.markWhatsNewSeen();
+      };
+      hud.showSheet(settingsPanel(ctx, back, { saveCode, whatsNew }), { onEscape: back });
     }
 
     function openChallenge() {

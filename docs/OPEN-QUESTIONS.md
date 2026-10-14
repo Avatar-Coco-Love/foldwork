@@ -43,6 +43,20 @@ These belong to later phases and get decided when that phase is built.
   file would load `share.png`, which the game must not).
 
 ## Resolved
+- Version and What's new (8f, user's choices). **Version:**
+  `0.<phase>.<n>`: the build-plan phase in progress and that phase's
+  nth release (one per merged PR); 1.0.0 is the launch. The newest
+  `core/changelog.js` entry is the version, so every PR adds an entry.
+  History was backfilled from PR 1 (0.0.1) to PR 38 (0.8.5); playtest
+  round 1 counts under Phase 6, when it happened. **Page:** tap the
+  version in Settings > About (title or pause menu). **Unseen update:**
+  a What's New title row (note: the newest version and title) shows
+  until the page is opened, instead of a dot (a word and a row, not only
+  a mark). New players start with everything seen. **Music:** the loop
+  was playing but inaudible on phone speakers (pads at 130-330 Hz, about
+  -37 dBFS there); the pads moved up an octave (plucks keep their
+  pitch) and gains doubled, about +11 dB on a phone-speaker band; still under
+  the effects.
 - Visual polish (8d, user's choices). **Grain:** faint, about 3%
   contrast with a few paper fibres, on tile faces and the board sheet;
   each palette scales it (`grain`: High Contrast 0.5, Kraft 1.2). **Shadows:**

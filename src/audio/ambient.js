@@ -9,6 +9,10 @@
 //           so phrases overlap and the loop never gaps)
 //     g     peak gain, 0..1, before the music and master volume
 //
+// Level (8f): at the default volumes the loop sits under the effects but is
+// plainly there, even on a phone speaker (little below ~300 Hz), so the
+// pads start at C4 / A3 rather than an octave lower.
+//
 // User's choices (8b): the loop plays from the title on and through every
 // screen; the boss floor gets a darker variant; menus over a floor duck it.
 
@@ -20,29 +24,31 @@ const step = (root, semis) => root * 2 ** (semis / 12);
 export const AMBIENT_MOODS = Object.freeze({
   // C major pentatonic, slow: the floors, title and menus.
   calm: {
-    root: 130.81, // C3
+    root: 261.63, // C4 (8f: an octave up, so phone speakers carry the pads)
     scale: [0, 2, 4, 7, 9],
     chords: [[0, 2, 4], [0, 3, 5], [1, 3, 5], [2, 4, 6], [4, 6, 8]], // scale-step stacks
     beat: 1.6, // seconds
     beats: 4, // per phrase
     pluck: 0.4, // chance of a pluck on each beat
     offbeat: 0.12, // and on each half beat between
-    padGain: 0.16,
-    pluckGain: 0.2,
+    padGain: 0.3,
+    pluckGain: 0.4,
+    pluckOctave: 1, // plucks wander this many octaves over the pads
   },
   // The Japanese in scale on A (A B♭ D E F), lower and a little quicker:
   // the Great Crane. A pentatonic too, but a dark one with half steps (A
   // minor pentatonic would be the calm notes again).
   boss: {
-    root: 110, // A2
+    root: 220, // A3
     scale: [0, 1, 5, 7, 8],
     chords: [[0, 2, 4], [0, 2, 3], [2, 4, 6], [3, 5, 7]],
     beat: 1.25,
     beats: 4,
     pluck: 0.55,
     offbeat: 0.2,
-    padGain: 0.17,
-    pluckGain: 0.2,
+    padGain: 0.3,
+    pluckGain: 0.4,
+    pluckOctave: 1,
   },
 });
 
@@ -86,7 +92,7 @@ export function createAmbient(moodId, seed) {
         lastPluck = Math.max(0, Math.min(top - 1, lastPluck + pick(rng, [-2, -1, -1, 1, 1, 2])));
         notes.push({
           kind: 'pluck',
-          f: scaleFreq(mood, lastPluck, 2),
+          f: scaleFreq(mood, lastPluck, mood.pluckOctave),
           t: half * mood.beat / 2 + nextFloat(rng) * 0.04, // a little human
           d: 1.6,
           g: mood.pluckGain * (0.6 + 0.4 * nextFloat(rng)),
