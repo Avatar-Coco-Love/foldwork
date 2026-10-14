@@ -60,6 +60,23 @@ test('findLine: falls back to a line that costs HP when no clean one exists', ()
   assert.equal(replay(s, r.actions).state.status, 'won');
 });
 
+test('findLine: with diagonal creases, straight lines are tried first (playtest: F8 with the Frog)', () => {
+  // f8-crossing after the Mite is bumped and the key taken, no folds yet.
+  // Diagonals alone run out of states at the hint caps before any line.
+  const b = buildFloor(templateById('f8-crossing'));
+  const cells = b.board.cells.map((c) => ({ layers: c.layers.map((l) => (l.item ? { ...l, item: null } : l)) }));
+  const s = createFloorState({
+    board: { ...b.board, cells }, player: { col: 2, row: 4 }, enemies: b.enemies.filter((e) => e.kind !== 'mite'),
+    charges: 3, hp: 2, rules: { diagonal: true },
+  });
+  s.keys = 1;
+  const r = findLine(s);
+  assert.equal(r.status, 'line');
+  assert.equal(r.clean, true);
+  assert.equal(replay(s, r.actions).state.status, 'won');
+  assert.equal(solve(s, { maxStates: 2000, maxTurns: 40, noDiagonal: true, noDamage: true }).solvable, true);
+});
+
 test('nextStep: walks the line, off it is null, undo back onto it resumes', () => {
   const s = start('f1-bridge');
   const { actions } = findLine(s);

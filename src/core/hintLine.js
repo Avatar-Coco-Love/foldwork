@@ -6,7 +6,11 @@
 // findLine() runs in a Web Worker (ui/hintWorker.js) since a search can
 // take seconds on a phone. It tries a line that loses no HP first (every
 // floor is proven winnable that way from its start, and the search is
-// smaller), then any winning line.
+// smaller), then any winning line. Where diagonal creases are allowed
+// (Frog, Diagonal Crease) each of those tries straight creases first:
+// floors are proven with straight ones, and diagonals multiply the folds
+// to try, so a diagonal search can run out of states before it reaches a
+// line a straight one finds at once (playtest: floor 8 with the Frog).
 //
 // The floor screen keeps the line it got and walks it: lineKeys() names
 // the state before each step, so nextStep() answers without a new search
@@ -25,11 +29,16 @@ export const HINT_SOLVE = Object.freeze({ maxStates: 40000, maxTurns: 40 });
  *   { status: 'unknown' }               none found within the caps
  */
 export function findLine(state, opts = HINT_SOLVE) {
-  const clean = solve(state, { ...opts, noDamage: true });
-  if (clean.solvable) return { status: 'line', actions: clean.actions, clean: true };
-  const any = solve(state, opts);
-  if (any.solvable) return { status: 'line', actions: any.actions, clean: false };
-  return { status: clean.capped || any.capped ? 'unknown' : 'stuck' };
+  const passes = state.rules && state.rules.diagonal ? [{ noDiagonal: true }, {}] : [{}];
+  let capped = false;
+  for (const noDamage of [true, false]) {
+    for (const pass of passes) {
+      const r = solve(state, { ...opts, ...pass, noDamage });
+      if (r.solvable) return { status: 'line', actions: r.actions, clean: noDamage };
+      capped = capped || r.capped;
+    }
+  }
+  return { status: capped ? 'unknown' : 'stuck' };
 }
 
 /**

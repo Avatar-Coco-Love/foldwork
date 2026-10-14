@@ -1079,7 +1079,7 @@ export const floorScreen = {
       if (canUndo(state)) actions.unshift({ label: 'Undo', onclick: () => dispatch({ type: 'undo' }) });
       showHelp('Hint', result.status === 'stuck'
         ? 'This floor can\'t be won from here.'
-        : 'No winning line turned up from here. Undo or Restart Floor may help.', actions);
+        : 'The search gave up before finding a winning line. There may still be one; Undo or Restart Floor gives it an easier start.', actions);
     }
 
     function showHelp(title, text, actions = []) {

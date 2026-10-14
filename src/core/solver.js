@@ -20,6 +20,8 @@
 //              a floor needs folds aimed at enemies, core/floors.js NEEDS)
 //   noDamage   skip lines where the player loses HP (the Hint button tries
 //              a clean line first)
+//   noDiagonal skip diagonal creases even where the floor allows them (the
+//              Hint button tries straight lines first: far fewer states)
 //
 // The search skips undo (it only returns to a state already seen) and
 // dedupes states by stateKey() without the player's HP: a state reached
@@ -31,7 +33,7 @@ import { act, PLAYER_ID } from './turn.js';
 import { DIRS, findCreature } from './board.js';
 import { AXES, SIDES, axesFor } from './fold.js';
 
-export const SOLVER_DEFAULTS = Object.freeze({ maxStates: 20000, maxTurns: 40, noFolds: false, noPins: false, noDamage: false });
+export const SOLVER_DEFAULTS = Object.freeze({ maxStates: 20000, maxTurns: 40, noFolds: false, noPins: false, noDamage: false, noDiagonal: false });
 
 /**
  * Every action worth trying on this board, in a fixed order. Diagonal
@@ -102,8 +104,9 @@ function playerHp(state) {
 }
 
 export function solve(start, options = {}) {
-  const { maxStates, maxTurns, noFolds, noPins, noDamage } = { ...SOLVER_DEFAULTS, ...options };
-  const actions = candidateActions(start.board, { noFolds, diagonal: !!(start.rules && start.rules.diagonal) });
+  const { maxStates, maxTurns, noFolds, noPins, noDamage, noDiagonal } = { ...SOLVER_DEFAULTS, ...options };
+  const diagonal = !noDiagonal && !!(start.rules && start.rules.diagonal);
+  const actions = candidateActions(start.board, { noFolds, diagonal });
   const fail = (explored, capped) => ({ solvable: false, actions: null, turns: null, folds: null, explored, capped });
   if (start.status === 'won') return { solvable: true, actions: [], turns: 0, folds: 0, explored: 0, capped: false };
   if (start.status !== 'playing') return fail(0, false);
