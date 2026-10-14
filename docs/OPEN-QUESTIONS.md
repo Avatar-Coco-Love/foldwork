@@ -160,6 +160,23 @@ These belong to later phases and get decided when that phase is built.
     in-floor healing exists; blocked hits don't count as damage); the
     heal is capped at max HP and comes before Mender. Every template
     still proves (needs and no-damage lines) with the new rules.
+  - P6 save code and challenge link (user's choices): the save code is
+    **short and holds the run at the start of its floor** (seed, spirit,
+    HP, relics, floor, a waiting offer, hint counts; ~17 characters, ~5
+    more per 4 relics, e.g. FW-27CQ-KD0J-69K0-003K-C). Moves on the floor
+    aren't in it, so it starts over there (as Restart Floor: no new
+    power). Crockford base32 with a CRC-10 check (every single typo and
+    neighbour swap is caught). Codes **can be loaded again**, even after
+    the run ends (single-player, offline; it can't be enforced across
+    devices anyway); loading over a saved run asks first. Loading is on
+    the title's Settings only (in a run the Save code sheet shows the
+    code and says so). The challenge link carries **the seed only**: the
+    friend picks their own spirit. **Challenge a friend** is a pause-menu
+    row (the run summary gets one in 6c); the link opens a "You've been
+    challenged" card first on the title (Accept / Not now).
+    Decided while building: a code drops the Hint presses on the floor
+    in progress (the run keeps floors already won); the loaded run is a
+    new telemetry run (`run.load`).
 - Great Crane bumps (6a part 2, user's choice after a solver check): on
   the draft arena a no-fold search won at 1 HP (dodge every marked strip,
   bump 6 times; its own folds pile the paper to full stacks, then it has

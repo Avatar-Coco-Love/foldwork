@@ -4,7 +4,9 @@ import {
   SETTINGS_GROUPS, DEFAULT_SETTINGS, choicesFor, normalizeSettings, textScale, PALETTE_OPTIONS,
 } from '../src/ui/settings.js';
 import { PALETTES } from '../src/render/palette.js';
-import { shareData, shareGame } from '../src/ui/share.js';
+import {
+  shareData, shareGame, challengeUrl, challengeSeed, CHALLENGE_PARAM,
+} from '../src/ui/share.js';
 
 test('settings groups: every choice row names a setting with a list and a default', () => {
   const ids = new Set();
@@ -50,4 +52,26 @@ test('share sends only a title and the link (no text joined onto it)', async () 
   assert.equal(await shareGame('u', { clipboard: { writeText: async (t) => copied.push(t) } }), 'copied');
   assert.deepEqual(copied, ['u']);
   assert.equal(await shareGame('u', {}), 'manual');
+});
+
+test('challenge links carry a plain run seed, and only that is accepted', async () => {
+  const url = challengeUrl('3141592653', 'https://x.test/foldwork/');
+  assert.equal(url, `https://x.test/foldwork/?${CHALLENGE_PARAM}=3141592653`);
+  const params = Object.fromEntries(new URL(url).searchParams);
+  assert.equal(challengeSeed(params), '3141592653');
+  for (const bad of ['', 'abc', '01', '4294967296', '1e9']) {
+    assert.equal(challengeSeed({ [CHALLENGE_PARAM]: bad }), null, bad);
+  }
+  assert.equal(challengeSeed({}), null);
+  const shared = [];
+  const nav = { share: async (d) => shared.push(d) };
+  assert.equal(await shareGame(url, nav, 'Foldwork challenge'), 'shared');
+  assert.deepEqual(shared, [{ title: 'Foldwork challenge', url }]);
+});
+
+test('settings: Save code is an action row in the Data group', () => {
+  const data = SETTINGS_GROUPS.find((g) => g.id === 'data');
+  const row = data.rows.find((r) => r.id === 'save-code');
+  assert.equal(row.action, 'saveCode');
+  assert.ok(!row.show, 'always shown');
 });

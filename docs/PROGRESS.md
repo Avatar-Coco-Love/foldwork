@@ -4,14 +4,15 @@
 small. At the end of each conversation, update this file in the same PR.
 
 ## Next up
-**Playtest P6: Save code + Challenge-a-friend link.** Read OPEN-QUESTIONS
-"Playtest round 1" (saves, Share), `core/save.js`, `ui/saveStore.js`,
-`ui/share.js`, `ui/settings.js` (Data group) and the title rows in
-`ui/screens.js`.
-- Save code: move a run between devices (Settings > Data: copy a code,
-  paste one to load it). Ask the user about format and length first.
-- Challenge-a-friend: a link that starts a run on the same seed.
-Then back to Phase 6b (Crane phases 2-3).
+**Phase 6b: Crane phases 2–3.** Playtest round 1 is done (PR 19–26).
+Phase 1 plays end to end on floor 9 (PR 18). Read OPEN-QUESTIONS "Great
+Crane core rules" and "Great Crane bumps", docs/03 Boss, and
+`core/boss.js`. Phase 2: spawns Scrap Mites on its fold, its folds carry
+minions; phase 3: per docs/03 (double creases, shrinking arena). Ask
+before inventing details the doc leaves open. `phaseOf` already reports
+the phase. Keep the `f9-crane` stored line winning (re-find it with a
+beam search over act(); a full solve runs out of memory), and re-check
+the 6 charges. Rules changes bump `LOGIC_VERSION`.
 
 ## Phase checklist
 Larger phases are split into PR-sized chunks so each conversation stays small.
@@ -36,7 +37,7 @@ Larger phases are split into PR-sized chunks so each conversation stays small.
   - [x] 5b Creaseling + F4 templates (PR 13)
   - [x] 5c Lockjaw + Spore Bloom, F6/F7 templates (PR 14)
   - [x] 5d Floors 5 and 8 (mixes) (PR 15)
-- [ ] **Playtest round 1** — fixes from the first playtests (user's
+- [x] **Playtest round 1** — fixes from the first playtests (user's
   priority, before 6b; decisions in OPEN-QUESTIONS "Playtest round 1")
   - [x] P1 Save and continue runs, Share button on the title (PR 19)
   - [x] P2 Restart Floor, Hint button (nudge, next step, can't-win notice) (PR 20)
@@ -49,8 +50,8 @@ Larger phases are split into PR-sized chunks so each conversation stays small.
   - [x] P4b Fold history: list (pause menu) with peek and rewind (PR 24)
   - [x] P5 Lockjaw bite warning + tip rewrite; HP economy (rest heals 2,
     +1 HP for a floor cleared without damage); re-prove every floor (PR 25)
-  - [ ] P6 Save code (move a run between devices, in Settings > Data),
-    Challenge-a-friend link
+  - [x] P6 Save code (move a run between devices, in Settings > Data),
+    Challenge-a-friend link (PR 26)
 - [ ] **Phase 6** — Great Crane boss, run summary
   - [x] 6a Great Crane phase 1, telegraphed crease, floor 9 arena
     - [x] core rules: crane def, aimed strip crease, swat, drop, flee (PR 17)
@@ -878,3 +879,34 @@ Larger phases are split into PR-sized chunks so each conversation stays small.
 - 4 new tests, 3 updated (312 total). Checked in headless Chromium
   (phone portrait, `?map=jaws`): step next to it, jaws open with "!",
   step diagonal, jaws shut, no damage. No console errors.
+
+### PR 26: Playtest P6 save code, Challenge-a-friend link
+- `core/saveCode.js`: `encodeSaveCode(run)` / `decodeSaveCode(text)`. A
+  bit-packed run at the start of its floor (layout in the file header),
+  Crockford base32 in groups of four after `FW-`, CRC-10 check, version
+  nibble. Spirits and relics are stored by their place in `CODE_SPIRITS`
+  / `CODE_RELICS` (append only; a test checks every def is listed). A
+  waiting offer is one bit: `rollOffer` gives it back from the seed.
+  Reading forgives case, spaces, dashes, O/I/L and a missing prefix;
+  refusals carry a reason (`empty`, `format`, `check`, `version`,
+  `data`). Only runs on a plain number seed have a code (`isCodeSeed`).
+- Settings > Data > **Save code** (action row): a screen from the title
+  (`savecode` route: copy the code, load one; loading over a saved run
+  asks), a sheet from the pause menu's Settings (copy only).
+  `ctx.loadRun` ends the run in progress as abandoned, saves the loaded
+  one under a new run id and goes to its floor or offer.
+- **Challenge a friend** (pause menu, runs on a code seed): a sheet with
+  the link (`?challenge=<seed>`, `ui/share.js` `challengeUrl`) in a box
+  and Share link (share sheet, else copy). Opening the link puts a "You've
+  been challenged" card first on the title; Accept (asks over a saved
+  run) goes to spirit select, which starts the run on that seed; Accept
+  or Not now drops it from the address bar (`ctx.clearChallenge`).
+  `challenge` is not a dev param, so these runs save.
+- Telemetry: `run.load` (new), `run.start.challenge`, `share.what`,
+  `session.start.entry.challenge` (docs/07).
+- 11 new tests (323 total). Checked in headless Chromium (phone
+  portrait): pause → Challenge a friend → link copied; Save code in a
+  run; title Settings: a bad code's message, then the copied code
+  (lowercase) loads after the confirm; a challenge link in a fresh
+  browser shows the card, and the run it starts has the sender's seed.
+  No console errors.

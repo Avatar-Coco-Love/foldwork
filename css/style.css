@@ -423,6 +423,53 @@ body {
   font-size: calc(15px * var(--text-scale));
   line-height: 1.4;
 }
+/* Save code (Settings > Data) and Challenge a friend (pause menu). */
+.settings > .code-block {
+  width: min(360px, 100%);
+  margin: 0 0 20px;
+}
+.code-block .subtitle {
+  margin: 0;
+  font-size: calc(15px * var(--text-scale));
+  line-height: 1.4;
+}
+.code-field {
+  width: 100%;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  letter-spacing: 0.04em;
+}
+.code-status:empty,
+.code-error:empty {
+  display: none;
+}
+.code-status,
+.code-error {
+  margin: 0;
+  font-size: calc(15px * var(--text-scale));
+  font-weight: 600;
+}
+/* An error reads as one by its words and the mark, not only color. */
+.code-error::before {
+  content: '⚠ ';
+}
+/* A friend's challenge, first on the title screen. */
+.challenge-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px;
+  margin-bottom: 8px;
+  border: 2px dashed var(--c-ui-border);
+  border-radius: var(--radius);
+  background: var(--c-ui-surface);
+}
+.challenge-title {
+  margin: 0;
+  font-size: calc(18px * var(--text-scale));
+}
+.challenge-card .save-summary {
+  margin: 0;
+}
 /* Fold history (pause menu): numbered rows, the number in a square tag
    like the crease marks on the paper. */
 .history-list {

@@ -25,7 +25,8 @@ import { resumeFloor, saveSummary, savedHints } from '../core/save.js';
 import { lineKeys, nextStep } from '../core/hintLine.js';
 import { stateKey } from '../core/solver.js';
 import { createHintSearch } from './hintSearch.js';
-import { shareGame, shareUrl } from './share.js';
+import { shareGame, shareUrl, challengeUrl } from './share.js';
+import { encodeSaveCode, decodeSaveCode, isCodeSeed } from '../core/saveCode.js';
 import { relicDef } from '../core/relics.js';
 import { SPIRIT_DEFS, spiritDef } from '../core/spirits.js';
 import { HINTS, hintDef, hintsFor } from '../core/hints.js';
@@ -62,14 +63,17 @@ export const titleScreen = {
   mount(root, ctx) {
     ctx.renderer.setScene(null);
     const save = ctx.savedRun();
-    const c = { save, confirmNewRun };
+    const c = { save, confirmNewRun: () => confirmNewRun(() => startNewRun(ctx)) };
     const rows = TITLE_ROWS.filter((r) => !r.show || r.show(c));
+    // A challenge link (playtest P6) puts its card first, as the primary button.
+    const challenge = ctx.challenge ? challengeCard() : null;
     const buttons = el('div', { class: 'menu-buttons' },
+      challenge,
       rows.flatMap((r, i) => {
         const note = r.note && r.note(c);
         return [
           el('button', {
-            class: `btn ${i === 0 ? 'btn-primary' : 'btn-secondary'}`,
+            class: `btn ${i === 0 && !challenge ? 'btn-primary' : 'btn-secondary'}`,
             type: 'button',
             'data-row': r.id,
             'aria-label': note ? `${r.label}. ${note}` : null,
@@ -92,11 +96,12 @@ export const titleScreen = {
     );
     root.append(menu);
 
-    function confirmNewRun() {
+    /** Ask before a new run (`start`) replaces the saved one. */
+    function confirmNewRun(start) {
       const keep = el('button', { class: 'btn btn-primary', type: 'button' }, 'Keep my run');
       const panel = el('div', { class: 'menu-buttons', role: 'alertdialog', 'aria-labelledby': 'confirm-new-run' },
         el('p', { class: 'save-summary', id: 'confirm-new-run', text: `Start a new run? Your run on floor ${save.run.floor} will be lost.` }),
-        el('button', { class: 'btn btn-secondary', type: 'button', onclick: () => startNewRun(ctx) }, 'Start new run'),
+        el('button', { class: 'btn btn-secondary', type: 'button', onclick: start }, 'Start new run'),
         keep);
       keep.addEventListener('click', () => {
         panel.replaceWith(buttons);
@@ -104,6 +109,31 @@ export const titleScreen = {
       });
       buttons.replaceWith(panel);
       keep.focus({ preventScroll: true });
+    }
+
+    /**
+     * A friend's challenge: their seed, so the same floors and relic
+     * offers; the spirit is the player's pick. Not now drops it.
+     */
+    function challengeCard() {
+      const seed = ctx.challenge;
+      const accept = () => ctx.router.go('spirit', { challenge: seed });
+      const card = el('section', { class: 'challenge-card', 'aria-labelledby': 'challenge-title' },
+        el('h2', { class: 'challenge-title', id: 'challenge-title', text: 'You\'ve been challenged' }),
+        el('p', { class: 'save-summary', text: 'A friend sent you their run: the same floors and relic offers. Pick any spirit.' }),
+        el('button', {
+          class: 'btn btn-primary', type: 'button', 'data-row': 'challenge', onclick: () => (save ? confirmNewRun(accept) : accept()),
+        }, 'Accept challenge'),
+        el('button', {
+          class: 'btn btn-secondary', type: 'button',
+          onclick: () => {
+            ctx.clearChallenge();
+            card.remove();
+            buttons.querySelector('.btn')?.classList.replace('btn-secondary', 'btn-primary');
+            buttons.querySelector('.btn')?.focus({ preventScroll: true });
+          },
+        }, 'Not now'));
+      return card;
     }
   },
 };
@@ -134,7 +164,7 @@ function shareGameButton(ctx) {
   btn.addEventListener('click', async () => {
     const url = shareUrl();
     const result = await shareGame(url);
-    ctx.telemetry.track('share', { result });
+    ctx.telemetry.track('share', { result, what: 'game' });
     if (result === 'copied') {
       toast.replaceChildren('Link copied');
       toast.hidden = false;
@@ -200,8 +230,9 @@ const CREDITS = 'Made by Cody Joshua Clements, built with Claude. Every picture 
  * (ui/settings.js). Choices apply at once. A screen from the title, a
  * sheet over the board from the pause menu; Back returns there.
  */
-function settingsPanel(ctx, onBack) {
+function settingsPanel(ctx, onBack, { saveCode }) {
   const actions = {
+    saveCode: () => saveCode(),
     resetHints(btn) {
       saveSeenHints(new Set());
       btn.querySelector('.setting-label').textContent = 'Tutorial hints will show again';
@@ -257,11 +288,160 @@ export const settingsScreen = {
   mount(root, ctx, params) {
     ctx.renderer.setScene(null);
     const back = () => ctx.router.go(params.from || 'title');
-    root.append(settingsPanel(ctx, back));
+    const saveCode = () => ctx.router.go('savecode', { from: params.from });
+    root.append(settingsPanel(ctx, back, { saveCode }));
     root.querySelector('.setting-row')?.focus({ preventScroll: true });
     return escapeTo(back);
   },
 };
+
+/** What a refused save code was, for the player (core/saveCode.js reasons). */
+const CODE_ERRORS = {
+  empty: 'Type or paste a save code first.',
+  format: 'That isn\'t a save code. Codes look like FW-2ABC-DEFG-…',
+  check: 'That code has a typo. Check each character and try again.',
+  version: 'That code is from a newer version of Foldwork (or has a typo). Reload the page to update, then try again.',
+  data: 'This version of Foldwork can\'t play that run.',
+};
+
+/**
+ * Save code (Settings > Data, playtest P6): the saved run's code to copy,
+ * and, from the title's Settings (`canLoad`), a box to load a code from
+ * another device. In a run, Settings is a sheet over the board, so loading
+ * waits for the title screen. Loading over a saved run asks first.
+ */
+function saveCodePanel(ctx, { onBack, canLoad }) {
+  const save = ctx.savedRun();
+  const code = save && encodeSaveCode(save.run);
+  const status = el('p', { class: 'code-status', role: 'status' });
+  const yours = code
+    ? [
+      el('p', { class: 'subtitle', text: 'Enter this code on another device (Settings › Data › Save code) to carry on there. Moves on the current floor aren\'t in it: that floor starts over.' }),
+      codeField(code, 'Your save code'),
+      el('button', {
+        class: 'btn btn-secondary', type: 'button',
+        onclick: async () => {
+          status.textContent = await copyText(code) ? 'Code copied.' : 'Select the code above and copy it.';
+        },
+      }, 'Copy code'),
+      status,
+    ]
+    : [el('p', { class: 'subtitle', text: 'No run in progress. Start a run to get its code.' })];
+
+  const input = el('input', {
+    class: 'share-link code-field', type: 'text', id: 'load-code', autocomplete: 'off', autocapitalize: 'characters',
+    spellcheck: 'false', enterkeyhint: 'go', placeholder: 'FW-…',
+  });
+  const error = el('p', { class: 'code-error', role: 'alert' });
+  const loadBtn = el('button', { class: 'btn btn-primary', type: 'button', onclick: tryLoad }, 'Load run');
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      tryLoad();
+    }
+  });
+  const loadArea = el('div', { class: 'menu-buttons code-block' },
+    el('label', { class: 'settings-heading', for: 'load-code', text: 'Load a code' }),
+    input, error, loadBtn);
+
+  const panel = el('div', { class: 'menu settings save-code' },
+    el('h2', { class: 'outcome-title', text: 'Save code' }),
+    el('div', { class: 'menu-buttons code-block' }, yours),
+    canLoad
+      ? loadArea
+      : el('p', { class: 'settings-about code-block', text: 'To load a code from another device, open Settings from the title screen.' }),
+    el('div', { class: 'menu-buttons' },
+      el('button', { class: 'btn btn-primary', type: 'button', onclick: onBack }, 'Back')),
+  );
+  return panel;
+
+  function tryLoad() {
+    const result = decodeSaveCode(input.value);
+    if (!result.ok) {
+      error.textContent = CODE_ERRORS[result.reason] || CODE_ERRORS.format;
+      ctx.telemetry.track('run.load', { ok: false, reason: result.reason });
+      input.focus();
+      return;
+    }
+    error.textContent = '';
+    if (!save) {
+      ctx.loadRun(result.run);
+      return;
+    }
+    const keep = el('button', { class: 'btn btn-primary', type: 'button' }, 'Keep my run');
+    const ask = el('div', { class: 'menu-buttons code-block', role: 'alertdialog', 'aria-labelledby': 'confirm-load' },
+      el('p', { class: 'save-summary', id: 'confirm-load', text: `Load this run? Your run on floor ${save.run.floor} on this device will be replaced.` }),
+      el('button', { class: 'btn btn-secondary', type: 'button', onclick: () => ctx.loadRun(result.run) }, 'Load run'),
+      keep);
+    keep.addEventListener('click', () => {
+      ask.replaceWith(loadArea);
+      input.focus();
+    });
+    loadArea.replaceWith(ask);
+    keep.focus({ preventScroll: true });
+  }
+}
+
+/** A read-only text box holding `value`, selected when focused (to copy by hand). */
+function codeField(value, label) {
+  const field = el('input', {
+    class: 'share-link code-field', type: 'text', readonly: true, value, 'aria-label': label,
+  });
+  field.addEventListener('focus', () => field.select());
+  return field;
+}
+
+/** Copy `text` to the clipboard; resolves to whether it worked. */
+async function copyText(text) {
+  try {
+    if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
+      await navigator.clipboard.writeText(text);
+      return true;
+    }
+  } catch {
+    // Blocked: the player copies from the box.
+  }
+  return false;
+}
+
+export const saveCodeScreen = {
+  mount(root, ctx, params) {
+    ctx.renderer.setScene(null);
+    const back = () => ctx.router.go('settings', { from: params.from });
+    root.append(saveCodePanel(ctx, { onBack: back, canLoad: true }));
+    root.querySelector('.save-code button')?.focus({ preventScroll: true });
+    return escapeTo(back);
+  },
+};
+
+/**
+ * Challenge a friend (pause menu, playtest P6): a link that starts a run
+ * on this run's seed (same floors and relic offers; they pick a spirit).
+ * Share link opens the share sheet, else copies it; the link also shows
+ * in a box to copy by hand.
+ */
+function challengePanel(ctx, seed, onBack) {
+  const url = challengeUrl(seed);
+  const status = el('p', { class: 'code-status', role: 'status' });
+  const SAID = { shared: 'Challenge sent.', copied: 'Link copied.', manual: 'Select the link above and copy it.' };
+  return el('div', { class: 'menu settings challenge' },
+    el('h2', { class: 'outcome-title', text: 'Challenge a friend' }),
+    el('div', { class: 'menu-buttons code-block' },
+      el('p', { class: 'subtitle', text: 'Send this link: your friend plays your run\'s floors and relic offers, with a spirit of their choice.' }),
+      codeField(url, 'Challenge link'),
+      el('button', {
+        class: 'btn btn-primary', type: 'button',
+        onclick: async () => {
+          const result = await shareGame(url, navigator, 'Foldwork challenge');
+          ctx.telemetry.track('share', { result, what: 'challenge' });
+          status.textContent = SAID[result] || '';
+        },
+      }, 'Share link'),
+      status,
+      el('button', { class: 'btn btn-secondary', type: 'button', onclick: onBack }, 'Back'),
+    ),
+  );
+}
 
 /**
  * New Run: pick a spirit. The spirit select screen ends any run still in
@@ -278,12 +458,15 @@ function startNewRun(ctx) {
  * pick too. Unlock costs arrive with Phase 7; until then all are open.
  */
 export const spiritScreen = {
-  mount(root, ctx) {
+  mount(root, ctx, params) {
     ctx.renderer.setScene(null);
     const spirits = Object.values(SPIRIT_DEFS);
+    // Accepting a challenge (title screen) brings its seed.
+    const seed = params.challenge || null;
     const choose = (id, index) => {
       ctx.abandonRun(); // the title screen already asked
-      ctx.startRun({ spirit: id });
+      ctx.startRun({ spirit: id, seed });
+      if (seed) ctx.clearChallenge();
       ctx.telemetry.track('spirit.pick', { ...runTag(ctx.run), index, offered: spirits.map((d) => d.id) });
       ctx.router.go('floor', { floor: ctx.run.floor });
     };
@@ -304,6 +487,7 @@ export const spiritScreen = {
       el('div', { class: 'menu offer' },
         el('h2', { class: 'outcome-title', text: 'Choose your spirit' }),
         el('p', { class: 'subtitle', text: 'It sets your HP and gives one perk for the whole run.' }),
+        seed ? el('p', { class: 'save-summary', text: 'Challenge run: your friend\'s floors and relic offers.' }) : null,
         el('div', { class: 'offer-cards', role: 'group', 'aria-label': 'Spirits' }, cards),
         el('div', { class: 'menu-buttons' },
           el('button', { class: 'btn btn-secondary', type: 'button', onclick: () => ctx.router.go('title') }, 'Back')),
@@ -699,6 +883,7 @@ export const floorScreen = {
           { label: 'How to Play', onclick: () => hud.showSheet(howToPanel(openPause), { onEscape: openPause }) },
           { label: 'Fold history', onclick: openHistory },
           { label: 'Settings', onclick: openSettings },
+          inRun && isCodeSeed(run.seed) ? { label: 'Challenge a friend', onclick: openChallenge } : null,
           inRun ? { label: 'Abandon Run', onclick: confirmAbandon } : null,
           { label: saving ? 'Save & Quit to Title' : 'Quit to Title', onclick: () => ctx.router.go('title') },
         ].filter(Boolean),
@@ -718,7 +903,12 @@ export const floorScreen = {
         for (const id of loadSeenHints()) seenHints.add(id);
         openPause();
       };
-      hud.showSheet(settingsPanel(ctx, back), { onEscape: back });
+      const saveCode = () => hud.showSheet(saveCodePanel(ctx, { onBack: openSettings, canLoad: false }), { onEscape: openSettings });
+      hud.showSheet(settingsPanel(ctx, back, { saveCode }), { onEscape: back });
+    }
+
+    function openChallenge() {
+      hud.showSheet(challengePanel(ctx, run.seed, openPause), { onEscape: openPause });
     }
 
     // Fold history (OPEN-QUESTIONS "Playtest round 1"): the folds still in
