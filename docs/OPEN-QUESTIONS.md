@@ -43,6 +43,11 @@ These belong to later phases and get decided when that phase is built.
   file would load `share.png`, which the game must not).
 
 ## Resolved
+- Ambient loop (8b, user's choices). **Where:** from the first tap on,
+  on the title and every screen, one continuous loop. **Boss floor:** a
+  darker variant (lower, a dark pentatonic, a little quicker), back to
+  calm after. **Menus over a floor:** the loop ducks (about half) and
+  comes back on resume.
 - Phase 8 plan and audio (8a, user's choices). **Chunks:** 8a audio
   engine, sound effects and Settings > Audio; 8b the generative ambient
   loop; 8c visual polish (paper grain, shadows, fold polish, screen

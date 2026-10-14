@@ -3,6 +3,10 @@ import { test } from './harness.js';
 import {
   SOUNDS, soundForEvent, soundLength, mixLevels, VOLUME_STEPS,
 } from '../src/audio/sounds.js';
+import {
+  AMBIENT_MOODS, createAmbient, moodFor, scaleFreq,
+} from '../src/audio/ambient.js';
+import { createMusic } from '../src/audio/music.js';
 import { buildClips, createPlayback } from '../src/render/playback.js';
 import { createBoard, topLayer } from '../src/core/board.js';
 import { TILE } from '../src/core/tiles.js';
@@ -101,4 +105,88 @@ test('playback plays clip sounds as clips start and end sounds last; skipped cli
   assert.deepEqual(log, ['sfx:bump', 'bump']);
   pb.finish();
   assert.deepEqual(log, ['sfx:bump', 'bump', 'sfx:victory']);
+});
+
+// --- Ambient loop (8b) -------------------------------------------------------
+
+test('ambient: same seed same music; another seed or mood differs', () => {
+  const phrases = (mood, seed) => {
+    const a = createAmbient(mood, seed);
+    return Array.from({ length: 6 }, () => a.next());
+  };
+  assert.deepEqual(phrases('calm', 'x:1'), phrases('calm', 'x:1'));
+  assert.notDeepEqual(phrases('calm', 'x:1'), phrases('calm', 'x:2'));
+  assert.notDeepEqual(phrases('calm', 'x:1'), phrases('boss', 'x:1'));
+});
+
+test('ambient: notes are on the mood\'s pentatonic scale, soft, and phrases overlap', () => {
+  for (const [id, mood] of Object.entries(AMBIENT_MOODS)) {
+    assert.equal(mood.scale.length, 5, id);
+    const amb = createAmbient(id, 'scale');
+    for (let i = 0; i < 40; i++) {
+      const { length, notes } = amb.next();
+      assert.ok(length > 3 && length < 10, `${id} phrase length`);
+      const pads = notes.filter((n) => n.kind === 'pad');
+      assert.ok(pads.length >= 2 && pads.every((n) => n.t === 0 && n.d > length), `${id} pads overlap the next phrase`);
+      assert.ok(notes.length <= 12, `${id} few voices`);
+      for (const n of notes) {
+        const semis = Math.round(12 * Math.log2(n.f / mood.root));
+        assert.ok(mood.scale.includes(((semis % 12) + 12) % 12), `${id} ${n.f} Hz is on the scale`);
+        assert.ok(n.f > 60 && n.f < 2000 && n.g > 0 && n.g <= 0.25 && n.t >= 0 && n.t < length, `${id} note`);
+      }
+    }
+  }
+  assert.ok(AMBIENT_MOODS.boss.root < AMBIENT_MOODS.calm.root && AMBIENT_MOODS.boss.beat < AMBIENT_MOODS.calm.beat);
+  const pitches = (m) => new Set(m.scale.map((x) => Math.round(12 * Math.log2(m.root / 32.703) + x) % 12));
+  assert.notDeepEqual(pitches(AMBIENT_MOODS.boss), pitches(AMBIENT_MOODS.calm), 'the boss variant has other notes');
+  assert.equal(moodFor({ boss: true }), 'boss');
+  assert.equal(moodFor({}), 'calm');
+  assert.ok(Math.abs(scaleFreq(AMBIENT_MOODS.calm, 5) - 2 * AMBIENT_MOODS.calm.root) < 1e-9);
+});
+
+// A Web Audio stand-in: just enough for audio/music.js.
+function fakeAudioContext() {
+  const param = (value = 0) => ({
+    value, setValueAtTime() {}, linearRampToValueAtTime() {}, exponentialRampToValueAtTime() {},
+    setTargetAtTime(v) { this.target = v; }, cancelScheduledValues() {},
+  });
+  const node = (extra = {}) => ({ connect() {}, disconnect() {}, ...extra });
+  const ac = {
+    state: 'running', currentTime: 0, started: 0,
+    createGain: () => node({ gain: param(1) }),
+    createBiquadFilter: () => node({ frequency: param(), Q: param() }),
+    createOscillator: () => node({
+      frequency: param(), detune: param(), start() { ac.started++; }, stop() {},
+    }),
+  };
+  return ac;
+}
+
+test('music: waits for unlock, schedules ahead, stays silent at volume Off, ducks', () => {
+  const ac = fakeAudioContext();
+  let audible = true;
+  let unlocked = false;
+  const audio = { music: () => (unlocked ? { context: ac, out: {}, audible } : null) };
+  let tick = null;
+  const music = createMusic(audio, { setTimer: (fn) => { tick = fn; return 1; } });
+  music.start();
+  assert.equal(music.started, false); // no context before a gesture
+  unlocked = true;
+  music.start();
+  assert.ok(music.started);
+  tick();
+  assert.ok(ac.started > 0, 'a phrase is scheduled');
+  const before = ac.started;
+  tick(); // nothing new until the clock moves
+  assert.equal(ac.started, before);
+  audible = false;
+  ac.currentTime = 30;
+  tick();
+  assert.equal(ac.started, before, 'no voices while the music is Off');
+  music.duck(true);
+  music.setMood('boss', 'seed:9');
+  audible = true;
+  ac.currentTime = 31;
+  tick();
+  assert.ok(ac.started > before, 'plays again when turned back up');
 });

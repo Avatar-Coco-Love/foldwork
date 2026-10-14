@@ -3,7 +3,7 @@
 //
 // Graph: voices → sfx bus ┐
 //                music bus ┴→ master → destination
-// The music bus is for the ambient loop (Phase 8b).
+// The music bus carries the ambient loop (audio/music.js).
 //
 // Browsers only allow audio after a user gesture, so nothing is created
 // until unlock() runs from one (main.js listens for the first pointer or
@@ -135,9 +135,12 @@ export function createAudio({ AudioContextCtor = globalThis.AudioContext || glob
     playAll(ids) {
       for (const id of new Set(ids)) audio.play(id);
     },
-    /** The music bus and its context, for the ambient loop; null before unlock. */
+    /**
+     * The music bus and its context, for the ambient loop (audio/music.js),
+     * and whether it can be heard; null before unlock.
+     */
     music() {
-      return ac ? { context: ac, out: musicBus } : null;
+      return ac ? { context: ac, out: musicBus, audible: levels.master > 0 && levels.music > 0 } : null;
     },
   };
 

@@ -4,12 +4,10 @@
 small. At the end of each conversation, update this file in the same PR.
 
 ## Next up
-**Phase 8b: the ambient loop** (docs/04 Audio: a soft generative loop,
-slow pentatonic pads and gentle plucks driven by the seeded RNG, low
-CPU). It plays into the music bus from 8a (`audio.music()` gives the
-context and bus; the Music row already sets its level). Ask: where it
-plays (title and floors, or floors only), whether it changes on the
-boss floor, and whether it pauses in menus.
+**Phase 8c: visual polish** (docs/04: paper grain, shadows, fold polish,
+screen shake). Ask: how strong the grain and shadows are, whether screen
+shake is on by default (and off under reduced motion), and which events
+shake.
 
 ## Phase checklist
 Larger phases are split into PR-sized chunks so each conversation stays small.
@@ -67,7 +65,7 @@ Larger phases are split into PR-sized chunks so each conversation stays small.
     unlock/daily telemetry (PR 33)
 - [ ] **Phase 8** — Audio and polish
   - [x] 8a Audio engine, sound effects, Settings > Audio (PR 34)
-  - [ ] 8b Generative ambient loop (music bus)
+  - [x] 8b Generative ambient loop (music bus) (PR 35)
   - [ ] 8c Visual polish: paper grain, shadows, fold polish, screen shake
   - [ ] 8d Alignment audit (phone, tablet, desktop, both orientations)
     and the accessibility checklist
@@ -1149,3 +1147,28 @@ Larger phases are split into PR-sized chunks so each conversation stays small.
   context before a gesture, running after; the Audio rows cycle and
   save; a fold plays; no console errors.
 
+### PR 35: Phase 8b, the ambient loop
+- Decisions (user's choices; OPEN-QUESTIONS "Ambient loop"): the loop
+  plays from the first tap on, on every screen; the boss floor gets a
+  darker variant; menus over a floor duck it.
+- `audio/ambient.js` (pure): moods as data (`calm`: C major pentatonic,
+  a 1.6 s beat; `boss`: the Japanese in scale on A, lower, a 1.25 s
+  beat; A minor pentatonic would have been the calm notes again).
+  `createAmbient(mood, seed)` streams phrases from the seeded RNG: a
+  stacked-scale pad chord that rings into the next phrase, and plucks on
+  beats and half beats wandering mostly by step. Same seed, same music.
+- `audio/music.js` (Web Audio): pads (sine + detuned triangle, slow
+  swell) and triangle plucks → soft lowpass → duck → music bus. A
+  500 ms timer schedules whole phrases 1.2 s ahead on the audio clock;
+  at Music or Master Off it makes no nodes. Fades in over 3 s; at most
+  24 voices. Starts on the first gesture (main.js `wakeAudio`).
+- Floor screen: mood from the floor (`boss` when it has a boss), seeded
+  by run seed and floor; the pause menu ducks to 45% until Resume,
+  Restart's "Keep playing", the Rewind Charm or leaving the floor;
+  leaving goes back to calm. `audio.music()` now also says `audible`.
+- Tests: `tests/audio.test.js` (10): ambient determinism, scale and
+  overlap, the boss notes differ, and the scheduler with a fake
+  AudioContext (waits for unlock, schedules ahead, silent at Off).
+  Checked in Chromium (390x844): nothing before a gesture; title and
+  boss floor play on their scales; pause ducks and Resume restores; no
+  console errors.
