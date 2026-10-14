@@ -3,6 +3,10 @@
 // (drawn by the renderer), so color is never the only cue. `glyph` is ink
 // that reads on a tile face in every palette (tile symbols, keys).
 // `grain` scales the paper grain (lower where contrast matters most).
+// Contrast (tests/contrast.test.js, WCAG): ink, inkSoft and danger read
+// at 4.5:1 on the background and UI surface; `accentUi` (a deeper accent
+// where needed) fills primary buttons and rings focus at 3:1 on the
+// background, with `onAccent` text on it at 4.5:1.
 //
 // `unlock` (core/unlocks.js): 'starter' palettes are free; the rest are
 // bought in the unlocks shop (PALETTE_COST, or a `cost` here). A new
@@ -27,9 +31,11 @@ const PAPER = {
   ink: '#3a3229',
   inkSoft: '#6d6253',
   accent: '#d9734e',
-  danger: '#c0392b',
+  danger: '#a93226',
   uiSurface: 'rgba(251, 248, 241, 0.92)',
   uiBorder: '#cfc4ae',
+  accentUi: '#a94e2a', // primary buttons, focus rings (3:1 on background)
+  onAccent: '#ffffff', // text on accentUi (4.5:1)
 };
 
 const NIGHT_INK = {
@@ -54,6 +60,8 @@ const NIGHT_INK = {
   danger: '#ff6b5b',
   uiSurface: 'rgba(34, 37, 47, 0.92)',
   uiBorder: '#3a3e4c',
+  accentUi: '#e8a15a', // primary buttons, focus rings (3:1 on background)
+  onAccent: '#1b1d26', // text on accentUi (4.5:1)
 };
 
 const HIGH_CONTRAST = {
@@ -78,6 +86,8 @@ const HIGH_CONTRAST = {
   danger: '#b00000',
   uiSurface: '#ffffff',
   uiBorder: '#000000',
+  accentUi: '#0050c8', // primary buttons, focus rings (3:1 on background)
+  onAccent: '#ffffff', // text on accentUi (4.5:1)
 };
 
 // Shop palettes (Phase 7b). Same rules as the rest: tile symbols carry
@@ -98,11 +108,13 @@ const KRAFT = {
   glyph: '#2e2014',
   voidFace: '#2a1f17',
   ink: '#2e2014',
-  inkSoft: '#5c4630',
+  inkSoft: '#4f3b27',
   accent: '#a8431f',
-  danger: '#9e1c12',
+  danger: '#7e140c',
   uiSurface: 'rgba(232, 211, 176, 0.94)',
   uiBorder: '#9c7a50',
+  accentUi: '#7d2d12', // primary buttons, focus rings (3:1 on background)
+  onAccent: '#ffffff', // text on accentUi (4.5:1)
 };
 
 const BLUEPRINT = {
@@ -123,9 +135,11 @@ const BLUEPRINT = {
   ink: '#eef5ff',
   inkSoft: '#a9c4e6',
   accent: '#ffd166',
-  danger: '#ff7a6b',
+  danger: '#ff8a7d',
   uiSurface: 'rgba(16, 52, 96, 0.94)',
   uiBorder: '#4f7bb3',
+  accentUi: '#ffd166', // primary buttons, focus rings (3:1 on background)
+  onAccent: '#123a6b', // text on accentUi (4.5:1)
 };
 
 export const PALETTES = Object.freeze({

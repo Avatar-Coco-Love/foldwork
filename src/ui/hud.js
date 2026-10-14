@@ -81,6 +81,7 @@ function createRelicTray() {
 
 export function createHud(root, {
   floor, lastFloor = null, onMenu, onUndo, onCancel, onWait, onHint = null, onConfirmFold = null, onPocket = null,
+  onReserve = null,
 }) {
   const hp = createMeter('hud-hp', HEART, 'HP');
   const charges = createMeter('hud-charges', CHARGE, 'Fold charges');
@@ -151,6 +152,20 @@ export function createHud(root, {
   let noteTimer = 0;
   let overlay = null;
   let hintCard = null;
+
+  // The hint card sits above the action bar in portrait; report its height
+  // (plus its gap) so the board moves up instead of being covered. In
+  // landscape the card is in the side panel and layout.js ignores this.
+  let reserved = 0;
+  function report(height) {
+    const bottom = height > 0 ? Math.ceil(height) + 8 : 0;
+    if (bottom === reserved) return;
+    reserved = bottom;
+    onReserve?.({ bottom });
+  }
+  const sizer = onReserve && typeof ResizeObserver === 'function'
+    ? new ResizeObserver(() => report(hintCard ? hintCard.getBoundingClientRect().height : 0))
+    : null;
 
   function show(node, onEscape) {
     overlay?.remove();
@@ -299,13 +314,19 @@ export function createHud(root, {
         ),
       );
       hud.insertBefore(hintCard, actions);
+      sizer?.disconnect();
+      sizer?.observe(hintCard);
     },
     hideHint() {
       hintCard?.remove();
       hintCard = null;
+      sizer?.disconnect();
+      report(0);
     },
     destroy() {
       clearTimeout(noteTimer);
+      sizer?.disconnect();
+      report(0);
       overlay?.remove();
       hintCard?.remove();
       hud.remove();

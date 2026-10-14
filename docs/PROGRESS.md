@@ -4,9 +4,9 @@
 small. At the end of each conversation, update this file in the same PR.
 
 ## Next up
-**Phase 8e: alignment audit and accessibility checklist** (phone, tablet,
-desktop, both orientations; docs/04 and CLAUDE.md accessibility basics).
-Ask: which devices/sizes the user plays on most, so the audit starts there.
+**Phase 9: playtesting, balance, manifest** (docs/06). Start by asking the
+user for playtest notes since 8e, then split Phase 9 into PR-sized chunks
+here.
 
 ## Phase checklist
 Larger phases are split into PR-sized chunks so each conversation stays small.
@@ -62,7 +62,7 @@ Larger phases are split into PR-sized chunks so each conversation stays small.
   - [x] 7d Daily seed mode (same run on every device) + title row (PR 32)
   - [x] 7e Stats & History screen; Settings > Data Reset progress;
     unlock/daily telemetry (PR 33)
-- [ ] **Phase 8** — Audio and polish
+- [x] **Phase 8** — Audio and polish
   - [x] 8a Audio engine, sound effects, Settings > Audio (PR 34)
   - [x] 8b Generative ambient loop (music bus) (PR 35)
   - [x] 8c Playtest round 2 fixes: lifting a flap (refolding a crease
@@ -70,8 +70,8 @@ Larger phases are split into PR-sized chunks so each conversation stays small.
     slides under the address bar (PR 36)
   - [x] 8d Visual polish: paper grain, shadows, fold polish, screen shake
     (PR 37)
-  - [ ] 8e Alignment audit (phone, tablet, desktop, both orientations)
-    and the accessibility checklist
+  - [x] 8e Alignment audit (phone, tablet, desktop, both orientations)
+    and the accessibility checklist (PR 38)
 - [ ] **Phase 9** — Playtesting, balance, manifest
 
 ## Log
@@ -1237,3 +1237,39 @@ Larger phases are split into PR-sized chunks so each conversation stays small.
   Checked in Chromium (390x844, Paper, Night Ink, High Contrast): grain
   and shadows read, a fold animates with its soft shadow and crease; no
   console errors.
+
+### PR 38: Phase 8e, alignment audit and accessibility checklist
+- Decisions: the user plays mostly on a Galaxy S26 Ultra (Chrome, about
+  412x780 CSS px with the address bar), so the audit starts there, but
+  every size must work: phones from 320 px, foldables, tablets, desktop.
+- `tools/layout-audit.js` (Playwright, not a game dependency): opens 12
+  screens (title, settings, how to play, stats, unlocks, spirit select,
+  relic offer, floors 1/5/9 with every relic, pause, settings from pause)
+  at 15 device sizes, both text sizes and left-handed landscape (528
+  checks), and reports page scroll, buttons under 44 px or off screen,
+  content spilling out of its box, the HUD over the board and cells under
+  32 px. `?audit=1` exposes the board layout to it. Screenshots with
+  `--shots dir`. 528/528 clean.
+- Found and fixed:
+  - Portrait: the hint card covered the board's bottom row (on the boss
+    floor almost two rows) while space sat empty above the board. The HUD
+    now measures the card (ResizeObserver) and the renderer lays out with
+    `reserve.bottom` (`renderer.setReserve`), so the board moves up; a
+    long hint scrolls (max 30vh).
+  - Landscape: relic chips ran off the 168 px panel and the hint card was
+    squashed to one line. The panel widens into spare width
+    (`sideWidth`, 168 to 300 px; `--hud-side` set on resize), chips wrap,
+    actions form a grid at the panel's foot and never leave the screen;
+    the status and hint scroll above them on short screens.
+  - Narrow phones at Large text: action labels clipped; padding now
+    gives way first, and at 340 px and under the labels and meters are a
+    step smaller.
+  - Contrast: white on the accent failed AA in Paper (3.2), Night Ink
+    (2.2) and Blueprint (1.4). New palette tokens `accentUi` (primary
+    buttons, focus rings, Confirm) and `onAccent` (their text); the board
+    keeps `accent`. Danger darkened in Paper, Kraft and Blueprint, Kraft's
+    soft ink too, so all text is 4.5:1.
+- docs/04: layout rules for the hint card and side panel, and the
+  accessibility checklist.
+- Tests: `contrast.test.js` (every palette), layout reserve and side
+  width. 434 pass.

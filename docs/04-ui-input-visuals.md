@@ -5,6 +5,18 @@
 - Responsive: the board is a square scaled to fit the smaller viewport dimension, centered. In landscape, the HUD sits at the side; in portrait, above and below the board.
 - Safe-area insets respected on phones. No scrolling, no pinch zoom (lock viewport scale).
 - Minimum touch target 44px.
+- The board never sits under the HUD. In portrait the tutorial hint card sits above the action bar and the board moves up to make room (`layout.js` `reserve`); a long hint scrolls inside the card (at most 30% of the height). In landscape the side panel widens into spare width (168 to 300 px, `sideWidth`), relic chips wrap, actions sit in a grid at the panel's foot, and on short screens a long relic tray or hint scrolls above them.
+
+## Accessibility checklist (Phase 8e)
+Checked on every PR that touches UI, with `tools/layout-audit.js` (15 device sizes, from 320 px phones through the Galaxy S Ultra in both orientations to tablets and desktops; both text sizes; left-handed landscape) and `tests/contrast.test.js`.
+- [x] Every button and field is at least 44x44 CSS px, on screen or in a scroll box.
+- [x] Nothing scrolls the page; nothing spills out of its HUD bar or panel.
+- [x] The HUD never covers the board; board cells stay at least 32 px.
+- [x] Text contrast 4.5:1 (WCAG AA) for ink, soft ink and danger on the background and UI surfaces in every palette; primary buttons use `accentUi` with `onAccent` text (4.5:1), and focus rings `accentUi` (3:1 on the background).
+- [x] Never color alone: tile symbols, hollow vs filled meters, dashed spent charges, rarity border styles, the ⚠ on errors, "✓" on pressed toggles.
+- [x] Animation speed setting; reduced motion (system or Settings) makes folds instant and turns off screen shake and CSS transitions.
+- [x] Large text setting (1.2x), checked at 320 px wide.
+- [x] Full keyboard play (table above), visible focus rings, Esc closes panels; HUD meters, relics and hints have screen-reader labels and live regions.
 
 ## HUD
 - HP (paper hearts), fold charges (small folded-paper icons), floor number, relic tray.

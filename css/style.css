@@ -6,7 +6,9 @@
   --c-ink: #3a3229;
   --c-ink-soft: #6d6253;
   --c-accent: #d9734e;
-  --c-danger: #c0392b;
+  --c-danger: #a93226;
+  --c-accent-ui: #a94e2a;
+  --c-on-accent: #ffffff;
   --c-ui-surface: rgba(251, 248, 241, 0.92);
   --c-ui-border: #cfc4ae;
 
@@ -87,7 +89,7 @@ body {
   border-color: var(--c-ink-soft);
 }
 .btn:focus-visible {
-  outline: 3px solid var(--c-accent);
+  outline: 3px solid var(--c-accent-ui);
   outline-offset: 2px;
 }
 .btn:disabled {
@@ -95,9 +97,9 @@ body {
   cursor: default;
 }
 .btn-primary {
-  background: var(--c-accent);
-  border-color: var(--c-accent);
-  color: #fff;
+  background: var(--c-accent-ui);
+  border-color: var(--c-accent-ui);
+  color: var(--c-on-accent);
 }
 
 /* --- Menus -------------------------------------------------------------- */
@@ -380,12 +382,52 @@ body {
   justify-content: flex-end;
   gap: 8px;
 }
-/* Portrait: five actions fit a 360px-wide phone. */
+/* Portrait: six actions (with Pocket) fit a 360px-wide phone at Large
+   text: the padding gives way before the labels do. */
 .hud-actions {
   gap: 6px;
 }
 .hud-actions .btn {
-  padding: 0 12px;
+  padding: 0 clamp(6px, 2.6vw, 12px);
+}
+/* Portrait: a long hint scrolls rather than squeezing the board (the
+   board makes room for the card, layout.js reserve). */
+@media (orientation: portrait) {
+  .hud-hint {
+    max-height: 30vh;
+    overflow-y: auto;
+  }
+}
+@media (max-width: 380px) {
+  .hud-actions {
+    gap: 4px;
+    padding: 0 8px;
+  }
+  .hud-meters {
+    column-gap: 8px;
+  }
+  .hud-icon {
+    width: 17px;
+    height: 17px;
+  }
+  .hud-charges .hud-icon {
+    width: 15px;
+    height: 15px;
+  }
+}
+/* The narrowest phones (320 px): labels a step smaller so six actions
+   and the meters still fit at Large text. */
+@media (max-width: 340px) {
+  .hud-actions .btn {
+    padding: 0 4px;
+    font-size: calc(14px * var(--text-scale));
+  }
+  .hud-status {
+    font-size: calc(16px * var(--text-scale));
+  }
+  .hud-meter {
+    gap: 1px;
+  }
 }
 
 /* Settings: grouped rows, each a button showing its current value. */
@@ -706,6 +748,19 @@ body {
     flex-direction: column;
     align-items: stretch;
   }
+  /* The panel is narrow: relic chips wrap under the meters. */
+  .hud-relics {
+    flex-wrap: wrap;
+  }
+  /* Wide enough (layout.js sideWidth): actions in a grid, not a column. */
+  .hud-actions {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(84px, 1fr));
+    gap: 8px;
+  }
+  .hud-actions .btn {
+    padding: 0 6px;
+  }
   .hud-hint {
     position: static;
     flex-direction: column;
@@ -742,21 +797,26 @@ body {
     width: 100%;
     gap: 8px;
   }
-  .hud-status,
-  .hud-actions {
-    flex-shrink: 0;
+  /* The actions never leave the screen: they keep their size at the
+     bottom, and a long relic tray or hint scrolls in the room above. */
+  .hud-status {
+    flex-shrink: 1;
+    min-height: 0;
+    overflow-y: auto;
+    scrollbar-width: thin;
+    pointer-events: auto;
   }
   .hud-actions {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
+    flex-shrink: 0;
+    margin-top: auto;
     padding: 0 8px;
   }
   .hud-actions .btn {
-    padding: 0 6px;
     font-size: calc(15px * var(--text-scale));
   }
+  /* A long hint scrolls inside the panel, but always shows a few lines. */
   .hud-hint {
-    min-height: 0;
+    min-height: min(96px, 30vh);
     flex-shrink: 1;
     overflow-y: auto;
   }
@@ -820,7 +880,7 @@ body {
   border-color: var(--c-ink-soft);
 }
 .offer-card:focus-visible {
-  outline: 3px solid var(--c-accent);
+  outline: 3px solid var(--c-accent-ui);
   outline-offset: 2px;
 }
 /* Rarity also shows in the border style, not by color alone. */
@@ -929,9 +989,9 @@ body {
   border: 2px solid var(--c-ink);
 }
 .action-confirm {
-  border: 2px solid var(--c-accent);
-  background: var(--c-accent);
-  color: var(--c-ui-surface);
+  border: 2px solid var(--c-accent-ui);
+  background: var(--c-accent-ui);
+  color: var(--c-on-accent);
 }
 .action-short,
 .action-reward,
@@ -942,7 +1002,7 @@ body {
   cursor: default;
 }
 .shop-card.is-pending {
-  outline: 3px dashed var(--c-accent);
+  outline: 3px dashed var(--c-accent-ui);
   outline-offset: 2px;
 }
 /* A locked spirit on spirit select: the lock is in its words, and dashed. */
