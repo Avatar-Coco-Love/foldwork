@@ -2,6 +2,7 @@
 // read tokens by name, never raw colors. Tile types also get distinct symbols
 // (drawn by the renderer), so color is never the only cue. `glyph` is ink
 // that reads on a tile face in every palette (tile symbols, keys).
+// `grain` scales the paper grain (lower where contrast matters most).
 //
 // `unlock` (core/unlocks.js): 'starter' palettes are free; the rest are
 // bought in the unlocks shop (PALETTE_COST, or a `cost` here). A new
@@ -16,6 +17,7 @@ const PAPER = {
   backgroundAccent: '#ded5c2',
   boardEdge: '#c9bea8',
   shadow: 'rgba(60, 45, 25, 0.22)',
+  grain: 1, // paper grain strength (render/grain.js)
   tileFace: '#fbf8f1',
   tileEdge: '#d8cfbd',
   gridLine: 'rgba(90, 75, 55, 0.12)',
@@ -39,6 +41,7 @@ const NIGHT_INK = {
   backgroundAccent: '#22252f',
   boardEdge: '#0f1016',
   shadow: 'rgba(0, 0, 0, 0.45)',
+  grain: 0.8, // paper grain strength (render/grain.js)
   tileFace: '#d9d4c7',
   tileEdge: '#9f998b',
   gridLine: 'rgba(20, 20, 30, 0.18)',
@@ -62,6 +65,7 @@ const HIGH_CONTRAST = {
   backgroundAccent: '#f0f0f0',
   boardEdge: '#000000',
   shadow: 'rgba(0, 0, 0, 0.35)',
+  grain: 0.5, // paper grain strength (render/grain.js)
   tileFace: '#ffffff',
   tileEdge: '#000000',
   gridLine: 'rgba(0, 0, 0, 0.55)',
@@ -86,6 +90,7 @@ const KRAFT = {
   backgroundAccent: '#bd9a6d',
   boardEdge: '#8f6d45',
   shadow: 'rgba(60, 35, 10, 0.3)',
+  grain: 1.2, // paper grain strength (render/grain.js)
   tileFace: '#e8d3b0',
   tileEdge: '#b8996c',
   gridLine: 'rgba(80, 50, 20, 0.16)',
@@ -108,6 +113,7 @@ const BLUEPRINT = {
   backgroundAccent: '#164378',
   boardEdge: '#0a2547',
   shadow: 'rgba(0, 10, 30, 0.45)',
+  grain: 0.8, // paper grain strength (render/grain.js)
   tileFace: '#dce9f7',
   tileEdge: '#8fb0d6',
   gridLine: 'rgba(18, 58, 107, 0.2)',

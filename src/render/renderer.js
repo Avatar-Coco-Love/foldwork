@@ -16,6 +16,7 @@ import { getPalette, DEFAULT_PALETTE_ID } from './palette.js';
 import { TILE, ITEM } from '../core/tiles.js';
 import { CELL, EFFECT, buildTelegraph, creaseSegment } from './preview.js';
 import { drawCreature } from './creatures.js';
+import { grainPattern } from './grain.js';
 import { findCreature, stackHeight } from '../core/board.js';
 import { creatureDef } from '../core/creatures.js';
 import { actingEnemies, sightLanes, pendingSpawns } from '../core/enemies.js';
@@ -117,9 +118,12 @@ const PASSES = [drawBackground, drawBoardBase, drawTiles, drawTraps, drawCreaseM
 function draw(r) {
   const { ctx } = r;
   ctx.setTransform(r.dpr, 0, 0, r.dpr, 0, 0);
-  drawBackground(r, ctx); // the shake moves the board, not the backdrop
+  drawBackground(r, ctx); // the shakes move the board, not the backdrop
   const shake = r.fx && r.fx.shake;
-  if (shake && shake.x) ctx.translate(shake.x, 0);
+  const hit = r.fx && r.fx.impact;
+  const dx = (shake ? shake.x : 0) + (hit ? hit.x : 0);
+  const dy = hit ? hit.y : 0;
+  if (dx || dy) ctx.translate(dx, dy);
   for (let i = 1; i < PASSES.length; i++) PASSES[i](r, ctx);
 }
 
@@ -133,13 +137,49 @@ function drawBoardBase(r, ctx) {
   if (!L) return;
   const p = r.palette;
   const m = Math.max(4, Math.round(L.cellSize * 0.08)); // board margin
-  // Soft drop shadow, then the backing sheet.
-  ctx.fillStyle = p.shadow;
-  roundRect(ctx, L.boardX - m + 3, L.boardY - m + 5, L.boardW + m * 2, L.boardH + m * 2, m);
-  ctx.fill();
+  const x = L.boardX - m;
+  const y = L.boardY - m;
+  const w = L.boardW + m * 2;
+  const h = L.boardH + m * 2;
+  // Soft drop shadow, then the backing sheet with its grain.
+  softShadow(ctx, p, x + 2, y + 4, w, h, m, Math.max(4, m * 0.9), 1);
   ctx.fillStyle = p.boardEdge;
-  roundRect(ctx, L.boardX - m, L.boardY - m, L.boardW + m * 2, L.boardH + m * 2, m);
+  roundRect(ctx, x, y, w, h, m);
   ctx.fill();
+  grain(ctx, p);
+}
+
+// A soft shadow without ctx.shadowBlur (costly per frame on phones): a
+// few nested rounded rects, each a share of `alpha` × the palette shadow,
+// widening by `spread` in all. Light comes from the top left.
+const SOFT_STEPS = 3;
+function softShadow(ctx, p, x, y, w, h, rad, spread, alpha) {
+  ctx.save();
+  ctx.fillStyle = p.shadow;
+  ctx.globalAlpha *= alpha / SOFT_STEPS * 1.4;
+  for (let i = SOFT_STEPS - 1; i >= 0; i--) {
+    const g = (spread * i) / (SOFT_STEPS - 1 || 1) / 2;
+    roundRect(ctx, x - g, y - g, w + g * 2, h + g * 2, rad + g);
+    ctx.fill();
+  }
+  ctx.restore();
+}
+
+// Paper grain (render/grain.js) over the path just filled, at the
+// palette's strength. The pattern is anchored to the canvas, and moves
+// with the transform, so it rides a folding sheet.
+function grain(ctx, p) {
+  const pattern = grainPattern(ctx);
+  if (!pattern || !(p.grain > 0)) return;
+  const a = ctx.globalAlpha;
+  ctx.globalAlpha = a * Math.min(1, p.grain);
+  ctx.fillStyle = pattern;
+  ctx.fill();
+  if (p.grain > 1) {
+    ctx.globalAlpha = a * (p.grain - 1);
+    ctx.fill();
+  }
+  ctx.globalAlpha = a;
 }
 
 function drawTiles(r, ctx) {
@@ -148,20 +188,45 @@ function drawTiles(r, ctx) {
   // Mid-fold, the moving stacks are drawn by drawFoldAnim, not here.
   const anim = r.fx && r.fx.foldAnim;
   const board = anim ? anim.base : r.scene.board;
-  const lift = layerLift(L.cellSize);
+  const size = L.cellSize;
+  const lift = layerLift(size);
   const skip = skipId(r);
+  const p = r.palette;
+  // Three passes so raised stacks cast soft shadows (8d) onto the paper
+  // around them: every cell's bottom sheet, then the stacks' shadows on
+  // that floor, then the raised layers (which cover any shadow cast on a
+  // stack at least as tall).
   for (let row = 0; row < board.h; row++) {
     for (let col = 0; col < board.w; col++) {
       const { layers } = board.cells[row * board.w + col];
       const o = cellOrigin(L, col, row);
-      if (!layers.length) {
-        // Vacated by a fold: no paper left, which plays as a void.
-        drawLayer(ctx, r.palette, EMPTY_CELL, o.x, o.y, L.cellSize, true);
-        continue;
+      // Vacated by a fold: no paper left, which plays as a void.
+      if (!layers.length) drawLayer(ctx, p, EMPTY_CELL, o.x, o.y, size, true);
+      else drawLayer(ctx, p, layers[0], o.x, o.y, size, layers.length === 1, skip);
+    }
+  }
+  for (let row = 0; row < board.h; row++) {
+    for (let col = 0; col < board.w; col++) {
+      const n = board.cells[row * board.w + col].layers.length;
+      if (n > 1) stackShadow(ctx, p, cellOrigin(L, col, row), size, n - 1, lift);
+    }
+  }
+  for (let row = 0; row < board.h; row++) {
+    for (let col = 0; col < board.w; col++) {
+      const { layers } = board.cells[row * board.w + col];
+      if (layers.length < 2) continue;
+      const o = cellOrigin(L, col, row);
+      for (let i = 1; i < layers.length; i++) {
+        layerShadow(ctx, p, o.x, o.y - i * lift, size, lift);
+        drawLayer(ctx, p, layers[i], o.x, o.y - i * lift, size, i === layers.length - 1, skip);
       }
-      for (let i = 0; i < layers.length; i++) {
-        drawLayer(ctx, r.palette, layers[i], o.x, o.y - i * lift, L.cellSize, i === layers.length - 1, skip);
-      }
+    }
+  }
+  for (let row = 0; row < board.h; row++) {
+    for (let col = 0; col < board.w; col++) {
+      const { layers } = board.cells[row * board.w + col];
+      if (layers.length < 2) continue;
+      const o = cellOrigin(L, col, row);
       // Creatures under a stacked layer are pinned: show a ghost of them on
       // top with a paper clip (docs/04), so they never just vanish.
       for (let i = 0; i < layers.length - 1; i++) {
@@ -176,6 +241,22 @@ function drawTiles(r, ctx) {
       }
     }
   }
+}
+
+// The soft shadow a raised stack casts on the floor beside it, longer for
+// a taller stack (`levels` above the bottom sheet), down and to the right.
+function stackShadow(ctx, p, o, size, levels, lift) {
+  const gap = layerGap(size);
+  const reach = Math.min(size * 0.16, levels * lift * 0.55);
+  const s = size - gap * 2;
+  softShadow(ctx, p, o.x + gap + reach, o.y + gap + reach * 0.6, s, s, Math.max(2, s * 0.08), reach + 2, 0.75);
+}
+
+// The thin contact shadow a raised sheet casts on the sheet under it.
+function layerShadow(ctx, p, x, y, size, lift) {
+  const gap = layerGap(size);
+  const s = size - gap * 2;
+  softShadow(ctx, p, x + gap + 1, y + gap + lift * 0.6 + 1, s, s, Math.max(2, s * 0.08), 3, 0.55);
 }
 
 // Compass: a dashed outline and a small copy of the exit tile in the top
@@ -711,26 +792,37 @@ function drawFoldAnim(r, ctx) {
   const rise = f.arc * size * 0.6 + f.hover * lift * 2;
   const sheets = anim.sheets;
 
-  // Shadows first, flat on the board under the flying sheet.
-  ctx.fillStyle = p.shadow;
-  ctx.globalAlpha = Math.min(1, f.arc + f.hover * 0.5);
+  // Shadows first, flat on the board under the flying sheet: soft, and
+  // wider and lighter the higher the sheet flies (8d).
+  const height = Math.min(1, f.arc + f.hover * 0.5);
   const off = rise * 0.25;
+  const spread = 2 + rise * 0.35;
+  const gap = layerGap(size);
   for (let n = 0; n < sheets.length; n++) {
     const so = cellOrigin(L, sheets[n].col, sheets[n].row);
     ctx.save();
     ctx.translate(off, off);
     ctx.transform(ta, tb, tb, td, te, tf);
-    ctx.fillRect(so.x, so.y, size, size);
+    softShadow(ctx, p, so.x + gap, so.y + gap, size - gap * 2, size - gap * 2, gap * 2, spread, height * (1 - height * 0.3));
     ctx.restore();
   }
-  ctx.globalAlpha = 1;
+  // The crease inks in as the sheet turns over it, so the hinge reads.
+  const ln = anim.line;
+  ctx.save();
+  ctx.strokeStyle = p.ink;
+  ctx.globalAlpha = 0.45 * Math.min(1, (1 - c) / 1.2);
+  ctx.lineWidth = Math.max(1, Math.round(size * 0.035));
+  ctx.beginPath();
+  ctx.moveTo(L.boardX + ln.x0 * size, L.boardY + ln.y0 * size);
+  ctx.lineTo(L.boardX + ln.x1 * size, L.boardY + ln.y1 * size);
+  ctx.stroke();
+  ctx.restore();
   if (Math.abs(c) < 0.03) return; // edge-on: nothing visible
 
   // Paint order follows the visible rows: source order before the sheet
   // passes upright, landing order after (h folds reverse the rows).
   const forward = c >= 0;
   const shade = (1 - Math.abs(c)) * 0.45;
-  const gap = layerGap(size);
   for (let n = 0; n < sheets.length; n++) {
     const s = sheets[forward ? n : sheets.length - 1 - n];
     const o = cellOrigin(L, s.col, s.row);
@@ -1004,6 +1096,10 @@ function drawLayer(ctx, p, layer, x, y, size, isTop, skip) {
   const s = size - gap * 2;
   const painter = TILE_PAINTERS[layer.tile] || paintFloor;
   painter(ctx, p, x + gap, y + gap, s, isTop, layer);
+  if (layer.tile !== TILE.VOID) {
+    roundRect(ctx, x + gap, y + gap, s, s, Math.max(2, s * 0.08));
+    grain(ctx, p);
+  }
   const item = layer.item && ITEM_PAINTERS[layer.item];
   if (item) item(ctx, p, x + gap, y + gap, s, !!layer.creature);
   const c = layer.creature;

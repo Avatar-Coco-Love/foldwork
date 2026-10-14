@@ -56,12 +56,19 @@ export const CONFIRM_FOLDS = Object.freeze([
   { id: 'on', name: 'On' },
 ]);
 
+/** Screen shake on a hit (8d): on, subtle; never under reduced motion. */
+export const SCREEN_SHAKE = Object.freeze([
+  { id: 'on', name: 'On' },
+  { id: 'off', name: 'Off' },
+]);
+
 export const DEFAULT_SETTINGS = Object.freeze({
   version: SETTINGS_VERSION,
   palette: DEFAULT_PALETTE_ID,
   textSize: 'normal',
   animSpeed: 'normal',
   reducedMotion: 'system',
+  screenShake: 'on',
   hand: 'right',
   confirmFolds: 'off',
   telemetry: 'on',
@@ -78,6 +85,7 @@ const CHOICES = Object.freeze({
   textSize: TEXT_SIZES,
   animSpeed: ANIM_SPEEDS,
   reducedMotion: MOTION_MODES,
+  screenShake: SCREEN_SHAKE,
   hand: HANDS,
   confirmFolds: CONFIRM_FOLDS,
   telemetry: TELEMETRY_MODES,
@@ -110,6 +118,7 @@ export const SETTINGS_GROUPS = Object.freeze([
       { id: 'text-size', label: 'Text size', key: 'textSize' },
       { id: 'anim-speed', label: 'Animation', key: 'animSpeed' },
       { id: 'reduced-motion', label: 'Reduced motion', key: 'reducedMotion' },
+      { id: 'screen-shake', label: 'Screen shake', key: 'screenShake', note: 'A small shake when you are hit or something falls. Off under reduced motion.' },
       { id: 'left-handed', label: 'Left-handed layout', key: 'hand', note: 'Puts the side panel on the left in landscape.' },
     ],
   },
@@ -170,13 +179,15 @@ export function normalizeSettings(raw) {
 
 /**
  * Effective motion options for render/fx.js.
- * @returns {{ speed: number, reducedMotion: boolean }}
+ * `shake`: impact screen shake plays (on, and motion isn't reduced).
+ * @returns {{ speed: number, reducedMotion: boolean, shake: boolean }}
  */
 export function resolveMotion(settings, systemReduced = false) {
   const speed = (ANIM_SPEEDS.find((o) => o.id === settings.animSpeed) || ANIM_SPEEDS[1]).speed;
   const mode = settings.reducedMotion;
   const reducedMotion = mode === 'on' || (mode === 'system' && !!systemReduced);
-  return { speed, reducedMotion };
+  const shake = settings.screenShake !== 'off' && !reducedMotion;
+  return { speed, reducedMotion, shake };
 }
 
 /** Font-size multiplier for the text size setting. */

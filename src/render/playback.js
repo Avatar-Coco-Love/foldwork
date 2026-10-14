@@ -8,7 +8,7 @@
 //   - createPlayback sequences clips through the fx player and swaps the
 //     shown board between them. It never touches game state.
 //
-// Clip = { board, duration, fold?, reverse?, actor?, sfx? }
+// Clip = { board, duration, fold?, reverse?, actor?, sfx?, shake? }
 //   fold    buildFoldAnim() result (fold / unfold events)
 //   actor   { kind, id, creature, from, to, fromLevel, toLevel, skip }
 //           kind: 'move' | 'slide' | 'bump' | 'shoot' | 'hit' | 'death'
@@ -21,6 +21,11 @@
 // Events with no visual (wait, defeat) and zero-length clips (reduced
 // motion) produce no clip, so the board simply jumps to its final state.
 //
+// Screen shake (8d): when motion.shake is set (ui/settings.js resolveMotion:
+// on, and motion not reduced), a clip for the player being hurt, a boss
+// swat or a fall into the void carries `shake`, a strength for the fx
+// player's playImpact (SHAKE_FOR).
+//
 // Sounds (audio/sounds.js soundForEvent) ride the clips: `sfx` lists the
 // sounds to start with a clip, its own and those of the silent-picture
 // events just before it (a key picked up sounds as the next clip starts,
@@ -30,6 +35,7 @@
 import { buildFoldAnim, foldDurationMs, clipDurationMs, ACTOR_MS } from './fx.js';
 import { findCreature, stackHeight, topLayer } from '../core/board.js';
 import { soundForEvent } from '../audio/sounds.js';
+import { PLAYER_ID } from '../core/turn.js';
 
 /** endSfx: an array to collect the sounds that follow the last clip. */
 export function buildClips(startBoard, events, motion, endSfx = null) {
@@ -43,6 +49,8 @@ export function buildClips(startBoard, events, motion, endSfx = null) {
     const clip = clipFor(ev, board, after, motion);
     if (clip && clip.duration > 0) {
       if (sfx.length) clip.sfx = sfx;
+      const shake = shakeFor(ev, motion);
+      if (shake) clip.shake = shake;
       sfx = [];
       clips.push(clip);
     }
@@ -50,6 +58,17 @@ export function buildClips(startBoard, events, motion, endSfx = null) {
   }
   if (endSfx) endSfx.push(...sfx);
   return clips;
+}
+
+/** Impact strength per event; `player` events only shake for the player. */
+export const SHAKE_FOR = Object.freeze({ damage: { strength: 1, player: true }, swat: { strength: 1.4 }, fall: { strength: 0.8 } });
+
+/** The impact strength an event shakes the screen with, or 0. */
+export function shakeFor(ev, motion) {
+  if (!motion || !motion.shake || motion.reducedMotion) return 0;
+  const rule = SHAKE_FOR[ev.type];
+  if (!rule || (rule.player && ev.id !== PLAYER_ID)) return 0;
+  return rule.strength;
 }
 
 const level = (board, at) => Math.max(0, stackHeight(board, at.col, at.row) - 1);
@@ -163,6 +182,7 @@ export function createPlayback({ fx, show, sound = null }) {
     const clip = r.clips[r.i++];
     show(clip.board);
     if (sound && clip.sfx) sound(clip.sfx);
+    if (clip.shake) fx.playImpact(clip.shake);
     if (clip.fold) fx.playFold(clip.fold, { duration: clip.duration, reverse: clip.reverse, done: step });
     else fx.playActor(clip.actor, { duration: clip.duration, done: step });
   }

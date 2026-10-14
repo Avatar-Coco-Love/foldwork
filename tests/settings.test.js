@@ -23,10 +23,20 @@ test('settings normalize: defaults, unknown values reset per field', () => {
 
 test('resolveMotion follows the system only in system mode', () => {
   const base = normalizeSettings({ animSpeed: 'fast' });
-  assert.deepEqual(resolveMotion(base, false), { speed: 1.6, reducedMotion: false });
+  assert.deepEqual(resolveMotion(base, false), { speed: 1.6, reducedMotion: false, shake: true });
   assert.equal(resolveMotion(base, true).reducedMotion, true);
   assert.equal(resolveMotion({ ...base, reducedMotion: 'off' }, true).reducedMotion, false);
   assert.equal(resolveMotion({ ...base, reducedMotion: 'on' }, false).reducedMotion, true);
+});
+
+test('screen shake: on by default, off by setting, never under reduced motion', () => {
+  const base = normalizeSettings({});
+  assert.equal(base.screenShake, 'on');
+  assert.equal(resolveMotion(base, false).shake, true);
+  assert.equal(resolveMotion({ ...base, screenShake: 'off' }, false).shake, false);
+  assert.equal(resolveMotion(base, true).shake, false);
+  assert.equal(resolveMotion({ ...base, reducedMotion: 'on' }, false).shake, false);
+  assert.equal(normalizeSettings({ screenShake: 'wobbly' }).screenShake, 'on');
 });
 
 test('settings round-trip through storage and survive broken storage', () => {
