@@ -1052,3 +1052,26 @@ body {
   border-bottom: 1px solid var(--c-ui-border);
   font-size: calc(15px * var(--text-scale));
 }
+
+/* What's new (8f): one entry per update, newest first. */
+.whats-new-title {
+  font-size: calc(17px * var(--text-scale));
+}
+.whats-new-notes {
+  margin: 0;
+  padding-left: 1.2em;
+  line-height: 1.4;
+}
+.whats-new-notes li + li {
+  margin-top: 4px;
+}
+/* An update not seen yet: a boxed word, not only a color. */
+.new-tag {
+  display: inline-block;
+  margin-right: 8px;
+  padding: 1px 6px;
+  border: 1.5px solid var(--c-ink);
+  border-radius: 6px;
+  color: var(--c-ink);
+  letter-spacing: 0.04em;
+}

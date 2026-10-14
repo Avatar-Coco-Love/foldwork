@@ -62,6 +62,7 @@ const SCREENS = [
   { name: 'settings', url: '', steps: [['click', 'Settings']] },
   { name: 'howto', url: '', steps: [['click', 'How to Play']] },
   { name: 'stats', url: '', steps: [['click', 'Stats & History']] },
+  { name: 'whats-new', url: '', steps: [['click', 'Settings'], ['click', 'Foldwork version']] },
   { name: 'unlocks', url: '?unlocks=all', steps: [['click', 'Unlocks']] },
   { name: 'spirit', url: '?unlocks=all', steps: [['click', 'New Run']] },
   { name: 'offer-rest', url: '?screen=offer&cleared=4&seed=7' },

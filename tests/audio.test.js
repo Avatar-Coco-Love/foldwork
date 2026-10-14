@@ -119,7 +119,7 @@ test('ambient: same seed same music; another seed or mood differs', () => {
   assert.notDeepEqual(phrases('calm', 'x:1'), phrases('boss', 'x:1'));
 });
 
-test('ambient: notes are on the mood\'s pentatonic scale, soft, and phrases overlap', () => {
+test('ambient: notes are on the mood\'s pentatonic scale, in a phone speaker\'s range, and phrases overlap', () => {
   for (const [id, mood] of Object.entries(AMBIENT_MOODS)) {
     assert.equal(mood.scale.length, 5, id);
     const amb = createAmbient(id, 'scale');
@@ -132,7 +132,8 @@ test('ambient: notes are on the mood\'s pentatonic scale, soft, and phrases over
       for (const n of notes) {
         const semis = Math.round(12 * Math.log2(n.f / mood.root));
         assert.ok(mood.scale.includes(((semis % 12) + 12) % 12), `${id} ${n.f} Hz is on the scale`);
-        assert.ok(n.f > 60 && n.f < 2000 && n.g > 0 && n.g <= 0.25 && n.t >= 0 && n.t < length, `${id} note`);
+        // Phone speakers carry little below ~200 Hz (8f: the loop was inaudible there).
+        assert.ok(n.f >= 200 && n.f < 2000 && n.g > 0 && n.g <= 0.4 && n.t >= 0 && n.t < length, `${id} note`);
       }
     }
   }

@@ -1,7 +1,9 @@
 # Foldwork — Progress Log
 
 **Start every new conversation here.** One PR per conversation keeps context
-small. At the end of each conversation, update this file in the same PR.
+small. At the end of each conversation, update this file in the same PR,
+and add a player-facing entry at the top of `src/core/changelog.js` (that
+entry is the version bump: `0.<phase>.<n>`, see its header).
 
 ## Next up
 **Phase 9: playtesting, balance, manifest** (docs/06). Start by asking the
@@ -72,6 +74,8 @@ Larger phases are split into PR-sized chunks so each conversation stays small.
     (PR 37)
   - [x] 8e Alignment audit (phone, tablet, desktop, both orientations)
     and the accessibility checklist (PR 38)
+  - [x] 8f Version from a changelog, What's New page, audible ambient
+    loop (PR 39)
 - [ ] **Phase 9** — Playtesting, balance, manifest
 
 ## Log
@@ -1273,3 +1277,26 @@ Larger phases are split into PR-sized chunks so each conversation stays small.
   accessibility checklist.
 - Tests: `contrast.test.js` (every palette), layout reserve and side
   width. 434 pass.
+
+### PR 39: Phase 8f, version, What's New, audible music
+- Decisions (user's choices; OPEN-QUESTIONS "Version and What's new").
+- `core/changelog.js` (pure): `CHANGELOG`, one player-facing entry per
+  merged PR, newest first, backfilled to PR 1. `APP_VERSION` (config.js)
+  is the newest entry's version, now 0.8.6 (it had sat at 0.4.0 since
+  4a). `compareVersions`, `newSince`, `startingSeen`, `dateText`.
+- `ui/whatsNew.js`: the What's New page (a "New" tag on unseen entries),
+  as a screen (`whatsnew`) and a sheet; the seen version under
+  `foldwork.seenVersion`. Settings > About's version is now a button to
+  it (title and pause menu). Title row What's New while an update is
+  unseen; a returning player without a saved version sees this one as
+  new, a new player sees nothing.
+- Ambient loop: measured offline (OfflineAudioContext, default volumes):
+  it played, but at about -37 dBFS through a 300 Hz high-pass (a phone
+  speaker), pads at 130-330 Hz. Roots up an octave (C4, A3), plucks one
+  octave over the pads (`pluckOctave`, same pitch as before), pad and
+  pluck gains doubled:
+  about -26 dBFS on that band, peak 0.22, still under the effects.
+- `tools/layout-audit.js` visits What's New too: 572/572 clean.
+- Tests: `changelog.test.js` (4: version = newest entry, entries ordered
+  and well formed, compare/new/starting version, storage); the ambient
+  test now requires notes at 200 Hz or more. 438 pass.

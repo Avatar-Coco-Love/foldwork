@@ -39,6 +39,8 @@ import {
 } from './ui/screens.js';
 import { unlocksScreen } from './ui/unlocks.js';
 import { statsScreen } from './ui/stats.js';
+import { whatsNewScreen, loadSeenVersion, saveSeenVersion } from './ui/whatsNew.js';
+import { startingSeen, LATEST_VERSION } from './core/changelog.js';
 import { challengeSeed, CHALLENGE_PARAM } from './ui/share.js';
 import { setupTelemetry, telemetryActive } from './telemetry/browser.js';
 import { TELEMETRY } from './config.js';
@@ -375,6 +377,17 @@ const ctx = {
     document.querySelector('meta[name="theme-color"]')?.setAttribute('content', palette.background);
   },
 };
+
+// What's new (8f): the version the player has seen the page up to. Saved
+// at once, so a new player never sees this release as an update.
+ctx.seenVersion = startingSeen(loadSeenVersion(), ctx.meta.runs > 0 || !!saves.load());
+saveSeenVersion(ctx.seenVersion);
+/** The page was opened: everything up to this version is seen. */
+ctx.markWhatsNewSeen = () => {
+  ctx.seenVersion = LATEST_VERSION;
+  saveSeenVersion(LATEST_VERSION);
+};
+
 const backButton = createBackButton();
 ctx.router = createRouter(uiRoot, ctx, {
   onGo: (name, p) => {
@@ -443,7 +456,8 @@ ctx.router
   .register('settings', settingsScreen)
   .register('summary', summaryScreen)
   .register('unlocks', unlocksScreen)
-  .register('stats', statsScreen);
+  .register('stats', statsScreen)
+  .register('whatsnew', whatsNewScreen);
 
 // --- Viewport tracking -----------------------------------------------------
 
