@@ -10,6 +10,8 @@
 //               starters are never listed
 //     daily,    { [date]: DailyRecord } days the daily seed was played
 //               (core/daily.js)
+//     stats,    Stats: totals, best run, per spirit, recent runs
+//               (core/stats.js; Phase 7e)
 //   }
 //
 // The meta only grows: later phases add fields, and parseMeta() fills any
@@ -21,6 +23,7 @@
 
 import { SHOP_KINDS } from './unlocks.js';
 import { parseDaily } from './daily.js';
+import { createStats, parseStats } from './stats.js';
 
 export const META_VERSION = 1;
 
@@ -38,7 +41,7 @@ function emptyUnlocks() {
 /** A new player's meta. */
 export function createMeta() {
   return {
-    v: META_VERSION, scraps: 0, earned: 0, runs: 0, unlocks: emptyUnlocks(), daily: {},
+    v: META_VERSION, scraps: 0, earned: 0, runs: 0, unlocks: emptyUnlocks(), daily: {}, stats: createStats(),
   };
 }
 
@@ -71,6 +74,7 @@ export function parseMeta(data) {
     runs: count(m.runs),
     unlocks: parseUnlocks(m.unlocks),
     daily: parseDaily(m.daily),
+    stats: parseStats(m.stats),
   };
 }
 

@@ -115,11 +115,12 @@ test('meta: old metas gain unlocks; unknown kinds, ids and fields are kept', () 
   assert.equal(m.scraps, 12);
   // From a newer build: a field, a kind and a relic this build doesn't know.
   const newer = parseMeta({
-    v: META_VERSION + 1, scraps: 5, earned: 5, runs: 1, stats: { wins: 1 },
+    v: META_VERSION + 1, scraps: 5, earned: 5, runs: 1, trophies: { gold: 1 }, stats: { wins: 1 },
     unlocks: { relic: ['thick-paper', 'future-relic', 'thick-paper', 7], hat: ['top'] },
   });
   assert.equal(newer.v, META_VERSION + 1, 'a newer meta keeps its version');
-  assert.deepEqual(newer.stats, { wins: 1 });
+  assert.deepEqual(newer.trophies, { gold: 1 });
+  assert.equal(newer.stats.wins, 1, 'unknown stats fields are kept too');
   assert.deepEqual(newer.unlocks.relic, ['thick-paper', 'future-relic']);
   assert.deepEqual(newer.unlocks.hat, ['top']);
   assert.ok(owns(newer, 'relic', 'thick-paper'));

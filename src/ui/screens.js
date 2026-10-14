@@ -33,6 +33,7 @@ import { relicDef, RARITY_NAMES, GROUP_NAMES } from '../core/relics.js';
 import { affordable, unlockCost } from '../core/unlocks.js';
 import { runSummary } from '../core/summary.js';
 import { dailyTitle, dailyName, isPractice } from '../core/daily.js';
+import { parseStats } from '../core/stats.js';
 import { SPIRIT_DEFS, spiritDef } from '../core/spirits.js';
 import { HINTS, hintDef, hintsFor } from '../core/hints.js';
 import { loadSeenHints, saveSeenHints } from './hintStore.js';
@@ -79,6 +80,13 @@ export const TITLE_ROWS = [
     note: (c) => `${scrapsText(c.scraps)}${c.ready ? ` · ${c.ready} ready to unlock` : ''}`,
     go: (ctx) => ctx.router.go('unlocks', { from: 'title' }),
   },
+  // Stats & History (Phase 7e): the note is the runs and wins so far.
+  {
+    id: 'stats',
+    label: 'Stats & History',
+    note: (c) => (c.stats.runs ? `${c.stats.runs} ${c.stats.runs === 1 ? 'run' : 'runs'} · ${c.stats.won} won` : null),
+    go: (ctx) => ctx.router.go('stats'),
+  },
   { id: 'howto', label: 'How to Play', go: (ctx) => ctx.router.go('howto') },
   { id: 'settings', label: 'Settings', go: (ctx) => ctx.router.go('settings', { from: 'title' }) },
 ];
@@ -97,6 +105,7 @@ export const titleScreen = {
       scraps: ctx.meta.scraps,
       ready: affordable(ctx.meta, ctx.unlockOpts).length,
       daily: dailyTitle(ctx.meta, save, Date.now()),
+      stats: parseStats(ctx.meta.stats),
       confirmNewRun: (start = () => startNewRun(ctx)) => confirmNewRun(start),
     };
     const rows = TITLE_ROWS.filter((r) => !r.show || r.show(c));
@@ -271,9 +280,11 @@ const CREDITS = 'Made by Cody Joshua Clements, built with Claude. Every picture 
  * (ui/settings.js). Choices apply at once. A screen from the title, a
  * sheet over the board from the pause menu; Back returns there.
  */
-function settingsPanel(ctx, onBack, { saveCode }) {
+function settingsPanel(ctx, onBack, { saveCode, resetProgress = null, said = '' }) {
   const actions = {
     saveCode: () => saveCode(),
+    // Only from the title's Settings; in a run the row isn't shown.
+    ...(resetProgress ? { resetProgress: () => resetProgress() } : {}),
     resetHints(btn) {
       saveSeenHints(new Set());
       btn.querySelector('.setting-label').textContent = 'Tutorial hints will show again';
@@ -309,11 +320,12 @@ function settingsPanel(ctx, onBack, { saveCode }) {
     el('h3', { class: 'settings-heading', id: `settings-${id}`, text: title }),
     children);
   const groups = SETTINGS_GROUPS.map((g) => {
-    const rows = g.rows.filter((r) => !r.show || r.show(ctx));
+    const rows = g.rows.filter((r) => (!r.show || r.show(ctx)) && (!r.action || actions[r.action]));
     return rows.length ? group(g.id, g.title, rows.map(row)) : null;
   });
   return el('div', { class: 'menu settings' },
     el('h2', { class: 'outcome-title', text: 'Settings' }),
+    el('p', { class: 'code-status', role: 'status', text: said }),
     el('div', { class: 'settings-groups' },
       groups,
       group('about', 'About', [
@@ -331,11 +343,59 @@ export const settingsScreen = {
     ctx.renderer.setScene(null);
     const back = () => ctx.router.go(params.from || 'title');
     const saveCode = () => ctx.router.go('savecode', { from: params.from });
-    root.append(settingsPanel(ctx, back, { saveCode }));
-    root.querySelector('.setting-row')?.focus({ preventScroll: true });
-    return escapeTo(back);
+    let onEscape = back;
+    const panel = settingsPanel(ctx, back, {
+      saveCode,
+      resetProgress: params.from === 'title' ? confirmReset : null,
+      said: params.said || '',
+    });
+    root.append(panel);
+    const focusRow = params.said ? '[data-setting="reset-progress"]' : '.setting-row';
+    (root.querySelector(focusRow) || root.querySelector('.setting-row'))?.focus({ preventScroll: true });
+    return escapeTo(() => onEscape());
+
+    /** Reset progress asks first, saying what goes (it can't be undone). */
+    function confirmReset() {
+      const keep = el('button', { class: 'btn btn-primary', type: 'button' }, 'Keep my progress');
+      const ask = el('div', { class: 'menu settings', role: 'alertdialog', 'aria-labelledby': 'confirm-reset' },
+        el('h2', { class: 'outcome-title', text: 'Reset progress?' }),
+        el('p', { class: 'subtitle', id: 'confirm-reset', text: resetText(ctx) }),
+        el('div', { class: 'menu-buttons' },
+          el('button', {
+            class: 'btn btn-secondary', type: 'button',
+            onclick: () => {
+              const done = ctx.resetProgress();
+              ctx.router.go('settings', { from: params.from, said: done ? 'Progress reset. A fresh start.' : 'Dev session: nothing was reset.' });
+            },
+          }, 'Erase progress'),
+          keep));
+      const close = () => {
+        ask.replaceWith(panel);
+        onEscape = back;
+        panel.querySelector('[data-setting="reset-progress"]')?.focus({ preventScroll: true });
+      };
+      keep.addEventListener('click', close);
+      panel.replaceWith(ask);
+      onEscape = close;
+      keep.focus({ preventScroll: true });
+    }
   },
 };
+
+/** What Reset progress erases, for its confirm. */
+function resetText(ctx) {
+  const bought = Object.values(ctx.meta.unlocks || {}).reduce((n, ids) => n + (Array.isArray(ids) ? ids.length : 0), 0);
+  const save = ctx.savedRun();
+  const parts = [
+    scrapsText(ctx.meta.scraps),
+    `${bought} ${bought === 1 ? 'unlock' : 'unlocks'}`,
+    'your stats',
+    'your daily history',
+    ...(save ? [`your run on floor ${save.run.floor}`] : []),
+  ];
+  const list = `${parts.slice(0, -1).join(', ')} and ${parts[parts.length - 1]}`;
+  return `This erases ${list}. Settings and tutorial hints stay. It can't be undone.`;
+}
 
 /** What a refused save code was, for the player (core/saveCode.js reasons). */
 const CODE_ERRORS = {

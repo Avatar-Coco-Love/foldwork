@@ -43,6 +43,21 @@ These belong to later phases and get decided when that phase is built.
   file would load `share.png`, which the game must not).
 
 ## Resolved
+- Stats & History and Reset progress (7e, user's choices). **Stats:**
+  totals (runs, won with a percentage, torn, given up, floors cleared,
+  fold kills, Great Crane wins, paper scraps earned), the best run (most
+  floors cleared; the first to reach it), runs by spirit (runs, wins,
+  best floors) and the last 20 runs. Given-up runs count (decided while
+  building) so abandoning a bad run can't polish the win rate; dev runs
+  never count. Stats start in 7e: older metas' earlier runs aren't in
+  them, and the screen says how many. **Daily history:** every day
+  played, newest first, with days played and the current and best
+  streaks (consecutive UTC days with a scored run, any result; today
+  unplayed doesn't break the streak yet). **Reset progress** (Settings >
+  Data, title screen only; it asks first, naming what goes): paper
+  scraps, unlocks, stats, daily history and the saved run. Settings,
+  tutorial hints and the install id stay; a palette no longer owned
+  shows the default.
 - Daily seed (7d, user's choices). **Name and day:** the UTC date,
   `YYYY-MM-DD`, is both the day and the run's seed (docs/05), so the whole
   world shares one run and it rolls over at UTC midnight; the game shows

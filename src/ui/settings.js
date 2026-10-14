@@ -118,6 +118,8 @@ export const SETTINGS_GROUPS = Object.freeze([
       // Hidden until collection is switched on (config TELEMETRY.collect).
       { id: 'telemetry', label: 'Share play data', key: 'telemetry', show: (ctx) => !!ctx.telemetryOffered },
       { id: 'save-code', label: 'Save code', note: 'Move your run to another device.', action: 'saveCode' },
+      // Title screen only (the panel drops a row without its action).
+      { id: 'reset-progress', label: 'Reset progress', note: 'Erase scraps, unlocks, stats and history.', action: 'resetProgress' },
     ],
   },
 ]);
