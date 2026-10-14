@@ -6,9 +6,9 @@ and add a player-facing entry at the top of `src/core/changelog.js` (that
 entry is the version bump: `0.<phase>.<n>`, see its header).
 
 ## Next up
-**Phase 9: playtesting, balance, manifest** (docs/06). Start by asking the
-user for playtest notes since 8e, then split Phase 9 into PR-sized chunks
-here.
+**Phase 9: playtesting, balance, manifest** (docs/06). Ask the user for
+more playtest notes, then split the rest of Phase 9 into PR-sized chunks
+here (9a, the diagonal hint fix, is done).
 
 ## Phase checklist
 Larger phases are split into PR-sized chunks so each conversation stays small.
@@ -78,6 +78,8 @@ Larger phases are split into PR-sized chunks so each conversation stays small.
     loop (PR 39)
   - [x] 8g Restore default settings (audio, or all) (PR 40)
 - [ ] **Phase 9** — Playtesting, balance, manifest
+  - [x] 9a Hint search with diagonal creases (playtest: F8 with the Frog)
+    (PR 41)
 
 ## Log
 
@@ -1316,3 +1318,18 @@ Larger phases are split into PR-sized chunks so each conversation stays small.
 - Tests: menus (restore audio leaves other groups; restore all equals
   the defaults except play data, which also proves every setting has a
   row). 439 pass.
+
+### PR 41: Phase 9a, hint search with diagonal creases
+- Playtest: floor 8 (f8-crossing) with the Frog, no folds made, Mite
+  bumped and key taken; Hint said no winning line turned up. One existed
+  (3 straight folds, 11 turns). Diagonal creases multiply the folds to
+  try, so both hint searches hit the 40,000-state cap first ('unknown',
+  shown in words that read as "unwinnable").
+- `core/solver.js`: `noDiagonal` option (straight creases only even where
+  the floor allows diagonals).
+- `core/hintLine.js` `findLine`: with diagonals on, each pass (clean,
+  then any) tries straight creases first, then all. Floors are proven
+  with straight creases, so the first pass usually finds a line at once.
+- The give-up text now says the search ran out and a line may still exist.
+- Changelog 0.9.0.
+- Tests: hintLine (the playtest position finds a clean line). 440 pass.

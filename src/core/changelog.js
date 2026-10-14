@@ -11,6 +11,14 @@
 
 export const CHANGELOG = Object.freeze([
   {
+    version: '0.9.0', date: '2026-10-14', pr: 41,
+    title: 'Hints with diagonal creases',
+    notes: [
+      'Hint finds a way through again when you can fold diagonally (the Frog, Diagonal Crease). It used to give up on some floors that could still be won.',
+      'When Hint does give up, it now says the search ran out, not that there is no way through.',
+    ],
+  },
+  {
     version: '0.8.7', date: '2026-10-14', pr: 40,
     title: 'Restore defaults',
     notes: [
