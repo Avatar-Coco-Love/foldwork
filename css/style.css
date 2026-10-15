@@ -245,8 +245,10 @@ body {
   gap: 4px 12px;
 }
 /* Portrait: the meters stay on one line so the status bar keeps its
-   height; many relics scroll sideways instead of wrapping to a second row
-   (which pushed the bar's top off screen). */
+   height. The relics sit on the second line (a playtest found them
+   squeezed off the right edge beside 8 fold charges), which they share
+   with the fold text: while that shows, the relics step aside. Many
+   relics scroll sideways instead of wrapping. */
 @media (orientation: portrait) {
   .hud-meters {
     flex-wrap: nowrap;
@@ -257,8 +259,13 @@ body {
   .hud-meter {
     flex-shrink: 0;
   }
+  .hud-status[data-message] .hud-relics,
+  .hud-status:not([data-message]) .hud-relics:not([hidden]) ~ .hud-fold {
+    display: none;
+  }
   .hud-relics {
-    flex: 0 1 auto;
+    flex-shrink: 0;
+    max-width: 100%;
     min-width: 0;
     overflow-x: auto;
     scrollbar-width: none;
