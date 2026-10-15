@@ -1350,6 +1350,10 @@ Larger phases are split into PR-sized chunks so each conversation stays small.
 - Consent for playtests (user's choice): on by default with the switch.
   Settings > Data > Share play data gains a note on what is sent.
   OPEN-QUESTIONS: resolved for playtests; launch consent stays open.
-- Collector checked with a test POST (a `collector.test` row; delete it
-  from the Sheet or ignore it, replay-check skips non-floor events).
+- Checked live: the `/exec` URL answers anonymously; a test POST is
+  stored, the same id resent is skipped, a bad body gets 400; the game in
+  headless Chromium sends its batches (302 to googleusercontent, "stored
+  1") and empties its queue. Test rows in the Sheet: one
+  `collector.test`, and events from install `i_cf25740592bf4bd1be04`;
+  delete them or ignore them.
 - Changelog 0.9.1. Phase 9 split into 9c–9f.
