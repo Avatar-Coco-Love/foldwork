@@ -29,6 +29,8 @@ Foldwork is a browser-based, turn-based roguelike puzzle game. The player folds 
 
 ## Session workflow (context management)
 - **One PR per conversation.** Phases are split into PR-sized chunks in `docs/PROGRESS.md`.
-- At the start of a conversation, read `docs/PROGRESS.md` and do the "Next up" item. Read only the spec docs that item needs.
-- Before opening the PR, update `docs/PROGRESS.md`: tick the checklist, add a short log entry, and set "Next up". Add a player-facing entry at the top of `src/core/changelog.js`; it is the version bump (`0.<phase>.<n>`, see the file's header).
+- At the start of a conversation, read `docs/PROGRESS.md` and `docs/CONVENTIONS.md`, then do the "Next up" item. Read only the spec docs that item needs.
+- Archives are for searching, not reading whole: `docs/PROGRESS-LOG.md` (older PR log entries) and `docs/OPEN-QUESTIONS-RESOLVED.md` (decisions; code cites them as OPEN-QUESTIONS "Name"). `docs/OPEN-QUESTIONS.md` holds only open questions.
+- Tests: `npm run test:fast` while working (skips the ~2 min floor proofs); full `npm test` before the PR, and whenever floors, the solver or turn rules change. CI (`.github/workflows/test.yml`) runs the full suite on every PR.
+- Before opening the PR, update `docs/PROGRESS.md`: tick the checklist, add a short log entry (move the oldest of its 3 entries to the top of `docs/PROGRESS-LOG.md`), and set "Next up". New seams go in `docs/CONVENTIONS.md`. Add a player-facing entry at the top of `src/core/changelog.js`; it is the version bump (`0.<phase>.<n>`, see the file's header), and `sw.js` `VERSION` must match it.
 - Write code so later phases extend it rather than rewrite it: data-driven tables, pure functions over plain data, small modules with clear seams.

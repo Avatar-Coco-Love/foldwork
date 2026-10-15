@@ -6,7 +6,8 @@
   "type": "module",
   "scripts": {
     "start": "node dev-server.js",
-    "test": "node tests/run.js"
+    "test": "node tests/run.js",
+    "test:fast": "node tests/run.js --fast"
   },
   "engines": {
     "node": ">=18"

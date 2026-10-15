@@ -68,7 +68,7 @@ The full roadmap, with stages and order, is `08-roadmap.md`.
 - Optional endless mode.
 
 ## Open questions log
-Keep `docs/OPEN-QUESTIONS.md` updated. Current open items:
+Keep `docs/OPEN-QUESTIONS.md` updated (decided ones move to `docs/OPEN-QUESTIONS-RESOLVED.md`). Open items when this plan was written:
 - Relic rarity assignments.
 - Great Crane balance and arena templates.
 - Names and mechanics for the two later spirits.

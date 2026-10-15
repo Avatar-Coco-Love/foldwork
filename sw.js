@@ -16,7 +16,7 @@
 // index.html and src/main.js. `node tools/shell-files.js` prints it;
 // tests/offline.test.js fails when it's out of date.
 
-const VERSION = '0.9.6';
+const VERSION = '0.9.7';
 const CACHE_PREFIX = 'foldwork-';
 const CACHE = CACHE_PREFIX + VERSION;
 

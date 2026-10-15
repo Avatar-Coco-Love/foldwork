@@ -13,6 +13,13 @@
 
 export const CHANGELOG = Object.freeze([
   {
+    version: '0.9.7', date: '2026-10-15', pr: 48,
+    title: 'Behind the scenes',
+    notes: [
+      'No changes to play this time: we tidied how Foldwork is built and tested, so updates can come a little faster.',
+    ],
+  },
+  {
     version: '0.9.6', date: '2026-10-15', pr: 47,
     title: 'Play offline',
     notes: [
