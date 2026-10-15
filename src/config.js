@@ -34,6 +34,14 @@ export const TELEMETRY = Object.freeze({
   endpoint: 'https://script.google.com/macros/s/AKfycbz9Eua5ZSykcj-1NO6uFII-7eTSbeRRQU1WPf-NgNFwtqnGwBtCLnK66LCoPI8IqLq3Ew/exec',
   batchSize: 25, // events per request
   flushMs: 15000, // send at most this long after an event
-  maxQueue: 500, // oldest events are dropped beyond this (offline play)
+  // Queue caps for offline play (9i, tools/queue-size.js): a full run is
+  // about 65 events and 30 KB, so a week of 3 runs a day is about 1,400
+  // events and 640 KB. Over a cap, low-value events go first (telemetry.js
+  // TRIM_TIERS). 1 MB leaves most of the origin's ~5 MB localStorage
+  // (shared with saves, and with other projects on the same github.io
+  // origin) free.
+  maxQueue: 2000,
+  maxBytes: 1000000,
+  maxBackoffMs: 600000, // failed sends retry after 15 s, 30 s, ... up to 10 min
   maxErrors: 20, // error events per session
 });

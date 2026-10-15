@@ -30,6 +30,8 @@
 //                   window.foldworkFrames() for tools/perf-audit.js
 //   ?fps=1          frame meter in the corner (fps, slowest frame, draw
 //                   time): for checking performance on a real device
+//   ?sw=1 / ?nosw=1 offline service worker on localhost (off there by
+//                   default) / off anywhere, removing it (ui/serviceWorker.js)
 
 import { createRenderer } from './render/renderer.js';
 import { HUD_METRICS, sideWidth } from './render/layout.js';
@@ -69,6 +71,7 @@ import { mixLevels } from './audio/sounds.js';
 import { installAppManifest } from './ui/appManifest.js';
 import { createFrameStats } from './render/frameStats.js';
 import { createFpsMeter } from './ui/fpsMeter.js';
+import { setupServiceWorker } from './ui/serviceWorker.js';
 
 const params = Object.fromEntries(new URLSearchParams(location.search));
 const canvas = document.getElementById('board');
@@ -404,8 +407,10 @@ ctx.markWhatsNewSeen = () => {
 };
 
 const backButton = createBackButton();
+let screensShown = 0;
 ctx.router = createRouter(uiRoot, ctx, {
   onGo: (name, p) => {
+    screensShown += 1;
     backButton.screenChanged(name);
     ctx.telemetry.track('screen.view', { name, floor: p.floor ?? null });
   },
@@ -561,3 +566,8 @@ ctx.router.go(startScreen, {
   charges: params.charges != null ? Number(params.charges) : undefined,
   mites: params.mites != null ? Number(params.mites) : undefined,
 });
+
+// Offline play: cache the app shell. A new release waiting from an earlier
+// visit is taken (one reload) only while the first screen, the title, is
+// still showing.
+setupServiceWorker({ params, canReload: () => screensShown === 1 && ctx.router.current === 'title' });

@@ -1,6 +1,6 @@
 // Browser wiring for the telemetry client: transport (fetch / sendBeacon),
-// device context, input-source tracking, error capture and page-exit
-// flushing. The only telemetry module that touches the DOM.
+// online state, device context, input-source tracking, error capture, and
+// flushing on page exit and return. The only telemetry module that touches the DOM.
 
 import { createTelemetry } from './telemetry.js';
 import { APP_VERSION, LOGIC_VERSION, TELEMETRY } from '../config.js';
@@ -31,10 +31,13 @@ export function setupTelemetry({ enabled, override = '' }) {
     logic: LOGIC_VERSION,
     storage: safeStorage(),
     send,
+    online: () => navigator.onLine !== false,
     sink: override === 'console' ? (ev) => console.info('[telemetry]', ev.type, ev) : null,
     batchSize: TELEMETRY.batchSize,
     flushMs: TELEMETRY.flushMs,
     maxQueue: TELEMETRY.maxQueue,
+    maxBytes: TELEMETRY.maxBytes,
+    maxBackoffMs: TELEMETRY.maxBackoffMs,
   });
 
   // Input source of the latest pointer or key press, so an action can be
@@ -61,14 +64,20 @@ export function setupTelemetry({ enabled, override = '' }) {
   }));
 
   // Leaving or backgrounding the page: send what's queued in a way that
-  // survives the page closing.
+  // survives the page closing (never while offline: the client keeps it).
+  // Coming back (visible again, focus, or online, which some browsers miss
+  // after sleep): send what offline play left, within the client's backoff.
   const started = Date.now();
   document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState !== 'hidden') return;
+    if (document.visibilityState !== 'hidden') {
+      telemetry.flush();
+      return;
+    }
     telemetry.track('session.hide', { ms: Date.now() - started });
     telemetry.flush({ beacon: true });
   });
-  window.addEventListener('online', () => telemetry.flush());
+  window.addEventListener('focus', () => telemetry.flush());
+  window.addEventListener('online', () => telemetry.reconnected());
 
   return {
     telemetry,

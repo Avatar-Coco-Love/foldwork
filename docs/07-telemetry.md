@@ -18,20 +18,82 @@ actually behave. The goal is to answer questions we haven't thought of yet
 
 ## Client
 - `src/telemetry/telemetry.js`: envelope, persisted queue (offline play
-  is kept and sent later), batching, retry. No DOM; tested in Node.
-- `src/telemetry/browser.js`: `fetch` / `sendBeacon` transport, device
-  context, input-source tracking, error capture, flush on page hide.
+  is kept and sent later), batching, retry with backoff, the trim policy
+  (`TRIM_TIERS`). No DOM; tested in Node.
+- `src/telemetry/browser.js`: `fetch` / `sendBeacon` transport, online
+  state, device context, input-source tracking, error capture, flush on
+  page hide and on coming back (see "Offline play").
 - `src/telemetry/floorRecorder.js`: the per-floor action log and counters.
 - `src/config.js`: `TELEMETRY.collect` (master switch, **off**: nothing
   is recorded, queued or given an install id, and the "Share play data"
   toggle is hidden; dev overrides below still work), `TELEMETRY.endpoint`
-  (empty = nothing leaves the device), batch size, flush delay, queue cap;
-  `APP_VERSION`, `LOGIC_VERSION`.
+  (empty = nothing leaves the device), batch size, flush delay, queue caps
+  (`maxQueue` events, `maxBytes`), retry backoff cap; `APP_VERSION`,
+  `LOGIC_VERSION`.
 - Adding an event: `ctx.telemetry.track('thing.happened', { ... })`. If
   you later change that event's `data` shape, pass `{ dv: 2 }` so analysis
   can tell the versions apart. Never repurpose an existing field.
 - Bump `LOGIC_VERSION` whenever a rule change would make an old action log
   replay differently. Replays skip logs from another logic version.
+
+## Offline play
+The game opens and plays with no connection, and everything recorded
+meanwhile is sent, oldest first, once the device is back online, without
+the player doing anything (docs/08-roadmap.md, Stage 0; built in 9i).
+
+**App shell.** `sw.js` (registered by `src/ui/serviceWorker.js`) caches
+`index.html`, the CSS and every module on install, in a cache named
+`foldwork-<APP_VERSION>`, and serves same-origin requests from it first
+(opening the game with any URL params gets the cached page). `share.png`,
+`tools/` and `docs/` are never cached; the collector is another origin and
+never touched. A release changes `sw.js` (its `VERSION`, tested against
+`APP_VERSION`), so the browser installs the new shell in the background
+while the old one serves; it takes over once every window has closed, or
+at the next launch while the title is still the first screen (one
+reload), and the older cache is deleted. The file list is hand-written:
+`node tools/shell-files.js` prints what index.html and `src/main.js`
+reach, and `tests/offline.test.js` fails when `SHELL` misses any of it.
+No service worker on localhost (`?sw=1` turns it on there, `?nosw=1` off
+anywhere, removing it).
+
+**Sending.**
+- While `navigator.onLine` is false nothing is sent, the page-hide beacon
+  included (`sendBeacon` reports success when the browser accepts the
+  request, not when it arrives, so an offline beacon lost its events).
+- A failed send keeps the batch and backs off: the next try waits
+  `flushMs` (15 s), then 30 s, 60 s, ... up to `maxBackoffMs` (10 min).
+  Flushes asked for meanwhile (timer, a floor ending, page visible again,
+  window focus, page hide) wait for it. The `online` event resets the
+  backoff and sends at once; becoming visible or focused again sends too,
+  since some browsers miss `online` after sleep.
+- The collector's id dedupe (6 h in the Sheets script) still covers
+  retries; beacons can still be lost if the collector itself fails, which
+  is acceptable for play data.
+
+**Queue size.** `node tools/queue-size.js` plays scripted runs through
+`core/` (each floor's proven line, padded with refused bumps, taken-back
+steps and cancelled previews the way people play) and measures what the
+client queues. Measured (0.9.6): a full won run is about 65 events and
+30 KB (about 470 bytes an event; `floor.end` with its log is the biggest),
+a run lost on floor 3 about 30 events and 12 KB. A week of 3 full runs a
+day is about 1,400 events and 640 KB. Caps: `maxQueue` 2,000 events and
+`maxBytes` 1,000,000 (JSON characters), about a week and a half of heavy
+daily play, using a fifth of the ~5 MB `localStorage` an origin gets
+(shared with saves, and on github.io with the author's other projects).
+If storage is full anyway, the queue trims to half its size and saves
+again.
+
+**Trim policy.** Over a cap, `trimQueue` drops the lowest tier first and
+the oldest within a tier. Tiers are data (`TRIM_TIERS` in
+`src/telemetry/telemetry.js`); a type not listed is tier 2.
+
+| Tier | Events |
+|---|---|
+| 0 (first to go) | `session.hide`, `screen.view`, `hint.dismiss` |
+| 1 | `hint.show`, `hint.ask`, `floor.start`, `floor.rewind`, `floor.takeback`, `relic.offer`, `settings.change`, `share`, `error` |
+| 2 (default) | everything else: `session.start`, `run.start`, `run.resume`, `run.load`, `spirit.pick`, `relic.pick`, `unlock.buy`, `progress.reset` |
+| 3 | `floor.end`, `run.end` |
+| never (`NEVER_TRIM`) | `feedback` (9j) |
 
 ## Wire format
 `POST <endpoint>` with `Content-Type: text/plain` (a CORS "simple request",
@@ -68,7 +130,8 @@ This is the whole contract. It does not grow when the game does.
 3. Store each event as one row: the envelope fields as columns, `data` as
    raw JSON, plus `received` (server time). Never reject unknown `type`s or
    fields.
-4. Make `id` unique; ignore duplicates (the client retries after failures).
+4. Make `id` unique; ignore duplicates (the client retries after failures,
+   and a queue held offline can arrive days late).
 
 `tools/telemetry-collector.js` is a zero-dependency reference
 implementation (NDJSON files, one per day) and the executable spec. In

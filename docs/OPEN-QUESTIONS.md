@@ -46,9 +46,6 @@ Decisions the roadmap needs. None blocks Phase 9 except the first two.
 - **Diagonal shortcuts** (above) must be settled before 9h adds
   templates.
 - **Templates per floor for 1.0:** proposed 3+ on every floor.
-- **Offline: queue size.** How many days of offline play must the queue
-  hold? Proposed: measure a run's events and bytes, then size for about
-  a week of daily play; trim low-value events first, never feedback.
 - **Offline: does feedback follow "Share play data"?** Feedback is
   written on purpose, so it could always send; or one switch covers
   everything that leaves the device.
@@ -68,6 +65,17 @@ Decisions the roadmap needs. None blocks Phase 9 except the first two.
 - **Storage:** move editor levels and replays to IndexedDB?
 
 ## Resolved
+- Offline: queue size (9i, roadmap's proposed default, user's
+  instruction to take it): measured with `tools/queue-size.js` (a full
+  run about 65 events / 30 KB), sized for about a week of daily play at
+  3 runs a day (about 1,400 events / 640 KB) with headroom: `maxQueue`
+  2,000 events and `maxBytes` 1 MB. Over a cap, low-value events go
+  first by the data-driven `TRIM_TIERS` (`session.hide`, `screen.view`,
+  `hint.dismiss` first; `floor.end` and `run.end` last; `feedback` never).
+  Also chosen in 9i without a roadmap question: no service worker on
+  localhost unless `?sw=1`; a waiting update is taken at the next launch
+  (one reload while the title is the first screen), not mid-session;
+  failed sends back off 15 s doubling to 10 min, reset by `online`.
 - Great Crane stacking (9d, playtest; user's choice of the recommended
   pair): letting its folds land piled the arena up to the stack limit (3),
   after which most of the player's folds overflowed (about half refused
