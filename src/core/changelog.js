@@ -11,6 +11,14 @@
 
 export const CHANGELOG = Object.freeze([
   {
+    version: '0.9.1', date: '2026-10-14', pr: 42,
+    title: 'Sharing play data',
+    notes: [
+      'Foldwork now shares anonymous play data (how floors, folds and hints go, and your device type) to help balance the game. No names, accounts or anything you type.',
+      'Turn it off any time: Settings > Data > Share play data.',
+    ],
+  },
+  {
     version: '0.9.0', date: '2026-10-14', pr: 41,
     title: 'Hints with diagonal creases',
     notes: [

@@ -30,8 +30,8 @@ export const LOGIC_VERSION = 5; // 3: Lockjaw opens its jaws a turn before it bi
  *             device.
  */
 export const TELEMETRY = Object.freeze({
-  collect: false,
-  endpoint: '',
+  collect: true, // on for playtests (OPEN-QUESTIONS "Telemetry consent")
+  endpoint: 'https://script.google.com/macros/s/AKfycbz9Eua5ZSykcj-1NO6uFII-7eTSbeRRQU1WPf-NgNFwtqnGwBtCLnK66LCoPI8IqLq3Ew/exec',
   batchSize: 25, // events per request
   flushMs: 15000, // send at most this long after an event
   maxQueue: 500, // oldest events are dropped beyond this (offline play)

@@ -135,7 +135,7 @@ export const SETTINGS_GROUPS = Object.freeze([
     title: 'Data',
     rows: [
       // Hidden until collection is switched on (config TELEMETRY.collect).
-      { id: 'telemetry', label: 'Share play data', key: 'telemetry', show: (ctx) => !!ctx.telemetryOffered },
+      { id: 'telemetry', label: 'Share play data', key: 'telemetry', note: 'Anonymous: how floors and folds go, and your device type. No names or accounts.', show: (ctx) => !!ctx.telemetryOffered },
       { id: 'save-code', label: 'Save code', note: 'Move your run to another device.', action: 'saveCode' },
       // Every choice back to its default (8g). Asks with a second tap.
       { id: 'restore-settings', label: 'Restore default settings', note: 'Display, gameplay and audio. Your runs and progress stay.', action: 'restoreAll' },

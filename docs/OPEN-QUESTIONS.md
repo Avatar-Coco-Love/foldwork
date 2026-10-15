@@ -20,11 +20,9 @@ These belong to later phases and get decided when that phase is built.
 - Great Crane arena layout and charges (7 since 6b; tune in playtests).
 - Names and mechanics for the two later spirits (post-launch; ideas: Rabbit,
   Koi).
-- Telemetry consent before a public launch: is "on by default, with an
-  off switch and a short notice" right for the target regions, or should it
-  be opt-in (a first-run prompt)? Where is the notice shown? The repo ships
-  with no endpoint, so nothing is sent until this is decided and an
-  endpoint is configured in `src/config.js`.
+- Telemetry consent at launch: keep "on by default" (see Resolved,
+  playtests) or move to opt-in (a first-run prompt) for some regions?
+  Revisit with the move from Sheets to a database.
 
 - Diagonal creases shortcut many floors (Phase 9 balance). With the
   Frog (or Diagonal Crease), `f5-press` takes 3 turns instead of 10,
@@ -43,6 +41,10 @@ These belong to later phases and get decided when that phase is built.
   file would load `share.png`, which the game must not).
 
 ## Resolved
+- Telemetry consent for playtests (9b, user's choice): **on by default**,
+  with the "Share play data" switch (Settings > Data) and a short note
+  under it saying what is sent. Off deletes unsent events. Collection goes
+  to the Google Sheets collector (docs/07). Launch consent stays open.
 - Version and What's new (8f, user's choices). **Version:**
   `0.<phase>.<n>`: the build-plan phase in progress and that phase's
   nth release (one per merged PR); 1.0.0 is the launch. The newest
