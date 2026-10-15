@@ -29,6 +29,74 @@ export const ENVELOPE_VERSION = 1;
 export const INSTALL_KEY = 'foldwork.install';
 export const QUEUE_KEY = 'foldwork.telemetry';
 
+/** A trim tier for events that are never dropped to make room. */
+export const NEVER_TRIM = Infinity;
+
+/**
+ * Which events go first when the queue is over its caps (long offline
+ * stretches): the lowest tier, oldest first. Types not listed are
+ * DEFAULT_TRIM_TIER. NEVER_TRIM events are kept whatever the caps say
+ * (feedback: the player wrote it on purpose).
+ */
+export const TRIM_TIERS = Object.freeze({
+  // Noise: derivable, or only interesting in bulk.
+  'session.hide': 0,
+  'screen.view': 0,
+  'hint.dismiss': 0,
+  // Context around a floor; floor.end carries the floor tag and the log.
+  'hint.show': 1,
+  'hint.ask': 1,
+  'floor.start': 1,
+  'floor.rewind': 1,
+  'floor.takeback': 1,
+  'relic.offer': 1,
+  'settings.change': 1,
+  'share': 1,
+  'error': 1,
+  // The records analysis is built on: replayable floors, run outcomes.
+  'floor.end': 3,
+  'run.end': 3,
+  // Written by the player (9j).
+  'feedback': NEVER_TRIM,
+});
+export const DEFAULT_TRIM_TIER = 2;
+
+/** Trim tier of an event type under `tiers` (TRIM_TIERS shape). */
+export function trimTier(type, tiers = TRIM_TIERS) {
+  return Object.prototype.hasOwnProperty.call(tiers, type) ? tiers[type] : DEFAULT_TRIM_TIER;
+}
+
+/**
+ * The queue cut down to at most `maxCount` events and `maxBytes` (sum of
+ * `sizeOf(event)`), dropping the lowest trim tier first and, within a tier,
+ * the oldest. NEVER_TRIM events always stay, so the result can still be
+ * over the caps when they alone are. Order is kept. Pure.
+ */
+export function trimQueue(queue, { maxCount = Infinity, maxBytes = Infinity, tiers = TRIM_TIERS, sizeOf = eventBytes } = {}) {
+  let count = queue.length;
+  let bytes = maxBytes === Infinity ? 0 : queue.reduce((n, e) => n + sizeOf(e), 0);
+  const over = () => count > maxCount || bytes > maxBytes;
+  if (!over()) return queue;
+  // Drop candidates: lowest tier first, then oldest (queue order).
+  const order = queue
+    .map((e, i) => ({ i, tier: trimTier(e.type, tiers) }))
+    .filter((c) => c.tier !== NEVER_TRIM)
+    .sort((a, b) => a.tier - b.tier || a.i - b.i);
+  const drop = new Set();
+  for (const c of order) {
+    if (!over()) break;
+    drop.add(c.i);
+    count -= 1;
+    if (maxBytes !== Infinity) bytes -= sizeOf(queue[c.i]);
+  }
+  return queue.filter((_, i) => !drop.has(i));
+}
+
+/** An event's size as stored (JSON characters; one per byte for ASCII). */
+export function eventBytes(ev) {
+  return JSON.stringify(ev).length;
+}
+
 /**
  * opts:
  *   endpoint    collector URL ('' = keep events local only)
@@ -38,15 +106,22 @@ export const QUEUE_KEY = 'foldwork.telemetry';
  *   send(url, body, { beacon }) → Promise<boolean>  transport
  *   sink(envelope)  optional: called for every event (dev console log)
  *   now(), newId(prefix)  clock and id source
+ *   online()    false while the device is known to be offline: nothing is
+ *               sent (the queue waits for the next flush)
  *   setTimer(fn, ms) / clearTimer(handle)
- *   batchSize, flushMs, maxQueue
+ *   batchSize, flushMs
+ *   maxQueue, maxBytes   queue caps; over them, trimQueue() by `trimTiers`
+ *   maxBackoffMs  after failed sends, retries wait flushMs, then twice
+ *               that, and so on up to this
  */
 export function createTelemetry(opts) {
   const {
     endpoint = '', app = '', logic = 0, storage = null, send = null, sink = null,
     now = () => Date.now(), newId = defaultId,
+    online = () => true,
     setTimer = (fn, ms) => setTimeout(fn, ms), clearTimer = (h) => clearTimeout(h),
-    batchSize = 25, flushMs = 15000, maxQueue = 500,
+    batchSize = 25, flushMs = 15000, maxQueue = 500, maxBytes = Infinity, maxBackoffMs = 600000,
+    trimTiers = TRIM_TIERS,
   } = opts;
   let enabled = opts.enabled !== false;
   // Disabled clients write nothing: no install id, and any queue left from
@@ -59,14 +134,39 @@ export function createTelemetry(opts) {
   if (!enabled) clearQueue(storage);
   let timer = null;
   let sending = false;
+  // Backoff after failed sends: no send before retryAt.
+  let failures = 0;
+  let retryAt = 0;
+  // Stored size of each queued event, measured once.
+  const sizes = new WeakMap();
+  const sizeOf = (ev) => {
+    let n = sizes.get(ev);
+    if (n === undefined) sizes.set(ev, (n = eventBytes(ev)));
+    return n;
+  };
+  trim(); // a queue saved under larger caps
+
+  function trim(caps = { maxCount: maxQueue, maxBytes }) {
+    queue = trimQueue(queue, { ...caps, tiers: trimTiers, sizeOf });
+  }
 
   function persist() {
+    if (!storage) return;
     try {
-      if (!storage) return;
       if (queue.length) storage.setItem(QUEUE_KEY, JSON.stringify({ v: ENVELOPE_VERSION, queue }));
       else storage.removeItem(QUEUE_KEY);
-    } catch {
-      // Full or blocked storage: keep the queue in memory only.
+    } catch (err) {
+      // Full storage (saves and settings share it): make room by trimming
+      // to half the bytes and try once more. Blocked storage keeps the
+      // queue in memory only, untrimmed.
+      if (!isQuotaError(err)) return;
+      try {
+        const bytes = queue.reduce((n, e) => n + sizeOf(e), 0);
+        trim({ maxCount: maxQueue, maxBytes: Math.floor(Math.min(bytes, maxBytes) / 2) });
+        if (queue.length) storage.setItem(QUEUE_KEY, JSON.stringify({ v: ENVELOPE_VERSION, queue }));
+      } catch {
+        // Still no room.
+      }
     }
   }
 
@@ -75,7 +175,12 @@ export function createTelemetry(opts) {
     timer = setTimer(() => {
       timer = null;
       flush();
-    }, flushMs);
+    }, Math.max(flushMs, retryAt - now()));
+  }
+
+  function failed() {
+    failures += 1;
+    retryAt = now() + Math.min(maxBackoffMs, flushMs * 2 ** (failures - 1));
   }
 
   function track(type, data = {}, { dv = 1 } = {}) {
@@ -96,7 +201,7 @@ export function createTelemetry(opts) {
     };
     if (sink) sink(ev);
     queue.push(ev);
-    if (queue.length > maxQueue) queue.splice(0, queue.length - maxQueue);
+    trim();
     persist();
     if (queue.length >= batchSize) flush();
     else schedule();
@@ -107,13 +212,22 @@ export function createTelemetry(opts) {
    * Send queued events, a batch at a time. `beacon` asks the transport for
    * a send that survives the page closing. Events leave the queue only
    * once the collector accepted them. Resolves to the number sent.
+   *
+   * Nothing is sent while offline (a beacon would be "accepted" and lost)
+   * or while backing off after failed sends; the queue just waits for the
+   * next flush. A beacon is never the retry that finds the endpoint back,
+   * since it can't tell: during backoff it is skipped too.
    */
   async function flush({ beacon = false } = {}) {
     if (timer) {
       clearTimer(timer);
       timer = null;
     }
-    if (!enabled || !endpoint || !send || sending) return 0;
+    if (!enabled || !endpoint || !send || sending || !queue.length) return 0;
+    if (!isOnline() || now() < retryAt) {
+      schedule();
+      return 0;
+    }
     sending = true;
     let sent = 0;
     try {
@@ -126,7 +240,12 @@ export function createTelemetry(opts) {
         } catch {
           ok = false;
         }
-        if (!ok) break; // offline or rejected: keep them for next time
+        if (!ok) {
+          failed(); // offline or rejected: keep them for next time
+          break;
+        }
+        failures = 0;
+        retryAt = 0;
         const ids = new Set(batch.map((e) => e.id));
         queue = queue.filter((e) => !ids.has(e.id));
         sent += batch.length;
@@ -139,9 +258,30 @@ export function createTelemetry(opts) {
     return sent;
   }
 
+  function isOnline() {
+    try {
+      return online() !== false;
+    } catch {
+      return true;
+    }
+  }
+
   return {
     track,
     flush,
+    /**
+     * The connection is back (the browser's `online` event): forget the
+     * backoff and send now.
+     */
+    reconnected() {
+      failures = 0;
+      retryAt = 0;
+      return flush();
+    },
+    /** Time of the next allowed send after failures (0: none pending). */
+    get retryAt() {
+      return retryAt;
+    },
     get install() {
       return install;
     },
@@ -174,6 +314,12 @@ export function createTelemetry(opts) {
       return queue.slice();
     },
   };
+}
+
+/** localStorage's "full" error, across browsers. */
+export function isQuotaError(err) {
+  if (!err) return false;
+  return err.name === 'QuotaExceededError' || err.name === 'NS_ERROR_DOM_QUOTA_REACHED' || err.code === 22 || err.code === 1014;
 }
 
 function loadInstall(storage, newId) {

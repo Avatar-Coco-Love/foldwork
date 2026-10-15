@@ -6,14 +6,17 @@ and add a player-facing entry at the top of `src/core/changelog.js` (that
 entry is the version bump: `0.<phase>.<n>`, see its header).
 
 ## Next up
-**9g: diagonal shortcuts decision** (OPEN-QUESTIONS "Diagonal creases
-shortcut many floors"), then 9h templates and 9i offline play
-(docs/08-roadmap.md, Stage 0). Ask the user for the diagonal choice
-first; if they'd rather wait, do 9i, which doesn't depend on it.
-Still waiting on the user: playtest data for 9c (export the Sheet as CSV,
-run `node tools/replay-check.js events.csv`), Great Crane notes (9d), and
-the 9f device checks (`?fps=1` on a phone and a tablet, home-screen
-install).
+**9j: Send Feedback / Report a Bug** (docs/08-roadmap.md, Stage 0): the
+same collector and the offline queue (a `feedback` event; it is already
+`NEVER_TRIM` in `telemetry/telemetry.js` TRIM_TIERS), with a privacy note
+for free text. Ask first (OPEN-QUESTIONS "Offline: does feedback follow
+'Share play data'?").
+Still waiting on the user: the 9g diagonal decision (before 9h
+templates), playtest data for 9c (export the Sheet as CSV, run
+`node tools/replay-check.js events.csv`), Great Crane notes (9d), the 9f
+device checks (`?fps=1` on a phone and a tablet, home-screen install), and
+now an offline check on a real device (open once online, then airplane
+mode, open from the home screen, play, go back online).
 
 ## Phase checklist
 Larger phases are split into PR-sized chunks so each conversation stays small.
@@ -96,9 +99,9 @@ Larger phases are split into PR-sized chunks so each conversation stays small.
     a requirement (PR 46)
   - [ ] 9g Diagonal shortcuts decision (before more templates)
   - [ ] 9h Template depth: 3+ per floor, F7 first
-  - [ ] 9i Offline play: service worker for the app shell; queued play
+  - [x] 9i Offline play: service worker for the app shell; queued play
     data sent once back online (no beacon while offline, larger queue,
-    trim low-value events first, flush on focus)
+    trim low-value events first, flush on focus) (PR 47)
   - [ ] 9j Send Feedback / Report a Bug (same collector and offline
     queue, privacy note)
   - [ ] 9k 1.0 checklist, then launch
@@ -1456,3 +1459,42 @@ Larger phases are split into PR-sized chunks so each conversation stays small.
   offline, `maxQueue` 500 drops the oldest.
 - Phase 9 chunks 9g–9k added. OPEN-QUESTIONS "Roadmap" lists the
   decisions it needs. Build plan and overview point to the roadmap.
+
+### PR 47: Phase 9i, offline play
+- `sw.js` (root, classic script): caches the app shell on install
+  (`cache: 'reload'`) in `foldwork-<VERSION>`, serves same-origin GETs
+  cache first (navigations to the game with any params get the cached
+  page; `share.png`, `tools/`, `docs/` and other origins pass through),
+  deletes older `foldwork-*` caches on activate, `skipWaiting` only on the
+  page's 'activate' message. `VERSION` must equal `APP_VERSION` (test;
+  changelog header says so).
+- `src/ui/serviceWorker.js`: registration (browser layer only). Off on
+  localhost (and removes a leftover worker) unless `?sw=1`; `?nosw=1`
+  off anywhere. `registration.update()` when the page is visible again;
+  a waiting release is taken at launch only while the title is the first
+  screen (one reload), else when every window has closed.
+- Hand-written `SHELL` list. `tools/shell-files.js` walks index.html and
+  module imports from `src/main.js` (static, re-exports, `import()`,
+  `new URL(..., import.meta.url)` for the hint worker) and prints it;
+  `tests/offline.test.js` checks the list both ways, the version, and runs
+  the worker's install/activate/fetch handlers in a `vm` sandbox.
+- `telemetry/telemetry.js`: `online()` option (nothing sent, beacon
+  included, while offline); backoff after failed sends (`flushMs` doubling
+  to `maxBackoffMs`, 10 min) that every flush respects, reset by
+  `reconnected()` (the `online` event); `trimQueue` with data-driven
+  `TRIM_TIERS` (tier 0 noise first, `floor.end`/`run.end` last, `feedback`
+  `NEVER_TRIM`), caps by count and bytes, applied on track and on load;
+  full storage trims to half and saves again. `browser.js` flushes on
+  visible and on focus.
+- Queue sizing: `tools/queue-size.js` (scripted runs through core/): a
+  full run is about 65 events / 30 KB; caps `maxQueue` 2,000 and
+  `maxBytes` 1 MB (about a week and a half of 3 runs a day). OPEN-QUESTIONS
+  Resolved records the choice.
+- Verified in headless Chromium with `tools/offline-check.js`: shell
+  cached (71 files), offline with the dev server stopped the title starts
+  and floor 1 plays (moves and a fold, floor.end queued), nothing sent
+  while offline, back online all 13 queued events reach the local
+  collector with no duplicates; plain localhost has no worker.
+- Not done: collector-side dedupe beyond the Sheets script's 6 h (the
+  roadmap's beacon note); a real-device offline check (Next up).
+- Changelog 0.9.6.

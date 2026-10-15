@@ -1,6 +1,9 @@
 import assert from 'node:assert/strict';
 import { test } from './harness.js';
-import { createTelemetry, ENVELOPE_VERSION, INSTALL_KEY, QUEUE_KEY } from '../src/telemetry/telemetry.js';
+import {
+  createTelemetry, ENVELOPE_VERSION, INSTALL_KEY, QUEUE_KEY, trimQueue, trimTier, eventBytes,
+  NEVER_TRIM, DEFAULT_TRIM_TIER,
+} from '../src/telemetry/telemetry.js';
 import { createFloorRecorder } from '../src/telemetry/floorRecorder.js';
 import { acceptBatch } from '../tools/telemetry-collector.js';
 import { checkFloorEnd } from '../tools/replay-check.js';
@@ -47,7 +50,7 @@ function rig({ ok = true, ...opts } = {}) {
     batchSize: 3,
     ...opts,
   });
-  return { tel, sent, timers, storage };
+  return { tel, sent, timers, storage, advance: (ms) => { t += ms; }, time: () => t };
 }
 
 test('telemetry: envelope fields are stamped on every event', () => {
@@ -91,7 +94,7 @@ test('telemetry: batches flush at batchSize; sent events leave the queue', async
 
 test('telemetry: a failed send keeps events (persisted) for the next flush', async () => {
   let up = false;
-  const { tel, sent, storage, timers } = rig({ ok: () => up });
+  const { tel, sent, storage, timers, advance } = rig({ ok: () => up });
   tel.track('a');
   assert.equal(timers.length, 1); // a flush is scheduled
   assert.equal(await tel.flush(), 0);
@@ -101,17 +104,136 @@ test('telemetry: a failed send keeps events (persisted) for the next flush', asy
   const again = rig({ storage, ok: true });
   assert.equal(again.tel.queue.length, 1);
   up = true;
+  advance(15000); // past the first backoff
   assert.equal(await tel.flush({ beacon: true }), 1);
   assert.equal(sent.at(-1).beacon, true);
   assert.equal(storage.getItem(QUEUE_KEY), null);
 });
 
-test('telemetry: no endpoint keeps events local; maxQueue drops the oldest', async () => {
+test('telemetry: no endpoint keeps events local; maxQueue drops the oldest of a tier', async () => {
   const { tel, sent } = rig({ endpoint: '', maxQueue: 4, batchSize: 100 });
   for (let i = 0; i < 6; i++) tel.track(`e${i}`);
   assert.equal(await tel.flush(), 0);
   assert.equal(sent.length, 0);
   assert.deepEqual(tel.queue.map((e) => e.type), ['e2', 'e3', 'e4', 'e5']);
+});
+
+test('telemetry: trimming drops low-value events before floor.end and run.end, never feedback', () => {
+  const ev = (type, i) => ({ id: `e${i}`, type });
+  const queue = ['feedback', 'floor.end', 'session.hide', 'run.start', 'screen.view', 'run.end', 'floor.start', 'session.hide']
+    .map(ev);
+  const keep = (max) => trimQueue(queue, { maxCount: max }).map((e) => e.type);
+  assert.equal(trimQueue(queue, { maxCount: 8 }), queue); // under the cap: untouched
+  // Tier 0 (session.hide, screen.view) goes first, oldest first; order kept.
+  assert.deepEqual(keep(7), ['feedback', 'floor.end', 'run.start', 'screen.view', 'run.end', 'floor.start', 'session.hide']);
+  assert.deepEqual(keep(5), ['feedback', 'floor.end', 'run.start', 'run.end', 'floor.start']);
+  // Then floor.start (tier 1), then unlisted types (run.start), then the records.
+  assert.deepEqual(keep(3), ['feedback', 'floor.end', 'run.end']);
+  assert.deepEqual(keep(2), ['feedback', 'run.end']);
+  // Feedback stays even when it alone is over the cap.
+  assert.deepEqual(keep(0), ['feedback']);
+  assert.equal(trimTier('feedback'), NEVER_TRIM);
+  assert.equal(trimTier('something.new'), DEFAULT_TRIM_TIER);
+  assert.ok(trimTier('session.hide') < trimTier('floor.start'));
+  assert.ok(trimTier('floor.start') < DEFAULT_TRIM_TIER && DEFAULT_TRIM_TIER < trimTier('floor.end'));
+  assert.equal(trimTier('run.end'), trimTier('floor.end'));
+});
+
+test('telemetry: the trim policy is data: a custom table and a byte cap', () => {
+  const queue = [
+    { id: 'a', type: 'chatty', pad: 'x'.repeat(100) },
+    { id: 'b', type: 'note', pad: 'x'.repeat(100) },
+    { id: 'c', type: 'chatty', pad: 'x'.repeat(10) },
+  ];
+  const tiers = { chatty: 0, note: NEVER_TRIM };
+  const total = queue.reduce((n, e) => n + eventBytes(e), 0);
+  assert.deepEqual(trimQueue(queue, { maxBytes: total, tiers }).map((e) => e.id), ['a', 'b', 'c']);
+  assert.deepEqual(trimQueue(queue, { maxBytes: total - 1, tiers }).map((e) => e.id), ['b', 'c']);
+  assert.deepEqual(trimQueue(queue, { maxBytes: 1, tiers }).map((e) => e.id), ['b']);
+  // The client applies the same table and caps as events arrive.
+  const { tel } = rig({ endpoint: '', maxQueue: 2, batchSize: 100, trimTiers: tiers });
+  tel.track('note');
+  tel.track('chatty');
+  tel.track('chatty');
+  tel.track('note');
+  assert.deepEqual(tel.queue.map((e) => e.type), ['note', 'note']);
+});
+
+test('telemetry: a reload trims a queue saved under larger caps', () => {
+  const storage = memoryStorage();
+  const big = rig({ storage, endpoint: '', batchSize: 100 }).tel;
+  for (const type of ['screen.view', 'floor.end', 'session.hide', 'run.end']) big.track(type);
+  const small = rig({ storage, endpoint: '', batchSize: 100, maxQueue: 2 }).tel;
+  assert.deepEqual(small.queue.map((e) => e.type), ['floor.end', 'run.end']);
+});
+
+test('telemetry: offline, nothing is sent (no beacon either); events wait', async () => {
+  let online = false;
+  const { tel, sent } = rig({ online: () => online, batchSize: 100 });
+  tel.track('a');
+  tel.track('session.hide');
+  assert.equal(await tel.flush({ beacon: true }), 0);
+  assert.equal(await tel.flush(), 0);
+  assert.equal(sent.length, 0);
+  assert.equal(tel.queue.length, 2);
+  online = true;
+  assert.equal(await tel.reconnected(), 2);
+  assert.equal(sent.length, 1);
+  assert.equal(sent[0].beacon, false);
+  assert.equal(tel.queue.length, 0);
+});
+
+test('telemetry: failed sends back off (doubling, capped); reconnecting resets it', async () => {
+  let up = false;
+  const { tel, sent, advance, time } = rig({ ok: () => up, batchSize: 100, flushMs: 1000, maxBackoffMs: 4000 });
+  tel.track('a');
+  const waits = [];
+  for (let i = 0; i < 4; i++) {
+    const t0 = time();
+    assert.equal(await tel.flush(), 0);
+    waits.push(Math.round((tel.retryAt - t0) / 100) * 100); // the fake clock ticks per call
+    // Focus / visible flushes (and the page-hide beacon) inside the wait
+    // don't hit the endpoint.
+    assert.equal(await tel.flush(), 0);
+    assert.equal(await tel.flush({ beacon: true }), 0);
+    assert.equal(sent.length, i + 1);
+    advance(tel.retryAt - time());
+  }
+  assert.deepEqual(waits, [1000, 2000, 4000, 4000]);
+  // Reconnecting (the `online` event) forgets the backoff and sends at once.
+  up = true;
+  tel.track('b');
+  assert.equal(await tel.reconnected(), 2);
+  assert.equal(tel.retryAt, 0);
+  assert.equal(tel.queue.length, 0);
+});
+
+test('telemetry: full storage trims the queue to make room instead of losing it all', () => {
+  const store = memoryStorage();
+  let limit = Infinity;
+  const storage = {
+    ...store,
+    setItem: (k, v) => {
+      if (String(v).length > limit) throw Object.assign(new Error('full'), { name: 'QuotaExceededError' });
+      store.setItem(k, v);
+    },
+  };
+  const { tel } = rig({ storage, endpoint: '', batchSize: 100 });
+  for (let i = 0; i < 10; i++) tel.track('floor.end', { i });
+  tel.track('session.hide');
+  limit = store.getItem(QUEUE_KEY).length; // the next write won't fit
+  tel.track('floor.end', { i: 10 });
+  const saved = JSON.parse(store.getItem(QUEUE_KEY)).queue;
+  assert.ok(saved.length > 0 && saved.length < 12);
+  assert.ok(!saved.some((e) => e.type === 'session.hide')); // the low-value one went first
+  assert.equal(saved.at(-1).data.i, 10);
+});
+
+test('telemetry: blocked storage (not full) never trims the in-memory queue', () => {
+  const storage = { getItem: () => null, setItem: () => { throw new Error('SecurityError'); }, removeItem: () => {} };
+  const { tel } = rig({ storage, endpoint: '', batchSize: 100 });
+  for (let i = 0; i < 10; i++) tel.track('floor.end', { i });
+  assert.equal(tel.queue.length, 10);
 });
 
 test('telemetry: opting out clears the queue and records nothing', () => {

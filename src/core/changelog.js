@@ -8,8 +8,19 @@
 //
 // An entry: { version, date: 'YYYY-MM-DD', pr, title, notes: [string] }.
 // Notes are for players: short, plain, what changed for them.
+// Also set sw.js VERSION to the new version (it names the offline cache;
+// tests/offline.test.js checks).
 
 export const CHANGELOG = Object.freeze([
+  {
+    version: '0.9.6', date: '2026-10-15', pr: 47,
+    title: 'Play offline',
+    notes: [
+      'Foldwork now opens and plays with no connection, in the browser or from your home screen, once you\'ve opened it online after this update.',
+      'Play data recorded while you\'re offline waits on your device and is sent by itself when you\'re back online. Turning off Settings > Data > Share play data still deletes it.',
+      'Updates download in the background and start the next time you open the game.',
+    ],
+  },
   {
     version: '0.9.5', date: '2026-10-15', pr: 46,
     title: 'The road ahead',

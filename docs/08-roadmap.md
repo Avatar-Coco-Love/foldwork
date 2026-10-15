@@ -52,7 +52,8 @@ Already in place (`src/telemetry/`): the event queue persists in
 the browser's `online` event, on page hide, and on the next launch's first
 event. Saves and meta progress are local.
 
-Gaps to close:
+Gaps to close (all but feedback closed in 9i, 0.9.6: docs/07-telemetry.md
+"Offline play"):
 - **The game can't start offline.** No service worker caches the app
   shell (`index.html`, CSS, JS modules, manifest), so a home-screen
   install opens to a browser error without a connection. Add a service
