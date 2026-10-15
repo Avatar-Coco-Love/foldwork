@@ -26,7 +26,10 @@
 //   ?telemetry=console   log telemetry events (also: off, or a localhost
 //                   collector URL, see tools/telemetry-collector.js)
 //   ?audit=1        expose the board layout as window.foldworkLayout() for
-//                   tools/layout-audit.js
+//                   tools/layout-audit.js, and frame timings as
+//                   window.foldworkFrames() for tools/perf-audit.js
+//   ?fps=1          frame meter in the corner (fps, slowest frame, draw
+//                   time): for checking performance on a real device
 
 import { createRenderer } from './render/renderer.js';
 import { HUD_METRICS, sideWidth } from './render/layout.js';
@@ -64,6 +67,8 @@ import { createAudio } from './audio/sfx.js';
 import { createMusic } from './audio/music.js';
 import { mixLevels } from './audio/sounds.js';
 import { installAppManifest } from './ui/appManifest.js';
+import { createFrameStats } from './render/frameStats.js';
+import { createFpsMeter } from './ui/fpsMeter.js';
 
 const params = Object.fromEntries(new URLSearchParams(location.search));
 const canvas = document.getElementById('board');
@@ -81,6 +86,12 @@ installAppManifest();
 
 const renderer = createRenderer(canvas);
 if (params.audit) window.foldworkLayout = () => renderer.layout;
+if (params.audit || params.fps) {
+  const frameStats = createFrameStats();
+  renderer.setStats(frameStats);
+  window.foldworkFrames = frameStats;
+  if (params.fps) createFpsMeter(frameStats);
+}
 const audio = createAudio();
 const music = createMusic(audio);
 const reducedMotionQuery = window.matchMedia('(prefers-reduced-motion: reduce)');

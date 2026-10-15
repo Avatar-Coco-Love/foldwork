@@ -39,6 +39,8 @@ export function createRenderer(canvas, { paletteId = DEFAULT_PALETTE_ID } = {}) 
     fx: null, // fx player (render/fx.js): foldAnim, actor, shake
     layout: null,
     frameRequested: false,
+    stats: null, // render/frameStats.js, when measuring (?fps=1, ?audit=1)
+    boardCache: createBoardCache(),
   };
 
   function relayout() {
@@ -60,7 +62,13 @@ export function createRenderer(canvas, { paletteId = DEFAULT_PALETTE_ID } = {}) 
 
   function frame() {
     r.frameRequested = false;
+    if (!r.stats) {
+      draw(r);
+      return;
+    }
+    const t0 = performance.now();
     draw(r);
+    r.stats.recordDraw(performance.now() - t0);
   }
 
   const api = {
@@ -91,8 +99,13 @@ export function createRenderer(canvas, { paletteId = DEFAULT_PALETTE_ID } = {}) 
     },
     setScene(scene) {
       r.scene = scene;
+      if (!scene || !scene.board) releaseBoardCache(r.boardCache);
       relayout();
       api.invalidate();
+    },
+    /** Time each draw into a render/frameStats.js recorder (null stops). */
+    setStats(stats) {
+      r.stats = stats;
     },
     /** Attach an fx player; its foldAnim/actor/shake are painted each frame. */
     setFx(fx) {
@@ -126,6 +139,8 @@ export function createRenderer(canvas, { paletteId = DEFAULT_PALETTE_ID } = {}) 
 // ---------------------------------------------------------------------------
 // Draw passes
 
+// Passes 1-2 (the board sheet and its tiles) are painted through the
+// static board cache (drawBoardCached), so draw() runs them from there.
 const PASSES = [drawBackground, drawBoardBase, drawTiles, drawTraps, drawCreaseMarks, drawSightLanes, drawSpawnMarks, drawTelegraph, drawFoldPreview, drawHintStep, drawFoldAnim, drawActor, drawFlash];
 
 function draw(r) {
@@ -137,7 +152,79 @@ function draw(r) {
   const dx = (shake ? shake.x : 0) + (hit ? hit.x : 0);
   const dy = hit ? hit.y : 0;
   if (dx || dy) ctx.translate(dx, dy);
-  for (let i = 1; i < PASSES.length; i++) PASSES[i](r, ctx);
+  drawBoardCached(r, ctx);
+  // Some painters leave round joins and caps set; the passes over the board
+  // drew with whatever the last tile left. Tiles are now drawn into the
+  // board cache, so set that look here, the same on every frame.
+  ctx.lineJoin = 'round';
+  ctx.lineCap = 'round';
+  for (let i = 3; i < PASSES.length; i++) PASSES[i](r, ctx);
+}
+
+// ---------------------------------------------------------------------------
+// Static board cache (9f, docs/05 "offscreen canvases for static layers").
+// The board sheet and its tiles only change when the board, layout,
+// palette, the creature an actor clip lifts off, or the compass do. Drag
+// previews, fold animations, creature clips and shakes redraw every frame
+// over an unchanged board, so the board is painted once into an offscreen
+// canvas and copied in. Boards are never changed in place (core/fold.js
+// clones), so the board object itself says whether it changed.
+
+function createBoardCache() {
+  return { canvas: null, ctx: null, failed: false, board: null, layout: null, palette: null, skip: null, compass: false, w: 0, h: 0, dpr: 0 };
+}
+
+function paintBoard(r, ctx) {
+  drawBoardBase(r, ctx);
+  drawTiles(r, ctx);
+}
+
+/** Free the cache's pixels (no board on screen: menus). */
+function releaseBoardCache(c) {
+  if (c.canvas) c.canvas.width = c.canvas.height = 0;
+  Object.assign(c, { board: null, layout: null, w: 0, h: 0 });
+}
+
+function drawBoardCached(r, ctx) {
+  const c = r.boardCache;
+  if (!r.layout || c.failed) {
+    paintBoard(r, ctx);
+    return;
+  }
+  const anim = r.fx && r.fx.foldAnim;
+  const board = anim ? anim.base : r.scene.board;
+  const skip = skipId(r);
+  const compass = !!r.scene.compass;
+  const w = r.canvas.width;
+  const h = r.canvas.height;
+  if (!c.canvas) {
+    try {
+      c.canvas = document.createElement('canvas');
+      c.ctx = c.canvas.getContext('2d');
+    } catch {
+      c.ctx = null;
+    }
+    if (!c.ctx) {
+      c.failed = true; // no offscreen canvas: paint the board directly
+      paintBoard(r, ctx);
+      return;
+    }
+  }
+  const stale = c.board !== board || c.layout !== r.layout || c.palette !== r.palette
+    || c.skip !== skip || c.compass !== compass || c.w !== w || c.h !== h || c.dpr !== r.dpr;
+  if (stale) {
+    if (c.w !== w || c.h !== h) {
+      c.canvas.width = w;
+      c.canvas.height = h;
+    }
+    const g = c.ctx;
+    g.setTransform(1, 0, 0, 1, 0, 0);
+    g.clearRect(0, 0, w, h);
+    g.setTransform(r.dpr, 0, 0, r.dpr, 0, 0);
+    paintBoard(r, g);
+    Object.assign(c, { board, layout: r.layout, palette: r.palette, skip, compass, w, h, dpr: r.dpr });
+  }
+  ctx.drawImage(c.canvas, 0, 0, r.viewW, r.viewH);
 }
 
 function drawBackground(r, ctx) {
