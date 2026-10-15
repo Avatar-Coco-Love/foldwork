@@ -1,0 +1,17 @@
+# Runs the full test suite (floor proofs included) on every PR and on main.
+# No install step: the game and tests have no dependencies.
+name: test
+on:
+  pull_request:
+  push:
+    branches: [main]
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm test
