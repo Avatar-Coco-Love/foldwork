@@ -59,9 +59,11 @@ export const CREATURE_DEFS = Object.freeze({
   // (it flees) and only folds hurt it (a void drop deals `boss.drop`).
   // From phase `spawn.phase` its folds spawn `spawn.kind` (at most `cap`
   // alive); from phase `double` it marks two creases at once (boss.js).
+  // `sheet`: a hit that starts a new phase lays the arena flat again (the
+  // floor as it began; core/turn.js freshSheet).
   crane: {
     kind: 'crane', name: 'Great Crane', team: 'enemy', hp: 6, ai: 'crane', fixed: true,
-    boss: { phases: 3, drop: 2, bump: 0, spawn: { phase: 2, kind: 'mite', cap: 2 }, double: 3 },
+    boss: { phases: 3, drop: 2, bump: 0, spawn: { phase: 2, kind: 'mite', cap: 2 }, double: 3, sheet: true },
   },
 });
 

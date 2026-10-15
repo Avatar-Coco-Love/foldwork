@@ -6,7 +6,7 @@ import { validateFold, applyFold, AXES } from '../core/fold.js';
 import { cellIndex, topLayer, findCreature, DIRS } from '../core/board.js';
 import { coverEffect, PLAYER_ID, act } from '../core/turn.js';
 import { keyMeetsLock } from '../core/environment.js';
-import { bossMarks, bossIds } from '../core/boss.js';
+import { bossMarks, bossIds, bossFlaps } from '../core/boss.js';
 
 export const CELL = Object.freeze({
   NONE: 0,
@@ -169,15 +169,21 @@ export function bossForecast(state, action) {
   return null;
 }
 
+/** The tag on a boss flap's crease: fold it from the other side to lift it. */
+export const LIFT_TAG = '↺';
+
 /**
  * Crease marks for the renderer (drawCreaseMarks), from
  * core/foldHistory.js foldsInEffect(): [{ n, line, slot }], where `slot`
- * counts earlier marks on the same line. Folds whose line misses the
- * board are left out. Built once per action, not per frame.
+ * counts earlier marks on the same line. On a boss floor the boss's flaps
+ * still down follow, tagged LIFT_TAG instead of a number (core/boss.js
+ * bossFlaps). Folds whose line misses the board are left out. Built once
+ * per action, not per frame.
  */
 export function buildCreaseMarks(board, folds) {
   const out = [];
-  for (const f of folds) {
+  const flaps = bossFlaps(board, folds.map((f) => f.fold)).map((fold) => ({ fold, n: LIFT_TAG }));
+  for (const f of [...folds, ...flaps]) {
     const line = creaseSegment(board, f.fold);
     if (!line) continue;
     const slot = out.filter((m) => m.axis === f.fold.axis && m.index === f.fold.index).length;
