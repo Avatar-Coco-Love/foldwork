@@ -42,7 +42,9 @@ A giant paper crane that refolds the arena itself. The player must out-fold it.
 - **Phase 1:** single telegraphed folds, no minions.
 - **Phase 2:** spawns Scrap Mites on its fold; its folds carry minions with them. (6b: 1 Mite per fold on the landed strip, at most 2 alive, plus 1 on entering phases 2 and 3; minions ride its strips like any creature.)
 - **Phase 3:** telegraphs two creases at once; the arena shrinks as edges fold under. (6b: both fold in order on the next beat, numbered 1 and 2; at most 1 swat damage per beat; the shrinking comes from the strips themselves.)
-- **[OPEN]** Exact balance and arena templates; to be tuned in playtests (arena: 7 fold charges since 6b).
+- **Lifting its flaps** (9d): each crease it folded that is still down shows a ↺ tag; folding that line from the other side lifts its flap back (the general flap-lifting rule), so its folds never have to pile the arena up.
+- **Fresh sheet** (9d): each hit that starts a new phase lays the arena flat again, as it began; creatures stay on their tiles (or the nearest open one).
+- **[OPEN]** Further balance and arena templates; to be tuned in playtests (arena: 7 fold charges since 6b).
 
 ## Spirits (starting characters)
 | Spirit | HP | Perk |

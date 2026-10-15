@@ -8,7 +8,8 @@
 //   'event:<type>'     after an action whose events include <type>
 //                      (core/turn.js event list); `who` narrows it to the
 //                      player ('player') or anyone else ('other') by the
-//                      event's id, and `match` (plain fields) to events
+//                      event's id (a boss fold's `by`; the player's own
+//                      fold has neither, so it is the player's), and `match` (plain fields) to events
 //                      whose fields equal those values
 //   'refuse:<reason>'  when an action is refused for <reason>
 // Order in HINTS is the order How to Play lists them in.
@@ -107,6 +108,17 @@ export const HINTS = Object.freeze({
     text: 'The Crane\'s fold landed on you: 1 damage, and you were knocked to the nearest open tile. Step off the hatched tiles before it folds, or fold first to change what its crease will move.',
     on: 'event:swat',
   },
+  'crane-lift': {
+    title: 'Lift its flap',
+    text: 'You can undo the Crane\'s fold: fold along its crease (the line tagged ↺) from the other side, and its flap lifts back off. It costs a charge, and leaves the floor flatter so your own folds fit.',
+    on: 'event:fold',
+    who: 'other',
+  },
+  'crane-sheet': {
+    title: 'A fresh sheet',
+    text: 'Each time a void drop tears the Crane into a new phase, the floor unfolds flat again, as it was when the fight began. Everyone stays on their tile, or the nearest open one.',
+    on: 'event:sheet',
+  },
   'crane-minions': {
     title: 'Paper minions',
     text: 'Hurt, the Crane calls Scrap Mites: one now, and one with each fold it makes, up to two at a time. Mites standing on a strip it folds ride along with it.',
@@ -146,7 +158,7 @@ function matches(def, trigger, playerId) {
   if (kind === 'start') return trigger.type === 'start';
   if (kind === 'refuse') return trigger.type === 'refuse' && trigger.reason === arg;
   if (kind !== 'event' || trigger.type !== 'events') return false;
-  return trigger.events.some((ev) => ev.type === arg && whoMatches(def.who, ev.id, playerId) && fieldsMatch(def.match, ev));
+  return trigger.events.some((ev) => ev.type === arg && whoMatches(def.who, ev.id ?? ev.by ?? playerId, playerId) && fieldsMatch(def.match, ev));
 }
 
 function fieldsMatch(match, ev) {

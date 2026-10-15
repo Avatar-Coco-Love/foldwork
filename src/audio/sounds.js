@@ -121,7 +121,8 @@ export function soundLength(id) {
 export function soundForEvent(ev) {
   switch (ev.type) {
     case 'fold': return 'fold';
-    case 'unfold': return 'unfold';
+    case 'unfold':
+    case 'sheet': return 'unfold';
     case 'bump':
     case 'swat': return 'bump';
     case 'damage': return 'hit';

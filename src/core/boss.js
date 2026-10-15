@@ -43,7 +43,7 @@
 // Creature field (a primitive, so cloneBoard and the solver's stateKey
 // handle it): `mark` (the marked creases as a code, see marksCode, or null).
 
-import { AXES, SIDES, validateFold, mirrorCell, applyFold } from './fold.js';
+import { AXES, SIDES, validateFold, mirrorCell, applyFold, hingeKey } from './fold.js';
 import { inBounds, isFooting, topLayer, findCreature } from './board.js';
 import { creatureDef, CREATURE_DEFS } from './creatures.js';
 
@@ -101,6 +101,21 @@ export function bossMarks(board) {
     folds.forEach((fold, k) => out.push({ id: c.id, at: { col, row: (i - col) / board.w }, fold, n: k + 1, of: folds.length }));
   }
   return out;
+}
+
+/**
+ * The boss's flaps still down, for the board's lift tags (the player can
+ * fold each crease from the other side to lift it back, core/fold.js):
+ * every crease some layer remembers (layer.hinge) that isn't one of the
+ * player's `own` folds still in effect, in a fixed order. [] when no boss
+ * is on the board.
+ */
+export function bossFlaps(board, own = []) {
+  if (!bossIds(board).length) return [];
+  const mine = new Set(own.map(hingeKey));
+  const keys = new Set();
+  for (const cell of board.cells) for (const l of cell.layers) if (l.hinge && !mine.has(l.hinge)) keys.add(l.hinge);
+  return [...keys].sort().map(markFold).filter(Boolean);
 }
 
 /** Ids of every boss on the board, pinned or not. */

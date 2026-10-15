@@ -1,7 +1,8 @@
 // In-floor HUD. Two regions, placed by CSS: in portrait the status bar sits
 // above the board and the action bar below; in landscape both stack in the
-// side panel. The relic tray (Phase 4a) lists the run's relics after the
-// meters; Phase 4b adds the offers screen where they are chosen.
+// side panel. The relic tray (Phase 4a) lists the run's relics on the line
+// under the meters (in portrait it gives way to the fold text while that
+// shows); Phase 4b adds the offers screen where they are chosen.
 //
 // Meters use shape as well as color: a filled heart / charge is one left, a
 // hollow outline is one spent. Each meter also has a text label for screen
@@ -98,8 +99,8 @@ export function createHud(root, {
       hp.node,
       charges.node,
       keys.node,
-      relics.node,
     ),
+    relics.node,
     message,
   );
   const undoBtn = el('button', {
@@ -187,6 +188,8 @@ export function createHud(root, {
     const shown = foldText || note;
     message.textContent = shown ? shown.text : '';
     message.toggleAttribute('data-invalid', !!shown && shown.invalid);
+    // Portrait: the relic row and this text share the bar's second line.
+    status.toggleAttribute('data-message', !!shown);
   }
 
   return {

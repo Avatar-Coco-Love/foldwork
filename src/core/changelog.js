@@ -11,6 +11,15 @@
 
 export const CHANGELOG = Object.freeze([
   {
+    version: '0.9.4', date: '2026-10-15', pr: 45,
+    title: 'Out-folding the Crane',
+    notes: [
+      'The Great Crane\'s folds can be lifted: each of its creases still folded shows a ↺ tag. Fold along it from the other side to lift its flap back off, so the floor doesn\'t pile up until your folds no longer fit.',
+      'Each time a void drop tears the Crane into a new phase, the floor unfolds flat again.',
+      'Your relics now sit on their own line under your hearts and folds, instead of running off the right edge on phones.',
+    ],
+  },
+  {
     version: '0.9.3', date: '2026-10-15', pr: 44,
     title: 'Smoother folds',
     notes: [

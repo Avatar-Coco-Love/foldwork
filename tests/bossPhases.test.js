@@ -93,9 +93,9 @@ test('entering phase 2: a Mite next to where it fled, idle until next turn', () 
   rows[0] = '. . . o . . .';
   // Row 0 lands on row 3: the void drops the Crane 6 -> 4.
   const r = act(arena(rows), { type: 'fold', fold: { axis: 'h', index: 2, side: 'before' } });
-  assert.deepEqual(types(r).slice(0, 5), ['fold', 'fall', 'damage', 'flee', 'spawn']);
+  assert.deepEqual(types(r).slice(0, 6), ['fold', 'fall', 'damage', 'sheet', 'flee', 'spawn']);
   const c = crane(r.state);
-  const spawn = r.events[4];
+  const spawn = r.events[5];
   assert.equal(Math.abs(spawn.at.col - c.col) + Math.abs(spawn.at.row - c.row), 1, 'next to the Crane');
   assert.equal(spawn.creature.id, `${CRANE}-m0-p`);
   assert.ok(!r.events.some((e) => e.id === spawn.creature.id && e.type !== 'spawn'), 'it does not act this turn');

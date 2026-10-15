@@ -17,7 +17,8 @@ These belong to later phases and get decided when that phase is built.
 - Telemetry start: collection is off (`TELEMETRY.collect: false`) until the
   first playtests have been watched; then deploy the Sheets collector and
   switch it on (docs/07).
-- Great Crane arena layout and charges (7 since 6b; tune in playtests).
+- Great Crane arena layout and charges (7 since 6b; fresh sheet and lift
+  tags since 9d, see Resolved; tune further in playtests).
 - Names and mechanics for the two later spirits (post-launch; ideas: Rabbit,
   Koi).
 - Telemetry consent at launch: keep "on by default" (see Resolved,
@@ -41,6 +42,27 @@ These belong to later phases and get decided when that phase is built.
   file would load `share.png`, which the game must not).
 
 ## Resolved
+- Great Crane stacking (9d, playtest; user's choice of the recommended
+  pair): letting its folds land piled the arena up to the stack limit (3),
+  after which most of the player's folds overflowed (about half refused
+  after its first fold, 60% after its fourth; a damaging fold existed in
+  ~2% of positions). Options weighed: raise the arena's stack limit, its
+  strips vanish instead of stacking, free Pocket Fold, covering it hurts,
+  it lifts its own oldest flap, slower folds, a guaranteed Thick Paper.
+  Chosen:
+  - **Lift tags:** lifting a flap (playtest round 2) already undoes its
+    folds; now each of its creases still down is drawn with a **↺** tag
+    (core/boss.js bossFlaps: hinges on the board that aren't the player's
+    folds in effect), with a hint after its first fold (`crane-lift`).
+    Lifting costs a charge as usual.
+  - **Fresh sheet** (def `boss.sheet`): a void drop that takes it into a
+    new phase lays the arena flat (the floor as it began, `state.sheet`)
+    once that fold has landed. Every creature, pinned ones too, stands on
+    its own cell, or the nearest free footing when that is a void or
+    taken (player first). Crease Traps are cleared. Then it flees and
+    calls its phase-entry Mite (`sheet` event, hint `crane-sheet`).
+  - Stack limit stays 3; charges stay 7. New stored line (solver, ~100 s):
+    4 folds, 7 turns, no hit taken.
 - Telemetry consent for playtests (9b, user's choice): **on by default**,
   with the "Share play data" switch (Settings > Data) and a short note
   under it saying what is sent. Off deletes unsent events. Collection goes

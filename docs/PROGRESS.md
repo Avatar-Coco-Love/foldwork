@@ -10,7 +10,8 @@ entry is the version bump: `0.<phase>.<n>`, see its header).
 Once playtests have filled the Sheet, export it as CSV and run
 `node tools/replay-check.js events.csv` to start 9c balance (fold charges,
 enemy stats, scrap rates, relic weights, diagonal shortcuts). Without data
-yet, do 9d (Great Crane balance and arena templates). Device checks from
+yet, playtest the Great Crane again (9d, PR 45: lift tags and fresh
+sheet) and bring its notes. Device checks from
 9f wait on the user: open the game with `?fps=1` on a phone and a tablet,
 and install it to a home screen (PR 43); their notes get fix PRs.
 
@@ -86,7 +87,8 @@ Larger phases are split into PR-sized chunks so each conversation stays small.
     (PR 41)
   - [x] 9b Telemetry live: Google Sheets collector, collection on (PR 42)
   - [ ] 9c Balance from telemetry (`tools/replay-check.js`)
-  - [ ] 9d Great Crane balance and arena templates
+  - [x] 9d Great Crane: lift tags, fresh sheet each phase, relic row
+    under the meters (PR 45; more arena templates wait on playtests)
   - [x] 9e Home-screen manifest (icons drawn in code) (PR 43)
   - [x] 9f Performance and cross-device pass (PR 44; real-device check
     open, see Next up)
@@ -1409,3 +1411,22 @@ Larger phases are split into PR-sized chunks so each conversation stays small.
   exposes `window.foldworkFrames` for the perf audit.
 - Not done here: a real phone/tablet run (needs the user's devices).
 - Changelog 0.9.3.
+
+### PR 45: Phase 9d, Great Crane lift tags and fresh sheet; relic row
+- Playtest: letting the Crane fold piled the arena to the stack limit, so
+  most player folds overflowed. User's choice (OPEN-QUESTIONS "Great Crane
+  stacking"): teach lifting its flaps, and lay the arena flat on each new
+  phase. Stack limit and charges unchanged.
+- `core/boss.js` `bossFlaps`; `render/preview.js` `buildCreaseMarks` adds
+  its flaps with a `LIFT_TAG` (↺) after the player's numbered marks.
+- `core/turn.js`: `state.sheet` (boss floors with def `boss.sheet`), a
+  phase-entry void drop defers to `freshSheet` at the end of
+  `resolveFold` (board reset, creatures re-placed, traps cleared, then
+  flee and spawn); `sheet` event (unfold sound).
+- Hints `crane-lift` (first Crane fold; `who` now reads a boss fold's
+  `by`, and a player fold counts as the player's) and `crane-sheet`; floor
+  9 tip rewritten. New stored line `u u fh3a d fh3b fv1b fv1b`.
+- HUD (playtest): in portrait the relic chips sit on the status bar's
+  second line instead of being squeezed off the right edge beside 8
+  charges; the fold text takes that line while it shows. Layout audit
+  clean on the floor screens (176/176).

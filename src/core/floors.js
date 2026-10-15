@@ -512,14 +512,16 @@ export const FLOOR_TEMPLATES = Object.freeze([
   // point of damage is a void dropped on it (2 each, 3 drops). The voids
   // sit at the corners and on the edges, off the centre lines, so its
   // first strip creases carry voids and the player has sheets to aim.
-  // Too big to search (the solver runs out of memory), so the proof is a
-  // stored line, replayed by the tests: let its first crease double the
-  // bottom rows, fold rows 3-4 down (it rides to the bottom row), bump it
-  // into the corner, then flip the void-topped flap back and forth across
-  // the bottom crease (lifting a flap, playtest round 2): each flip drops a
-  // void on it, and it flees into the next one's path. It takes no hit, so
-  // it wins at 1 HP, with 4 of its 7 charges (7 since 6b, when the old
-  // rules needed them all).
+  // A full search is slow (the old rules ran it out of memory), so the
+  // proof is a stored line, replayed by the tests. With the fresh sheet
+  // (9d: each hit into a new phase lays the floor flat) the solver found
+  // it in ~100 s: step up twice while its first crease folds the bottom
+  // row, fold the lower rows up, bump it so it flees, then fold the upper
+  // rows down so its own marked crease drops a void on it (sheet). Two
+  // folds of the left column then drop the corner voids on it where it
+  // fled (sheet, then the kill). It takes no hit, so it wins at 1 HP,
+  // with 4 of its 7 charges (7 since 6b; the spares pay for lifting its
+  // flaps).
   {
     id: 'f9-crane',
     floor: 9,
@@ -533,10 +535,10 @@ export const FLOOR_TEMPLATES = Object.freeze([
       '. . . . . . .',
       'o . o @ o . o',
     ],
-    line: ['u', 'u', 'fh5b', 'd', 'fh6b', 'fh6a', 'fh6b'],
+    line: ['u', 'u', 'fh3a', 'd', 'fh3b', 'fv1b', 'fv1b'],
     needs: ['fold'],
-    tip: 'Bumps only startle the Crane; only a void dropped on it hurts. When it marks a crease you get one action: step out of the marked strip, or fold first to spoil it. To hurt it, fold paper with a void onto it.',
-    hints: ['crane-telegraph', 'crane-swat', 'crane-minions', 'crane-double'],
+    tip: 'Bumps only startle the Crane; only a void dropped on it hurts. When it marks a crease you get one action: step out of the marked strip, or fold first to spoil it. Its folds stack the floor up: fold along a crease tagged ↺ from the other side to lift its flap back. Each hit that starts a new phase lays the floor flat again.',
+    hints: ['crane-telegraph', 'crane-lift', 'crane-swat', 'crane-minions', 'crane-sheet', 'crane-double'],
   },
 ]);
 

@@ -88,6 +88,11 @@
 //                                                once per beat)
 //   { type: 'flee', id, creature, from, to }     a hit or bumped boss flew away
 //                                                (core/boss.js fleeSpot)
+//   { type: 'sheet', id }                        boss `id`, hurt into a new
+//                                                phase, laid the arena flat
+//                                                (def boss.sheet: the floor
+//                                                as it began; creatures
+//                                                stay on their cells)
 //   { type: 'pickup', id, item, at }             the player took an item
 //   { type: 'unlock', at, by }                   by: 'walk' | 'fold' |
 //                                                'master-key'
@@ -118,9 +123,9 @@
 import { DIRS, inBounds, getCell, topLayer, findCreature, cloneBoard, isFooting, cellIndex } from './board.js';
 import { tileDef, itemDef, ITEM } from './tiles.js';
 import { validateFold, applyFold, isDiagonal, isPocket, creaseEdge } from './fold.js';
-import { createCreature, creatureDef, isHeavy } from './creatures.js';
+import { createCreature, creatureDef, isHeavy, CREATURE_DEFS } from './creatures.js';
 import { actingEnemies, reachField, planEnemy, enemiesInReach, spawnSpot } from './enemies.js';
-import { isBoss, marksCode, fleeSpot, spawnsNow, enteredSpawnPhase, minionSpot, minionCount } from './boss.js';
+import { isBoss, marksCode, fleeSpot, spawnsNow, enteredSpawnPhase, minionSpot, minionCount, phaseOf } from './boss.js';
 import { syncGates, tickPlates, isLocked, unlockLayer, keyMeetsLock, spendKey } from './environment.js';
 
 export { DIRS };
@@ -188,6 +193,9 @@ export function createFloorState({
   rewinds = 0,
 } = {}) {
   const next = cloneBoard(board);
+  // A boss that lays the arena flat (def boss.sheet) needs the floor as it
+  // began, before anyone stands on it. Never changed, so copies share it.
+  const sheet = enemies.some((e) => (CREATURE_DEFS[e.kind]?.boss || {}).sheet) ? cloneBoard(board) : null;
   const at = player || defaultStart(next);
   const layer = at && topLayer(next, at.col, at.row);
   if (!layer || !isFooting(layer) || layer.creature) throw new Error('No safe start cell for the player');
@@ -212,6 +220,8 @@ export function createFloorState({
     },
     traps: [],
     prev: null,
+    sheet,
+    pendingSheet: null,
   };
 }
 
@@ -318,6 +328,7 @@ export function resolveFold(s, landings, emit, { swat = null, hurt = true, pinDa
       if (pinDamage > 0 && covered.id !== PLAYER_ID && !isBoss(covered)) hurtPinned(s, lower, at, pinDamage, emit);
     }
   }
+  if (s.pendingSheet) freshSheet(s, emit);
   return swatted;
 }
 
@@ -801,17 +812,57 @@ function flee(s, creature, from, emit) {
 // A boss that falls (a void dropped on it) takes boss.drop damage instead
 // of dying, then flees; at 0 HP it dies and the floor is won.
 function bossDrop(s, creature, at, emit) {
-  const { drop, spawn } = creatureDef(creature.kind).boss;
+  const { drop, spawn, sheet } = creatureDef(creature.kind).boss;
   const before = creature.hp;
   creature.hp = Math.max(0, creature.hp - drop);
   emit({ type: 'damage', id: creature.id, amount: drop, hp: creature.hp, at: { ...at } });
   if (creature.hp > 0) {
+    if (sheet && s.sheet && phaseOf(creature) > phaseOf({ ...creature, hp: before })) {
+      // A new phase: the arena is laid flat once this fold has landed
+      // (freshSheet, from resolveFold); it flees and spawns after that.
+      creature.mark = null;
+      s.pendingSheet = { creature, at: { ...at }, before };
+      return;
+    }
     flee(s, creature, at, emit);
     if (enteredSpawnPhase(creature, before)) bossSpawn(s, creature.id, spawn, null, 'p', emit);
     return;
   }
   emit({ type: 'death', id: creature.id, creature, at: { ...at } });
   win(s, 'boss', emit);
+}
+
+// A fresh sheet (def boss.sheet): the board goes back to the floor as it
+// began (s.sheet), so the stacks and voids the folds piled up are gone.
+// Every creature on the board, pinned ones too, stands on its own cell
+// again, or on the nearest free footing when that cell is a void or taken
+// (player first, then row-major, bottom layer up). Then the hurt boss
+// flees and, entering a spawning phase, calls its minion.
+function freshSheet(s, emit) {
+  const { creature, at, before } = s.pendingSheet;
+  s.pendingSheet = null;
+  if (s.status !== 'playing') return;
+  const placed = [];
+  s.board.cells.forEach((cell, i) => {
+    const col = i % s.board.w;
+    for (const l of cell.layers) {
+      if (!l.creature) continue;
+      const c = { creature: l.creature, at: { col, row: (i - col) / s.board.w } };
+      if (l.creature.id === PLAYER_ID) placed.unshift(c);
+      else placed.push(c);
+    }
+  });
+  s.board = cloneBoard(s.sheet);
+  s.traps = [];
+  for (const p of placed) {
+    const top = topLayer(s.board, p.at.col, p.at.row);
+    const spot = isFooting(top) && !top.creature ? p.at : nearestFreeFooting(s.board, p.at);
+    if (spot) topLayer(s.board, spot.col, spot.row).creature = p.creature;
+  }
+  emit({ type: 'sheet', id: creature.id });
+  flee(s, creature, at, emit);
+  const { spawn } = creatureDef(creature.kind).boss;
+  if (enteredSpawnPhase(creature, before)) bossSpawn(s, creature.id, spawn, null, 'p', emit);
 }
 
 /**
