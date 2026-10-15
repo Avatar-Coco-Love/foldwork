@@ -11,6 +11,14 @@
 
 export const CHANGELOG = Object.freeze([
   {
+    version: '0.9.5', date: '2026-10-15', pr: 46,
+    title: 'The road ahead',
+    notes: [
+      'No changes to play this time: we wrote down where Foldwork goes after launch, including more floor layouts, a level editor, new paper types and new folds.',
+      'Coming soon: Foldwork will open and play with no connection, and send its play data when you\'re back online.',
+    ],
+  },
+  {
     version: '0.9.4', date: '2026-10-15', pr: 45,
     title: 'Out-folding the Crane',
     notes: [
