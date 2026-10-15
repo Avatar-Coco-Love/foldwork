@@ -173,15 +173,17 @@ Larger phases are split into PR-sized chunks so each conversation stays small.
 ### PR 48: Workflow housekeeping (smaller start-up reading, fast tests, CI)
 - Audit: tests green (470), changelog one entry per PR 1-47 with
   versions in order, `sw.js` VERSION matches, checklist matches the log.
-  One stale note fixed: OPEN-QUESTIONS still said telemetry was off (on
-  since PR 42).
+  One stale note: OPEN-QUESTIONS still listed telemetry as off (on since
+  PR 42); it moved to the resolved file as settled, not deleted.
 - Context: this file keeps Next up, the checklist and the last 3 log
   entries (93 KB to about 11 KB). Older entries moved, newest first, to
   `docs/PROGRESS-LOG.md`; "Conventions worth remembering" (was buried
   between PR 19 and PR 20) is now `docs/CONVENTIONS.md`, read at every
   start. Resolved questions moved to `docs/OPEN-QUESTIONS-RESOLVED.md`
   (43 KB to about 3 KB of open ones); OPEN-QUESTIONS "Name" citations
-  in code now mean either file. Content moved unchanged.
+  in code now mean either file. Content moved unchanged (checked line
+  by line; only rewritten headers differ). CLAUDE.md: archive, never
+  delete.
 - Tests: `npm run test:fast` (`tests/run.js --fast`) skips
   `floors.test.js` (122 s of the 143 s run), about 17 s; full `npm test`
   before every PR.

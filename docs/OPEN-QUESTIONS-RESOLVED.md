@@ -40,6 +40,10 @@ Search this file for the entry you need; don't read it whole.
   with the "Share play data" switch (Settings > Data) and a short note
   under it saying what is sent. Off deletes unsent events. Collection goes
   to the Google Sheets collector (docs/07). Launch consent stays open.
+- Telemetry start (settled in 9b, PR 42): the plan was to keep collection
+  off (`TELEMETRY.collect: false`) until the first playtests had been
+  watched, then deploy the Sheets collector and switch it on (docs/07).
+  Done: the collector is live and `collect` is true.
 - Version and What's new (8f, user's choices). **Version:**
   `0.<phase>.<n>`: the build-plan phase in progress and that phase's
   nth release (one per merged PR); 1.0.0 is the launch. The newest
