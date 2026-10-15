@@ -10,9 +10,10 @@ entry is the version bump: `0.<phase>.<n>`, see its header).
 (9b). Once playtests have filled the Sheet, export it as CSV and run
 `node tools/replay-check.js events.csv` to start 9c balance (fold charges,
 enemy stats, scrap rates, relic weights, diagonal shortcuts). Without data
-yet, do 9e (home-screen manifest) first. Planned: 9c balance from
-telemetry, 9d Great Crane balance, 9e manifest, 9f performance and
-cross-device pass; playtest notes get their own fix PRs.
+yet, do 9f (performance and cross-device pass; include installing to a
+real phone's home screen, see PR 43). Planned: 9c balance from
+telemetry, 9d Great Crane balance, 9f performance and cross-device
+pass; playtest notes get their own fix PRs.
 
 ## Phase checklist
 Larger phases are split into PR-sized chunks so each conversation stays small.
@@ -87,7 +88,7 @@ Larger phases are split into PR-sized chunks so each conversation stays small.
   - [x] 9b Telemetry live: Google Sheets collector, collection on (PR 42)
   - [ ] 9c Balance from telemetry (`tools/replay-check.js`)
   - [ ] 9d Great Crane balance and arena templates
-  - [ ] 9e Home-screen manifest (icons drawn in code)
+  - [x] 9e Home-screen manifest (icons drawn in code) (PR 43)
   - [ ] 9f Performance and cross-device pass
 
 ## Log
@@ -1357,3 +1358,21 @@ Larger phases are split into PR-sized chunks so each conversation stays small.
   `collector.test`, and events from install `i_cf25740592bf4bd1be04`;
   delete them or ignore them.
 - Changelog 0.9.1. Phase 9 split into 9c–9f.
+
+### PR 43: Phase 9e, home-screen manifest
+- `render/appIcon.js`: the favicon's design (sheet, folded corner, dashed
+  crease) drawn on a canvas at any size; maskable variant fills the square
+  and shrinks the sheet into the 80% safe circle.
+- `ui/appManifest.js`: at startup, draws 192/512 icons and a 512 maskable
+  one to PNG data URLs, builds the manifest (standalone, Paper colours,
+  absolute start_url/scope/id = the page's folder, since a data-URL
+  manifest can't resolve relative addresses) and adds it as a data-URL
+  `<link rel="manifest">`, plus a 180px `apple-touch-icon`. Never throws.
+  No image or manifest files are shipped (hard rule 1).
+- `index.html`: Apple title/status-bar and application-name meta tags.
+- Checked in headless Chromium (DevTools `Page.getAppManifest`,
+  `getInstallabilityErrors`): manifest parses with no errors and the page
+  is installable. Not yet checked on a real phone (9f): iOS Add to Home
+  Screen icon and Android install.
+- No service worker (offline caching stays on the post-launch backlog).
+- Changelog 0.9.2.

@@ -11,6 +11,14 @@
 
 export const CHANGELOG = Object.freeze([
   {
+    version: '0.9.2', date: '2026-10-15', pr: 43,
+    title: 'Add to your home screen',
+    notes: [
+      'Foldwork can be added to your home screen or installed as an app, with its own paper icon. It opens full screen, without the browser bar.',
+      'Phone and tablet: Share > Add to Home Screen (Safari) or the browser menu > Install app / Add to Home screen (Chrome, Edge).',
+    ],
+  },
+  {
     version: '0.9.1', date: '2026-10-14', pr: 42,
     title: 'Sharing play data',
     notes: [
