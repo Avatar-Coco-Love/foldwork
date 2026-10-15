@@ -41,6 +41,32 @@ These belong to later phases and get decided when that phase is built.
   phone, that sheet is the device's and we stop there (sharing an image
   file would load `share.png`, which the game must not).
 
+### Roadmap (docs/08-roadmap.md)
+Decisions the roadmap needs. None blocks Phase 9 except the first two.
+- **Diagonal shortcuts** (above) must be settled before 9h adds
+  templates.
+- **Templates per floor for 1.0:** proposed 3+ on every floor.
+- **Offline: queue size.** How many days of offline play must the queue
+  hold? Proposed: measure a run's events and bytes, then size for about
+  a week of daily play; trim low-value events first, never feedback.
+- **Offline: does feedback follow "Share play data"?** Feedback is
+  written on purpose, so it could always send; or one switch covers
+  everything that leaves the device.
+- **1.0 checklist contents** (roadmap Stage 0, item 5).
+- **2.0 headline:** level editor and puzzle mode (recommended), or
+  materials and acts first.
+- **Editor levels in the template pool:** allowed after review, or kept
+  to Puzzle mode only.
+- **Materials list and act length:** which materials, and how long the
+  long mode runs.
+- **Fold verbs as unlocks:** which verbs, and whether they're per spirit
+  or global.
+- **Backend for leaderboards:** what replaces the Sheets collector, and
+  whether telemetry moves with it.
+- **`LOGIC_VERSION` policy** once levels and scores are public: keep old
+  rule versions runnable, migrate, or expire.
+- **Storage:** move editor levels and replays to IndexedDB?
+
 ## Resolved
 - Great Crane stacking (9d, playtest; user's choice of the recommended
   pair): letting its folds land piled the arena up to the stack limit (3),

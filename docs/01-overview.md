@@ -45,6 +45,7 @@ You are a paper spirit descending through a living origami dungeon. The floor is
 - `05-tech-architecture.md` — structure, data model, solver, persistence
 - `06-build-plan.md` — phased build plan
 - `07-telemetry.md` — play data: event envelope, backend contract, events
+- `08-roadmap.md` — beyond Phase 9: 1.0, offline play, editor, materials, leaderboards
 
 ## Player experience loop
 1. Enter a floor, read the layout, see enemies and goals.
@@ -55,4 +56,4 @@ You are a paper spirit descending through a living origami dungeon. The floor is
 6. Earn paper scraps, unlock content, start another run.
 
 ## Out of scope for v1
-Multiplayer, online leaderboards, ink and mirror tiles (planned as a later phase), user accounts, external art or audio. (Anonymous telemetry is in scope: see `07-telemetry.md`.)
+Multiplayer, online leaderboards, ink and mirror tiles (planned as a later phase), user accounts, external art or audio. (Anonymous telemetry is in scope: see `07-telemetry.md`. Later stages that lift some of these lines: `08-roadmap.md`.)

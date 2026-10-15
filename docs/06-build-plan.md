@@ -57,15 +57,15 @@ Build one phase at a time. Finish, test, and summarize before moving on. Each ph
 ## Phase 9 — Playtesting and balance
 - Tune fold charges, enemy stats, boss, and relic power, using replayed telemetry (`tools/replay-check.js` as the base).
 - Cross-device testing and performance pass.
-- Home-screen manifest and optional offline caching.
+- Home-screen manifest and offline play: the game opens and plays with no connection (service worker), and play data and feedback recorded offline are sent once back online (`08-roadmap.md`, Stage 0).
 - **Done when:** runs are consistently completable but not trivial, and framerate is stable on a mid-range phone.
 
 ## Later (post-launch backlog)
+The full roadmap, with stages and order, is `08-roadmap.md`.
 - Ink hazards and mirror tiles (new floor templates and relic interactions).
 - Two more spirits (Rabbit, Koi).
 - Additional relics, enemies, and a second boss.
 - Optional endless mode.
-- Service worker offline mode.
 
 ## Open questions log
 Keep `docs/OPEN-QUESTIONS.md` updated. Current open items:

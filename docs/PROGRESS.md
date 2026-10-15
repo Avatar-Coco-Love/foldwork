@@ -6,14 +6,14 @@ and add a player-facing entry at the top of `src/core/changelog.js` (that
 entry is the version bump: `0.<phase>.<n>`, see its header).
 
 ## Next up
-**Phase 9: playtesting and balance** (docs/06). Telemetry is live (9b).
-Once playtests have filled the Sheet, export it as CSV and run
-`node tools/replay-check.js events.csv` to start 9c balance (fold charges,
-enemy stats, scrap rates, relic weights, diagonal shortcuts). Without data
-yet, playtest the Great Crane again (9d, PR 45: lift tags and fresh
-sheet) and bring its notes. Device checks from
-9f wait on the user: open the game with `?fps=1` on a phone and a tablet,
-and install it to a home screen (PR 43); their notes get fix PRs.
+**9g: diagonal shortcuts decision** (OPEN-QUESTIONS "Diagonal creases
+shortcut many floors"), then 9h templates and 9i offline play
+(docs/08-roadmap.md, Stage 0). Ask the user for the diagonal choice
+first; if they'd rather wait, do 9i, which doesn't depend on it.
+Still waiting on the user: playtest data for 9c (export the Sheet as CSV,
+run `node tools/replay-check.js events.csv`), Great Crane notes (9d), and
+the 9f device checks (`?fps=1` on a phone and a tablet, home-screen
+install).
 
 ## Phase checklist
 Larger phases are split into PR-sized chunks so each conversation stays small.
@@ -92,6 +92,16 @@ Larger phases are split into PR-sized chunks so each conversation stays small.
   - [x] 9e Home-screen manifest (icons drawn in code) (PR 43)
   - [x] 9f Performance and cross-device pass (PR 44; real-device check
     open, see Next up)
+  - [x] Roadmap beyond Phase 9 (`docs/08-roadmap.md`), offline play made
+    a requirement (PR 46)
+  - [ ] 9g Diagonal shortcuts decision (before more templates)
+  - [ ] 9h Template depth: 3+ per floor, F7 first
+  - [ ] 9i Offline play: service worker for the app shell; queued play
+    data sent once back online (no beacon while offline, larger queue,
+    trim low-value events first, flush on focus)
+  - [ ] 9j Send Feedback / Report a Bug (same collector and offline
+    queue, privacy note)
+  - [ ] 9k 1.0 checklist, then launch
 
 ## Log
 
@@ -1430,3 +1440,19 @@ Larger phases are split into PR-sized chunks so each conversation stays small.
   second line instead of being squeezed off the right edge beside 8
   charges; the fold text takes that line while it shows. Layout audit
   clean on the floor screens (176/176).
+
+### PR 46: Roadmap beyond Phase 9; offline play as a requirement
+- `docs/08-roadmap.md`: Stage 0 (finish Phase 9 and ship 1.0: diagonal
+  decision, template depth, offline play, feedback, 1.0 checklist), 1.x
+  backlog, 2.0 level editor and puzzle mode (solver-gated, levels as
+  URLs), materials and acts, origami fold verbs, replay-verified
+  leaderboards, and what has to change (backend, `LOGIC_VERSION` policy,
+  storage).
+- Offline play (user's requirement): the game opens and plays with no
+  connection, and play data and feedback recorded meanwhile are sent
+  once back online. Today the queue already persists and flushes on
+  `online`; gaps logged in the roadmap: no service worker (an installed
+  app can't start offline), page-hide `sendBeacon` can drop events
+  offline, `maxQueue` 500 drops the oldest.
+- Phase 9 chunks 9g–9k added. OPEN-QUESTIONS "Roadmap" lists the
+  decisions it needs. Build plan and overview point to the roadmap.
