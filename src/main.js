@@ -63,6 +63,7 @@ import { claimDaily, finishDaily } from './core/daily.js';
 import { createAudio } from './audio/sfx.js';
 import { createMusic } from './audio/music.js';
 import { mixLevels } from './audio/sounds.js';
+import { installAppManifest } from './ui/appManifest.js';
 
 const params = Object.fromEntries(new URLSearchParams(location.search));
 const canvas = document.getElementById('board');
@@ -74,6 +75,9 @@ const rootStyle = document.documentElement.style;
 rootStyle.setProperty('--hud-top', HUD_METRICS.top + 'px');
 rootStyle.setProperty('--hud-bottom', HUD_METRICS.bottom + 'px');
 rootStyle.setProperty('--hud-side', HUD_METRICS.side + 'px');
+
+// Home-screen install: manifest and icons drawn in code (ui/appManifest.js).
+installAppManifest();
 
 const renderer = createRenderer(canvas);
 if (params.audit) window.foldworkLayout = () => renderer.layout;
