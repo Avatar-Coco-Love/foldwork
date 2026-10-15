@@ -11,6 +11,13 @@
 
 export const CHANGELOG = Object.freeze([
   {
+    version: '0.9.3', date: '2026-10-15', pr: 44,
+    title: 'Smoother folds',
+    notes: [
+      'The board is drawn once and reused while you drag a fold, watch it fold or see creatures move, so phones and tablets have less to draw each frame.',
+    ],
+  },
+  {
     version: '0.9.2', date: '2026-10-15', pr: 43,
     title: 'Add to your home screen',
     notes: [

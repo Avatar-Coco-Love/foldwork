@@ -6,14 +6,13 @@ and add a player-facing entry at the top of `src/core/changelog.js` (that
 entry is the version bump: `0.<phase>.<n>`, see its header).
 
 ## Next up
-**Phase 9: playtesting, balance, manifest** (docs/06). Telemetry is live
-(9b). Once playtests have filled the Sheet, export it as CSV and run
+**Phase 9: playtesting and balance** (docs/06). Telemetry is live (9b).
+Once playtests have filled the Sheet, export it as CSV and run
 `node tools/replay-check.js events.csv` to start 9c balance (fold charges,
 enemy stats, scrap rates, relic weights, diagonal shortcuts). Without data
-yet, do 9f (performance and cross-device pass; include installing to a
-real phone's home screen, see PR 43). Planned: 9c balance from
-telemetry, 9d Great Crane balance, 9f performance and cross-device
-pass; playtest notes get their own fix PRs.
+yet, do 9d (Great Crane balance and arena templates). Device checks from
+9f wait on the user: open the game with `?fps=1` on a phone and a tablet,
+and install it to a home screen (PR 43); their notes get fix PRs.
 
 ## Phase checklist
 Larger phases are split into PR-sized chunks so each conversation stays small.
@@ -89,7 +88,8 @@ Larger phases are split into PR-sized chunks so each conversation stays small.
   - [ ] 9c Balance from telemetry (`tools/replay-check.js`)
   - [ ] 9d Great Crane balance and arena templates
   - [x] 9e Home-screen manifest (icons drawn in code) (PR 43)
-  - [ ] 9f Performance and cross-device pass
+  - [x] 9f Performance and cross-device pass (PR 44; real-device check
+    open, see Next up)
 
 ## Log
 
@@ -1376,3 +1376,36 @@ Larger phases are split into PR-sized chunks so each conversation stays small.
   Screen icon and Android install.
 - No service worker (offline caching stays on the post-launch backlog).
 - Changelog 0.9.2.
+
+### PR 44: Phase 9f, performance and cross-device pass
+- Cross-device: `tools/layout-audit.js` clean (572/572 checks, 15 device
+  sizes, both hands and text sizes); nothing to fix.
+- `tools/perf-audit.js` (new): scripted turns (fold-mode crease sweeps,
+  folds, moves, undo) on four boards at phone and big-tablet sizes, CPU
+  ×4, reporting the game's draw time and frame gaps. Headless Chromium has
+  no GPU (software raster), so its numbers are for A/B against main on
+  one machine, not absolute; `--gpu` uses the SwiftShader GPU path,
+  `--budget ms` gates.
+- Findings: the game's JavaScript per draw was small (about 5ms median at
+  CPU ×4 on floor 8); raster was most of each frame, and paper grain fills
+  about half of it in software. Native `ctx.roundRect` and pre-drawn grain
+  tiles were tried and measured no better, so neither shipped.
+- `render/renderer.js`: static board cache (docs/05 "offscreen canvases
+  for static layers"). The board sheet and tiles are painted into an
+  offscreen canvas and copied in, repainted only when the board, layout,
+  palette, actor-clip creature, compass or canvas size change (boards are
+  never mutated in place). Drag previews, fold animations, creature clips
+  and shakes reuse it: draw median at CPU ×4 on the GPU path fell from
+  about 6ms to 2-3ms on floors 8 and the 8x8 demo. Freed on menus.
+- Painters leaked `lineJoin`/`lineCap` into the passes over the board; with
+  tiles in the cache, draw() now sets both to round each frame (the look
+  those passes had). Pixel compare against main: board frames within 3/255,
+  previews and folds differ only in isolated anti-aliased pixels.
+- `render/grain.js`: one pattern per context (WeakMap), since the screen and
+  the cache both paint grain.
+- `render/frameStats.js` (pure, tested): allocation-free ring of frame gaps
+  and draw times. `?fps=1` shows `ui/fpsMeter.js` in the top-right corner
+  (fps, slowest frame, slow-frame count, draw median/worst); `?audit=1`
+  exposes `window.foldworkFrames` for the perf audit.
+- Not done here: a real phone/tablet run (needs the user's devices).
+- Changelog 0.9.3.

@@ -69,11 +69,13 @@ export function grainTexels(size = GRAIN_SIZE, seed = 'foldwork-grain') {
   return px;
 }
 
-let cache = null; // { ctx, pattern }
+// One pattern per context: the screen canvas and the renderer's board
+// cache (9f) both paint grain.
+const cache = new WeakMap(); // ctx -> pattern | null
 
 /** The grain pattern for this 2D context, made on first use (null if unsupported). */
 export function grainPattern(ctx) {
-  if (cache && cache.ctx === ctx) return cache.pattern;
+  if (cache.has(ctx)) return cache.get(ctx);
   let pattern = null;
   try {
     const size = GRAIN_SIZE;
@@ -88,6 +90,6 @@ export function grainPattern(ctx) {
   } catch {
     pattern = null; // no grain beats no game
   }
-  cache = { ctx, pattern };
+  cache.set(ctx, pattern);
   return pattern;
 }
