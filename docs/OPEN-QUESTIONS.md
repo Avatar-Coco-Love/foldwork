@@ -45,9 +45,6 @@ Decisions the roadmap needs. None blocks Phase 9 except the first two.
 - **Diagonal shortcuts** (above) must be settled before 9h adds
   templates.
 - **Templates per floor for 1.0:** proposed 3+ on every floor.
-- **Offline: does feedback follow "Share play data"?** Feedback is
-  written on purpose, so it could always send; or one switch covers
-  everything that leaves the device.
 - **1.0 checklist contents** (roadmap Stage 0, item 5).
 - **2.0 headline:** level editor and puzzle mode (recommended), or
   materials and acts first.

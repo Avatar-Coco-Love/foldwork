@@ -4,6 +4,14 @@ Decisions, newest first, moved here from `docs/OPEN-QUESTIONS.md` once
 settled. Code comments and docs cite them as OPEN-QUESTIONS "Name".
 Search this file for the entry you need; don't read it whole.
 
+- Offline: does feedback follow "Share play data"? (2026-10-16, user's
+  choice, in a cross-project data review): **no, feedback can always be
+  sent.** The player writes it on purpose each time; the switch covers
+  only automatic play data. Same review, also the user's choices:
+  `session.start` stops sending `device.ua` and `device.tzOffset` (no
+  analysis uses them; only collect what's useful), and Foldwork gets its
+  own privacy page, linked from Settings (one page per project, like
+  Animal Mail Route's).
 - Offline: queue size (9i, roadmap's proposed default, user's
   instruction to take it): measured with `tools/queue-size.js` (a full
   run about 65 events / 30 KB), sized for about a week of daily play at
