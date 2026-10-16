@@ -14,8 +14,17 @@ first; search it, don't read it whole).
 **9j: Send Feedback / Report a Bug** (docs/08-roadmap.md, Stage 0): the
 same collector and the offline queue (a `feedback` event; it is already
 `NEVER_TRIM` in `telemetry/telemetry.js` TRIM_TIERS), with a privacy note
-for free text. Ask first (OPEN-QUESTIONS "Offline: does feedback follow
-'Share play data'?").
+for free text. Settled: feedback can always be sent, even with "Share
+play data" off (OPEN-QUESTIONS "Offline: does feedback follow 'Share
+play data'?").
+Then, from the 2026-10-16 data review (user's choices, same entry):
+drop `device.ua` and `device.tzOffset` from `session.start` (update the
+docs/07 data dictionary; bump `dv`), and add a privacy page linked from
+Settings. Owner step that unblocks the 9c playtest data: give the Sheets
+collector (`tools/telemetry-sheets/Code.gs`) a `READ_KEY`-protected read,
+like Emergent Arcade's, so sessions can fetch events instead of waiting
+for a hand-exported CSV (Claude writes it; the owner pastes and
+redeploys).
 Still waiting on the user: the 9g diagonal decision (before 9h
 templates), playtest data for 9c (export the Sheet as CSV, run
 `node tools/replay-check.js events.csv`), Great Crane notes (9d), the 9f
