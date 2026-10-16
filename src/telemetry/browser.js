@@ -82,7 +82,11 @@ export function setupTelemetry({ enabled, override = '' }) {
   return {
     telemetry,
     inputSource: () => lastInput,
-    /** Device and display context, sent once per session. */
+    /**
+     * Device and display context, sent once per session. No user agent or
+     * time zone (dropped in session.start dv 2; OPEN-QUESTIONS "Offline:
+     * does feedback follow 'Share play data'?", the 2026-10-16 data review).
+     */
     deviceInfo() {
       const mq = (q) => window.matchMedia(q).matches;
       return {
@@ -96,8 +100,6 @@ export function setupTelemetry({ enabled, override = '' }) {
         reducedMotion: mq('(prefers-reduced-motion: reduce)'),
         colorScheme: mq('(prefers-color-scheme: dark)') ? 'dark' : 'light',
         lang: navigator.language || '',
-        tzOffset: new Date().getTimezoneOffset(),
-        ua: String(navigator.userAgent || '').slice(0, 250),
         standalone: mq('(display-mode: standalone)'),
       };
     },

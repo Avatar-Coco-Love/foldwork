@@ -32,8 +32,7 @@ const perDay = opt('--per-day', 3);
 const DEVICE = {
   viewport: { w: 390, h: 844 }, screen: { w: 390, h: 844 }, dpr: 3, orientation: 'portrait',
   pointer: 'coarse', hover: false, touchPoints: 5, reducedMotion: false, colorScheme: 'light',
-  lang: 'en-US', tzOffset: 300, standalone: true,
-  ua: 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1',
+  lang: 'en-US', standalone: true,
 };
 const SETTINGS = {
   speed: 'normal', motion: 'system', palette: 'paper', leftHanded: false, tapConfirm: false,
@@ -133,7 +132,7 @@ function session(tel) {
     device: DEVICE, settings: SETTINGS, palette: 'paper',
     meta: { scraps: 40, earned: 120, runs: 9, won: 2, unlocks: { relic: 3, spirit: 1 }, dailyDays: 4, dailyStreak: 2 },
     entry: { screen: 'title', dev: [], challenge: false },
-  });
+  }, { dv: 2 });
   tel.track('screen.view', { name: 'title', floor: null });
 }
 

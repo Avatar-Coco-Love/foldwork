@@ -3,6 +3,22 @@
 Every PR's log entry except the last 3 (those are in `docs/PROGRESS.md`),
 newest first. Search it for a PR or a module; don't read it whole.
 
+### PR 46: Roadmap beyond Phase 9; offline play as a requirement
+- `docs/08-roadmap.md`: Stage 0 (finish Phase 9 and ship 1.0: diagonal
+  decision, template depth, offline play, feedback, 1.0 checklist), 1.x
+  backlog, 2.0 level editor and puzzle mode (solver-gated, levels as
+  URLs), materials and acts, origami fold verbs, replay-verified
+  leaderboards, and what has to change (backend, `LOGIC_VERSION` policy,
+  storage).
+- Offline play (user's requirement): the game opens and plays with no
+  connection, and play data and feedback recorded meanwhile are sent
+  once back online. Today the queue already persists and flushes on
+  `online`; gaps logged in the roadmap: no service worker (an installed
+  app can't start offline), page-hide `sendBeacon` can drop events
+  offline, `maxQueue` 500 drops the oldest.
+- Phase 9 chunks 9g–9k added. OPEN-QUESTIONS "Roadmap" lists the
+  decisions it needs. Build plan and overview point to the roadmap.
+
 ### PR 45: Phase 9d, Great Crane lift tags and fresh sheet; relic row
 - Playtest: letting the Crane fold piled the arena to the stack limit, so
   most player folds overflowed. User's choice (OPEN-QUESTIONS "Great Crane

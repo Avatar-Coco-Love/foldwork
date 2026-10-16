@@ -548,7 +548,7 @@ ctx.telemetry.track('session.start', {
     dev: Object.keys(params).filter((k) => k !== 'telemetry' && k !== CHALLENGE_PARAM),
     challenge: !!ctx.challenge,
   },
-});
+}, { dv: 2 }); // dv 2: device without ua and tzOffset
 ctx.telemetry.flush(); // anything left from an offline session
 if (params.screen === 'floor') ctx.startRun({ floor: Number(params.floor) || 1 });
 // Dev: the relic offer after clearing floor ?cleared= (4 or 7 shows rest).

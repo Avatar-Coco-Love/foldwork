@@ -184,7 +184,7 @@ Redeploying after editing the script: Deploy → Manage deployments → edit →
 New version (keeps the same URL).
 
 ## Events (data dictionary)
-All `dv: 1`. Floor events share a tag: `floor`, `seed`, `source`
+All `dv: 1` except `session.start` (`dv: 2`). Floor events share a tag: `floor`, `seed`, `source`
 (`template` | `dev`), `templateId`, `variant`, `loadout` (what the floor
 started with: `spirit`, `relics`, `hp`, `maxHp`, `landings`; replays need
 it; logs without `spirit` predate spirits and had none), and `overrides`
@@ -194,7 +194,7 @@ Run events share a run tag: `seed`, `floor`, `hp`, `maxHp`, `relics`,
 
 | Type | When | `data` |
 |---|---|---|
-| `session.start` | Page load | `device` (viewport, screen, dpr, orientation, pointer, hover, touchPoints, reducedMotion, colorScheme, lang, tzOffset, ua, standalone), `settings`, `palette`, `meta` (progress so far: `scraps`, `earned`, `runs` and `won` since stats were kept, `unlocks` {kind: count bought}, `dailyDays`, `dailyStreak`), `entry` (start screen, dev params used, `challenge`: opened from a challenge link) |
+| `session.start` | Page load | `device` (viewport, screen, dpr, orientation, pointer, hover, touchPoints, reducedMotion, colorScheme, lang, standalone; `dv: 2` dropped `tzOffset` and `ua`, which `dv: 1` events still carry), `settings`, `palette`, `meta` (progress so far: `scraps`, `earned`, `runs` and `won` since stats were kept, `unlocks` {kind: count bought}, `dailyDays`, `dailyStreak`), `entry` (start screen, dev params used, `challenge`: opened from a challenge link) |
 | `session.hide` | Page hidden / closed | `ms` since load |
 | `screen.view` | Every screen change | `name`, `floor` |
 | `run.start` | New Run, or Daily Seed | run tag, `daily` (the daily's date, else null), `practice` (a daily run after the day's scored one), `challenge` (on a friend's challenge seed), `retry` (Retry this seed on the run summary), `lastFloor` |
