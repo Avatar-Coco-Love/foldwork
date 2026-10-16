@@ -18,9 +18,8 @@ for free text. Settled: feedback can always be sent, even with "Share
 play data" off (OPEN-QUESTIONS "Offline: does feedback follow 'Share
 play data'?").
 Then, from the 2026-10-16 data review (user's choices, same entry):
-drop `device.ua` and `device.tzOffset` from `session.start` (update the
-docs/07 data dictionary; bump `dv`), and add a privacy page linked from
-Settings. Owner step that unblocks the 9c playtest data: give the Sheets
+add a privacy page linked from Settings (`device.ua`/`tzOffset` dropped
+in PR 50). Owner step that unblocks the 9c playtest data: give the Sheets
 collector (`tools/telemetry-sheets/Code.gs`) a `READ_KEY`-protected read,
 like Emergent Arcade's, so sessions can fetch events instead of waiting
 for a hand-exported CSV (Claude writes it; the owner pastes and
@@ -124,22 +123,6 @@ Larger phases are split into PR-sized chunks so each conversation stays small.
 
 ## Log (last 3; older in docs/PROGRESS-LOG.md)
 
-### PR 46: Roadmap beyond Phase 9; offline play as a requirement
-- `docs/08-roadmap.md`: Stage 0 (finish Phase 9 and ship 1.0: diagonal
-  decision, template depth, offline play, feedback, 1.0 checklist), 1.x
-  backlog, 2.0 level editor and puzzle mode (solver-gated, levels as
-  URLs), materials and acts, origami fold verbs, replay-verified
-  leaderboards, and what has to change (backend, `LOGIC_VERSION` policy,
-  storage).
-- Offline play (user's requirement): the game opens and plays with no
-  connection, and play data and feedback recorded meanwhile are sent
-  once back online. Today the queue already persists and flushes on
-  `online`; gaps logged in the roadmap: no service worker (an installed
-  app can't start offline), page-hide `sendBeacon` can drop events
-  offline, `maxQueue` 500 drops the oldest.
-- Phase 9 chunks 9g–9k added. OPEN-QUESTIONS "Roadmap" lists the
-  decisions it needs. Build plan and overview point to the roadmap.
-
 ### PR 47: Phase 9i, offline play
 - `sw.js` (root, classic script): caches the app shell on install
   (`cache: 'reload'`) in `foldwork-<VERSION>`, serves same-origin GETs
@@ -199,3 +182,13 @@ Larger phases are split into PR-sized chunks so each conversation stays small.
 - CI: `.github/workflows/test.yml` runs `npm test` on PRs and main.
 - CLAUDE.md session workflow updated to match.
 - Changelog 0.9.7.
+
+### PR 50: Less device data in `session.start` (2026-10-16 data review)
+- User's choice (OPEN-QUESTIONS "Offline: does feedback follow 'Share
+  play data'?", same entry): `deviceInfo()` (`telemetry/browser.js`) no
+  longer sends `ua` or `tzOffset`; no analysis used them. `session.start`
+  is now `dv: 2`; `dv: 1` rows in the Sheet still carry both.
+- docs/07 data dictionary updated; `tools/queue-size.js` sample matches
+  (sizes unchanged in practice, about 30 KB a full run).
+- Test: `deviceInfo()` with stubbed browser globals has neither field.
+- Changelog 0.9.8.

@@ -11,7 +11,7 @@ import { FLOOR_TEMPLATES, buildFloor } from '../src/core/floors.js';
 import { createFloorState, act } from '../src/core/turn.js';
 import { solve } from '../src/core/solver.js';
 import { LOGIC_VERSION, TELEMETRY } from '../src/config.js';
-import { telemetryActive } from '../src/telemetry/browser.js';
+import { telemetryActive, setupTelemetry } from '../src/telemetry/browser.js';
 import { parseCsv, rowsToEvents } from '../tools/sheet-to-ndjson.js';
 import { floorSetupFor } from '../src/core/run.js';
 import { encodeAction } from '../src/core/replay.js';
@@ -397,4 +397,33 @@ test('sheets export: CSV rows (quotes, overflow cells) turn back into events', (
   assert.equal(events.length, 1);
   assert.deepEqual(events[0].data, data);
   assert.deepEqual([events[0].id, events[0].type, events[0].dv, events[0].seq, events[0].run], ['e_1', 'floor.end', 1, 0, null]);
+});
+
+test('session.start device info has no user agent or time zone (dv 2)', () => {
+  const stubs = {
+    window: {
+      addEventListener() {}, innerWidth: 390, innerHeight: 844, devicePixelRatio: 3,
+      matchMedia: (q) => ({ matches: q === '(pointer: coarse)' }),
+    },
+    document: { addEventListener() {} },
+    navigator: { onLine: true, language: 'en-US', userAgent: 'Mozilla/5.0 Test', maxTouchPoints: 5 },
+    screen: { width: 390, height: 844 },
+  };
+  const saved = {};
+  for (const [k, v] of Object.entries(stubs)) {
+    saved[k] = Object.getOwnPropertyDescriptor(globalThis, k);
+    Object.defineProperty(globalThis, k, { value: v, configurable: true, writable: true });
+  }
+  try {
+    const device = setupTelemetry({ enabled: false, override: 'off' }).deviceInfo();
+    assert.equal(device.lang, 'en-US');
+    assert.equal(device.pointer, 'coarse');
+    assert.ok(!('ua' in device), 'no user agent');
+    assert.ok(!('tzOffset' in device), 'no time zone');
+  } finally {
+    for (const k of Object.keys(stubs)) {
+      if (saved[k]) Object.defineProperty(globalThis, k, saved[k]);
+      else delete globalThis[k];
+    }
+  }
 });

@@ -13,6 +13,13 @@
 
 export const CHANGELOG = Object.freeze([
   {
+    version: '0.9.8', date: '2026-10-16', pr: 50,
+    title: 'Less data shared',
+    notes: [
+      'Play data no longer includes your browser\'s name and version or your time zone. We never used them, so we stopped collecting them.',
+    ],
+  },
+  {
     version: '0.9.7', date: '2026-10-15', pr: 48,
     title: 'Behind the scenes',
     notes: [
