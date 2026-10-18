@@ -3,6 +3,45 @@
 Every PR's log entry except the last 3 (those are in `docs/PROGRESS.md`),
 newest first. Search it for a PR or a module; don't read it whole.
 
+### PR 47: Phase 9i, offline play
+- `sw.js` (root, classic script): caches the app shell on install
+  (`cache: 'reload'`) in `foldwork-<VERSION>`, serves same-origin GETs
+  cache first (navigations to the game with any params get the cached
+  page; `share.png`, `tools/`, `docs/` and other origins pass through),
+  deletes older `foldwork-*` caches on activate, `skipWaiting` only on the
+  page's 'activate' message. `VERSION` must equal `APP_VERSION` (test;
+  changelog header says so).
+- `src/ui/serviceWorker.js`: registration (browser layer only). Off on
+  localhost (and removes a leftover worker) unless `?sw=1`; `?nosw=1`
+  off anywhere. `registration.update()` when the page is visible again;
+  a waiting release is taken at launch only while the title is the first
+  screen (one reload), else when every window has closed.
+- Hand-written `SHELL` list. `tools/shell-files.js` walks index.html and
+  module imports from `src/main.js` (static, re-exports, `import()`,
+  `new URL(..., import.meta.url)` for the hint worker) and prints it;
+  `tests/offline.test.js` checks the list both ways, the version, and runs
+  the worker's install/activate/fetch handlers in a `vm` sandbox.
+- `telemetry/telemetry.js`: `online()` option (nothing sent, beacon
+  included, while offline); backoff after failed sends (`flushMs` doubling
+  to `maxBackoffMs`, 10 min) that every flush respects, reset by
+  `reconnected()` (the `online` event); `trimQueue` with data-driven
+  `TRIM_TIERS` (tier 0 noise first, `floor.end`/`run.end` last, `feedback`
+  `NEVER_TRIM`), caps by count and bytes, applied on track and on load;
+  full storage trims to half and saves again. `browser.js` flushes on
+  visible and on focus.
+- Queue sizing: `tools/queue-size.js` (scripted runs through core/): a
+  full run is about 65 events / 30 KB; caps `maxQueue` 2,000 and
+  `maxBytes` 1 MB (about a week and a half of 3 runs a day). OPEN-QUESTIONS
+  Resolved records the choice.
+- Verified in headless Chromium with `tools/offline-check.js`: shell
+  cached (71 files), offline with the dev server stopped the title starts
+  and floor 1 plays (moves and a fold, floor.end queued), nothing sent
+  while offline, back online all 13 queued events reach the local
+  collector with no duplicates; plain localhost has no worker.
+- Not done: collector-side dedupe beyond the Sheets script's 6 h (the
+  roadmap's beacon note); a real-device offline check (Next up).
+- Changelog 0.9.6.
+
 ### PR 46: Roadmap beyond Phase 9; offline play as a requirement
 - `docs/08-roadmap.md`: Stage 0 (finish Phase 9 and ship 1.0: diagonal
   decision, template depth, offline play, feedback, 1.0 checklist), 1.x

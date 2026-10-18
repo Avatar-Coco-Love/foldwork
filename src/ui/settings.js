@@ -101,7 +101,7 @@ const CHOICES = Object.freeze({
  * an action ({ id, label, action }: the screen runs `actions[action]`).
  * `show(ctx)` hides a row; a group with no rows shown is hidden. A choice
  * row's `allowed(ctx, id)` narrows its list (palettes the player owns). The
- * About group is drawn by the screen (version, credits).
+ * About group is drawn by the screen (Send feedback, version, credits).
  */
 export const SETTINGS_GROUPS = Object.freeze([
   {
@@ -136,6 +136,8 @@ export const SETTINGS_GROUPS = Object.freeze([
     rows: [
       // Hidden until collection is switched on (config TELEMETRY.collect).
       { id: 'telemetry', label: 'Share play data', key: 'telemetry', note: 'Anonymous: how floors and folds go, and your device type. No names or accounts.', show: (ctx) => !!ctx.telemetryOffered },
+      // What's kept, sent and not (9j, ui/privacy.js).
+      { id: 'privacy', label: 'Privacy', note: 'What Foldwork keeps and sends, and what it doesn\'t.', action: 'privacy' },
       { id: 'save-code', label: 'Save code', note: 'Move your run to another device.', action: 'saveCode' },
       // Every choice back to its default (8g). Asks with a second tap.
       { id: 'restore-settings', label: 'Restore default settings', note: 'Display, gameplay and audio. Your runs and progress stay.', action: 'restoreAll' },

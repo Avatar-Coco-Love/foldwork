@@ -11,27 +11,25 @@ oldest to the top of `docs/PROGRESS-LOG.md` (the full history, newest
 first; search it, don't read it whole).
 
 ## Next up
-**9j: Send Feedback / Report a Bug** (docs/08-roadmap.md, Stage 0): the
-same collector and the offline queue (a `feedback` event; it is already
-`NEVER_TRIM` in `telemetry/telemetry.js` TRIM_TIERS), with a privacy note
-for free text. Settled: feedback can always be sent, even with "Share
-play data" off (OPEN-QUESTIONS "Offline: does feedback follow 'Share
-play data'?").
-Then, from the 2026-10-16 data review (user's choices, same entry):
-add a privacy page linked from Settings (`device.ua`/`tzOffset` dropped
-in PR 50). Owner step that unblocks the 9c playtest data: give the Sheets
-collector (`tools/telemetry-sheets/Code.gs`) a `READ_KEY`-protected read,
-like Emergent Arcade's, so sessions can fetch events instead of waiting
-for a hand-exported CSV (Claude writes it; the owner pastes and
-redeploys).
-After 9j: the **content push** (2026-10-18, user's choices; OPEN-QUESTIONS
-"Content push"), in the order of its checklist below: 9g, 9h1-9h4, then
-spirits (S0-S2) and endless (E0-E2). One drop per PR, each playable.
-Still waiting on the user: playtest data for 9c (export the Sheet as CSV, run
-`node tools/replay-check.js events.csv`), Great Crane notes (9d), the 9f
-device checks (`?fps=1` on a phone and a tablet, home-screen install), and
-now an offline check on a real device (open once online, then airplane
-mode, open from the home screen, play, go back online).
+**9g: Frog-proof and fair floors** (decided 2026-10-18, OPEN-QUESTIONS
+"Content push"; the first content drop): `needs` proofs allow diagonal
+creases; retrofit `f5-press`, `f3-ferry`, `f4-gatehouse` (thick card,
+moved walls); re-prove every floor; replay the logged losses on
+`f3-vault`, `f4-relay`, `f6-twin` and soften their openings (no hit
+before the first real choice); a "New layout" tag on a template's first
+sight and "Layouts found: n / total" in Stats & History. No tile or rule
+changes. The player isn't asked to test ("surprise her").
+Then 9h1-9h4, spirits (S0-S2) and endless (E0-E2), one drop per PR.
+Owner step from 9j (PR 52): paste the new `tools/telemetry-sheets/Code.gs`
+and redeploy (Deploy → Manage deployments → edit → New version), and set
+the Script property `READ_KEY`; then sessions can fetch events with
+`FOLDWORK_READ_KEY=... node tools/fetch-events.js > events.ndjson`
+(the 9c data, and the losses 9g replays) instead of a CSV export.
+Still waiting on the user: playtest data for 9c, Great Crane notes (9d),
+the 9f device checks (`?fps=1` on a phone and a tablet, home-screen
+install), and an offline check on a real device (open once online, then
+airplane mode, open from the home screen, play, send a feedback note, go
+back online: it should reach the Sheet's `feedback` tab).
 
 ## Phase checklist
 Larger phases are split into PR-sized chunks so each conversation stays small.
@@ -129,12 +127,12 @@ Larger phases are split into PR-sized chunks so each conversation stays small.
   - [x] 9i Offline play: service worker for the app shell; queued play
     data sent once back online (no beacon while offline, larger queue,
     trim low-value events first, flush on focus) (PR 47)
-  - [ ] 9j Send Feedback / Report a Bug (same collector and offline
-    queue, privacy note)
+  - [x] 9j Send Feedback / Report a Bug (same collector and offline
+    queue, privacy note), Privacy page in Settings (PR 52)
   - [ ] 9k 1.0 checklist, then launch (where it falls relative to the
     spirits and endless drops is not decided yet; ask after 9h)
 - [ ] **Content push** (2026-10-18, user's choices; OPEN-QUESTIONS
-  "Content push"). Order: 9j, 9g, 9h1-9h4 above, then:
+  "Content push"). Order: 9j (done, PR 52), 9g, 9h1-9h4 above, then:
   - [ ] S0 Spirits design round: Claude drafts 3-4 concepts (name, HP,
     perk, how it changes folding); the user picks two (questions, no code)
   - [ ] S1 First new spirit (unlock cost; every floor still proves with it)
@@ -146,45 +144,6 @@ Larger phases are split into PR-sized chunks so each conversation stays small.
     loop and floor in Stats
 
 ## Log (last 3; older in docs/PROGRESS-LOG.md)
-
-### PR 47: Phase 9i, offline play
-- `sw.js` (root, classic script): caches the app shell on install
-  (`cache: 'reload'`) in `foldwork-<VERSION>`, serves same-origin GETs
-  cache first (navigations to the game with any params get the cached
-  page; `share.png`, `tools/`, `docs/` and other origins pass through),
-  deletes older `foldwork-*` caches on activate, `skipWaiting` only on the
-  page's 'activate' message. `VERSION` must equal `APP_VERSION` (test;
-  changelog header says so).
-- `src/ui/serviceWorker.js`: registration (browser layer only). Off on
-  localhost (and removes a leftover worker) unless `?sw=1`; `?nosw=1`
-  off anywhere. `registration.update()` when the page is visible again;
-  a waiting release is taken at launch only while the title is the first
-  screen (one reload), else when every window has closed.
-- Hand-written `SHELL` list. `tools/shell-files.js` walks index.html and
-  module imports from `src/main.js` (static, re-exports, `import()`,
-  `new URL(..., import.meta.url)` for the hint worker) and prints it;
-  `tests/offline.test.js` checks the list both ways, the version, and runs
-  the worker's install/activate/fetch handlers in a `vm` sandbox.
-- `telemetry/telemetry.js`: `online()` option (nothing sent, beacon
-  included, while offline); backoff after failed sends (`flushMs` doubling
-  to `maxBackoffMs`, 10 min) that every flush respects, reset by
-  `reconnected()` (the `online` event); `trimQueue` with data-driven
-  `TRIM_TIERS` (tier 0 noise first, `floor.end`/`run.end` last, `feedback`
-  `NEVER_TRIM`), caps by count and bytes, applied on track and on load;
-  full storage trims to half and saves again. `browser.js` flushes on
-  visible and on focus.
-- Queue sizing: `tools/queue-size.js` (scripted runs through core/): a
-  full run is about 65 events / 30 KB; caps `maxQueue` 2,000 and
-  `maxBytes` 1 MB (about a week and a half of 3 runs a day). OPEN-QUESTIONS
-  Resolved records the choice.
-- Verified in headless Chromium with `tools/offline-check.js`: shell
-  cached (71 files), offline with the dev server stopped the title starts
-  and floor 1 plays (moves and a fold, floor.end queued), nothing sent
-  while offline, back online all 13 queued events reach the local
-  collector with no duplicates; plain localhost has no worker.
-- Not done: collector-side dedupe beyond the Sheets script's 6 h (the
-  roadmap's beacon note); a real-device offline check (Next up).
-- Changelog 0.9.6.
 
 ### PR 48: Workflow housekeeping (smaller start-up reading, fast tests, CI)
 - Audit: tests green (470), changelog one entry per PR 1-47 with
@@ -216,3 +175,34 @@ Larger phases are split into PR-sized chunks so each conversation stays small.
   (sizes unchanged in practice, about 30 KB a full run).
 - Test: `deviceInfo()` with stubbed browser globals has neither field.
 - Changelog 0.9.8.
+
+### PR 52: Phase 9j, Send Feedback / Report a Bug, Privacy page
+- User's choices (all the recommended ones; OPEN-QUESTIONS "Send
+  Feedback / Report a Bug"): Settings › About row and a pause menu entry;
+  kind (Bug / Idea / Something else) + one message (1,000 chars); no
+  contact field; install id only with "Share play data" on; "Thanks!"
+  (offline: sends later) and Back; Privacy as an in-game screen; Sheet
+  `feedback` tab and the `READ_KEY` read in one paste.
+- `telemetry/telemetry.js`: `ALWAYS_SEND` (`feedback`) and option
+  `alwaysTypes`: a disabled client still records, keeps (reload, turning
+  sharing off) and sends those, with `install: null`. `browser.js` passes
+  `[]` under `?telemetry=off`; adds `feedbackDevice()` (viewport,
+  orientation, pointer, standalone) and `online()`.
+- `telemetry/feedback.js` (pure): kinds, `cleanMessage` (trim, emails
+  removed, cap), `feedbackContext(floorTag, turn)`, `feedbackData`.
+  `main.js` `ctx.sendFeedback` queues and flushes.
+- `ui/feedback.js` (form, screen `feedback`; the draft survives Back and
+  Privacy), `ui/privacy.js` (`PRIVACY_SECTIONS`, screen `privacy`);
+  in a run both are sheets, tagged with the floor (`openFeedback` in the
+  floor screen). Settings Data row `privacy`.
+- `tools/telemetry-sheets/Code.gs`: feedback copied to a `feedback` tab
+  (objects as JSON, formula-looking text kept as text, in both sheets);
+  `doGet` with `?key=` (Script property `READ_KEY`) returns events in
+  pages. `tools/fetch-events.js` pages through it to NDJSON.
+- Tests: `tests/feedback.test.js` (data, sending with sharing off,
+  offline, privacy text names each field, Code.gs in a `vm` sandbox with
+  fake Sheets: tab, escaping, keyed read, paging). Checked in headless
+  Chromium against the local collector: title Settings and pause menu
+  forms, draft kept through Privacy, emails removed, an offline note sent
+  once back online with its floor context.
+- Changelog 0.9.9.

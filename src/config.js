@@ -20,10 +20,10 @@ export const LOGIC_VERSION = 5; // 3: Lockjaw opens its jaws a turn before it bi
 
 /**
  * Telemetry (src/telemetry, docs/07-telemetry.md).
- *   collect   master switch. false: nothing is recorded at all (no events,
+ *   collect   master switch. false: no play data is recorded (no events,
  *             no local queue, no install id) and the "Share play data"
- *             toggle is hidden. Flip to true (with an endpoint) once we're
- *             ready to collect from playtests. Dev overrides still work:
+ *             toggle is hidden; feedback (9j) still goes to `endpoint`.
+ *             On since 9b (playtests). Dev overrides still work:
  *             `?telemetry=console` or a localhost collector URL.
  *   endpoint  collector URL (e.g. the Google Apps Script web app in
  *             tools/telemetry-sheets/); empty means nothing leaves the

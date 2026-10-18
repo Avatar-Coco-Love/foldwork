@@ -20,6 +20,9 @@ import {
 import { APP_VERSION, PROJECTS_URL } from '../config.js';
 import { newSince } from '../core/changelog.js';
 import { whatsNewPanel } from './whatsNew.js';
+import { feedbackPanel } from './feedback.js';
+import { privacyPanel } from './privacy.js';
+import { feedbackContext } from '../telemetry/feedback.js';
 import { createBoard, findCreature } from '../core/board.js';
 import { TILE } from '../core/tiles.js';
 import { parseMap, DEV_MAPS } from '../core/maps.js';
@@ -297,7 +300,7 @@ const CREDITS = 'Made by Cody Joshua Clements, built with Claude. Every picture 
  * sheet over the board from the pause menu; Back returns there.
  */
 function settingsPanel(ctx, onBack, {
-  saveCode, whatsNew, resetProgress = null, said = '',
+  saveCode, whatsNew, feedback, privacy, resetProgress = null, said = '',
 }) {
   const syncs = []; // each choice row's value refresh
   const status = el('p', { class: 'code-status', role: 'status', text: said });
@@ -308,6 +311,7 @@ function settingsPanel(ctx, onBack, {
   };
   const actions = {
     saveCode: () => saveCode(),
+    privacy: () => privacy(),
     // Only from the title's Settings; in a run the row isn't shown.
     ...(resetProgress ? { resetProgress: () => resetProgress() } : {}),
     // Restore defaults (8g): the rows show their new values; all of them
@@ -371,6 +375,12 @@ function settingsPanel(ctx, onBack, {
     el('div', { class: 'settings-groups' },
       groups,
       group('about', 'About', [
+        // Send Feedback / Report a Bug (9j): always offered, play data or not.
+        el('button', {
+          class: 'btn setting-row', type: 'button', 'data-setting': 'feedback', onclick: feedback,
+        }, el('span', { class: 'setting-text' },
+          el('span', { class: 'setting-label', text: 'Send feedback' }),
+          el('span', { class: 'setting-note', text: 'Report a bug or share an idea.' }))),
         // Tap the version for What's new (8f).
         el('button', {
           class: 'btn setting-row', type: 'button', 'data-setting': 'whats-new', onclick: whatsNew,
@@ -394,6 +404,8 @@ export const settingsScreen = {
     const panel = settingsPanel(ctx, back, {
       saveCode,
       whatsNew: () => ctx.router.go('whatsnew', { from: 'settings', settingsFrom: params.from }),
+      feedback: () => ctx.router.go('feedback', { settingsFrom: params.from }),
+      privacy: () => ctx.router.go('privacy', { from: 'settings', settingsFrom: params.from }),
       resetProgress: params.from === 'title' ? confirmReset : null,
       said: params.said || '',
     });
@@ -1148,6 +1160,7 @@ export const floorScreen = {
           canTakeBack(state) ? { label: 'Rewind Charm: take back last turn', onclick: takeBack } : null,
           { label: 'How to Play', onclick: () => hud.showSheet(howToPanel(openPause), { onEscape: openPause }) },
           { label: 'Fold history', onclick: openHistory },
+          { label: 'Send feedback', onclick: () => openFeedback(openPause, 'pause') },
           { label: 'Settings', onclick: openSettings },
           inRun && isCodeSeed(run.seed) ? { label: 'Challenge a friend', onclick: openChallenge } : null,
           inRun ? { label: 'Abandon Run', onclick: confirmAbandon } : null,
@@ -1175,7 +1188,23 @@ export const floorScreen = {
         hud.showSheet(whatsNewPanel(openSettings, ctx.seenVersion), { onEscape: openSettings });
         ctx.markWhatsNewSeen();
       };
-      hud.showSheet(settingsPanel(ctx, back, { saveCode, whatsNew }), { onEscape: back });
+      const feedback = () => openFeedback(openSettings, 'settings');
+      const privacy = () => hud.showSheet(privacyPanel(openSettings), { onEscape: openSettings });
+      hud.showSheet(settingsPanel(ctx, back, {
+        saveCode, whatsNew, feedback, privacy,
+      }), { onEscape: back });
+    }
+
+    // Send feedback (9j) over the board, tagged with this floor; Privacy
+    // opens over it and comes back (the draft is kept).
+    function openFeedback(back, from) {
+      const reopen = () => openFeedback(back, from);
+      hud.showSheet(feedbackPanel(ctx, {
+        onBack: back,
+        onPrivacy: () => hud.showSheet(privacyPanel(reopen), { onEscape: reopen }),
+        from,
+        context: feedbackContext(floorTag, state.turn),
+      }), { onEscape: back });
     }
 
     function openChallenge() {

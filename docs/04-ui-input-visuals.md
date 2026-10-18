@@ -69,7 +69,7 @@ Checked on every PR that touches UI, with `tools/layout-audit.js` (15 device siz
 4. Relic choice (3 cards; 4th rest option on floors 4 and 7)
 5. Run summary (floors cleared, scraps earned, unlocks)
 6. Unlocks shop (spirits, relics, palettes; scrap bank on top; Buy then Confirm; locked items show a lock and their cost; owned palettes have Use)
-7. Settings, in groups: Display (palette, text size, animation speed, reduced motion, screen shake, left-handed layout), Gameplay (tap-to-confirm folds, tutorial hints), Data (share play data, save code, reset progress), Audio, About (version, credits, feedback / bug report)
+7. Settings, in groups: Display (palette, text size, animation speed, reduced motion, screen shake, left-handed layout), Gameplay (tap-to-confirm folds, tutorial hints), Data (share play data, privacy, save code, restore defaults, reset progress), Audio, About (send feedback / report a bug, version, credits)
 8. Pause menu, from the floor's Menu button (Resume, Restart Floor, How to Play, Settings, Abandon Run, Save & Quit to Title)
 9. Stats & History (totals, best run, by spirit, the last 20 runs, daily history with current and best streaks; read only)
 

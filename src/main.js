@@ -45,9 +45,12 @@ import {
 import { unlocksScreen } from './ui/unlocks.js';
 import { statsScreen } from './ui/stats.js';
 import { whatsNewScreen, loadSeenVersion, saveSeenVersion } from './ui/whatsNew.js';
+import { feedbackScreen } from './ui/feedback.js';
+import { privacyScreen } from './ui/privacy.js';
 import { startingSeen, LATEST_VERSION } from './core/changelog.js';
 import { challengeSeed, CHALLENGE_PARAM } from './ui/share.js';
 import { setupTelemetry, telemetryActive } from './telemetry/browser.js';
+import { feedbackData } from './telemetry/feedback.js';
 import { TELEMETRY } from './config.js';
 import { createRun, runTag, rollOffer, RELIC_POOL_ALL } from './core/run.js';
 import { RELIC_DEFS, isRelic } from './core/relics.js';
@@ -193,6 +196,20 @@ const ctx = {
   inputSource: tele.inputSource,
   /** Whether the "Share play data" toggle is offered (config TELEMETRY.collect). */
   telemetryOffered: TELEMETRY.collect,
+  /**
+   * Send Feedback (9j): queue a `feedback` event ({ kind, text, from,
+   * context }, telemetry/feedback.js) and send it now if online. Sent with
+   * "Share play data" off too. Returns null when there was nothing to
+   * send, else { queued, online } (queued false: telemetry is off for
+   * this dev session).
+   */
+  sendFeedback(input) {
+    const data = feedbackData({ ...input, device: tele.feedbackDevice() });
+    if (!data) return null;
+    const queued = !!ctx.telemetry.track('feedback', data);
+    if (queued) ctx.telemetry.flush();
+    return { queued, online: tele.online() };
+  },
   /**
    * Start a new run as `spirit` (spirit select; dev runs use ?spirit=): a
    * fresh seed (unless ?seed= pins one, or `seed` is a challenge's, or
@@ -477,7 +494,9 @@ ctx.router
   .register('summary', summaryScreen)
   .register('unlocks', unlocksScreen)
   .register('stats', statsScreen)
-  .register('whatsnew', whatsNewScreen);
+  .register('whatsnew', whatsNewScreen)
+  .register('feedback', feedbackScreen)
+  .register('privacy', privacyScreen);
 
 // --- Viewport tracking -----------------------------------------------------
 

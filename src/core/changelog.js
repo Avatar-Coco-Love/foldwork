@@ -13,6 +13,14 @@
 
 export const CHANGELOG = Object.freeze([
   {
+    version: '0.9.9', date: '2026-10-18', pr: 52,
+    title: 'Tell us what you think',
+    notes: [
+      'Send feedback: report a bug or share an idea from Settings › About, or from the pause menu during a floor. It sends even with Share play data off, and waits for a connection if you\'re offline.',
+      'New Privacy page in Settings › Data: what Foldwork keeps on your device, what it sends, and what it never collects.',
+    ],
+  },
+  {
     version: '0.9.8', date: '2026-10-16', pr: 50,
     title: 'Less data shared',
     notes: [

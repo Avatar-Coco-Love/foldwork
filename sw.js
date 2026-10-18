@@ -16,7 +16,7 @@
 // index.html and src/main.js. `node tools/shell-files.js` prints it;
 // tests/offline.test.js fails when it's out of date.
 
-const VERSION = '0.9.8';
+const VERSION = '0.9.9';
 const CACHE_PREFIX = 'foldwork-';
 const CACHE = CACHE_PREFIX + VERSION;
 
@@ -69,11 +69,13 @@ const SHELL = [
   'src/render/preview.js',
   'src/render/renderer.js',
   'src/telemetry/browser.js',
+  'src/telemetry/feedback.js',
   'src/telemetry/floorRecorder.js',
   'src/telemetry/telemetry.js',
   'src/ui/appManifest.js',
   'src/ui/backButton.js',
   'src/ui/dom.js',
+  'src/ui/feedback.js',
   'src/ui/foldGesture.js',
   'src/ui/fpsMeter.js',
   'src/ui/hintSearch.js',
@@ -83,6 +85,7 @@ const SHELL = [
   'src/ui/input.js',
   'src/ui/metaStore.js',
   'src/ui/moveInput.js',
+  'src/ui/privacy.js',
   'src/ui/router.js',
   'src/ui/saveStore.js',
   'src/ui/screens.js',

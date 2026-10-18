@@ -39,7 +39,9 @@ Work that doesn't wait on playtest data, in order (PR chunks in
    with no connection, and everything recorded meanwhile (play data,
    feedback) is sent once the device is back online.
 4. **Send Feedback / Report a Bug**, through the same collector and the
-   same offline queue, with a privacy note for free text.
+   same offline queue, with a privacy note for free text. **Done in 9j**
+   (0.9.9): Settings › About and the pause menu; a Privacy page in
+   Settings › Data (docs/07-telemetry.md "Feedback").
 5. **1.0 checklist.** Written down so Phase 9 has an end: telemetry
    consent at launch, feedback live, minimum templates per floor, device
    sign-off (phone, tablet, installed app, offline), balance pass from
@@ -56,8 +58,8 @@ Already in place (`src/telemetry/`): the event queue persists in
 the browser's `online` event, on page hide, and on the next launch's first
 event. Saves and meta progress are local.
 
-Gaps to close (all but feedback closed in 9i, 0.9.6: docs/07-telemetry.md
-"Offline play"):
+Gaps to close (closed in 9i, 0.9.6, and feedback in 9j, 0.9.9:
+docs/07-telemetry.md "Offline play"):
 - **The game can't start offline.** No service worker caches the app
   shell (`index.html`, CSS, JS modules, manifest), so a home-screen
   install opens to a browser error without a connection. Add a service
@@ -80,9 +82,9 @@ Gaps to close (all but feedback closed in 9i, 0.9.6: docs/07-telemetry.md
 - **Flush on regaining focus**, not only on `online` (some browsers miss
   that event after sleep), with backoff so a dead endpoint isn't hammered.
 - **Feedback** goes in the same persisted queue as its own event type,
-  so it obeys the same offline rules. Ask: does feedback follow the
-  "Share play data" switch, or is it always sent because the player
-  wrote it on purpose? (OPEN-QUESTIONS.)
+  so it obeys the same offline rules. Settled: always sent, play data on
+  or off (OPEN-QUESTIONS "Offline: does feedback follow 'Share play
+  data'?"); built in 9j.
 
 ## Stage 1 — 1.x content (the existing backlog)
 - Ink hazards and mirror tiles, with templates and relic interactions.

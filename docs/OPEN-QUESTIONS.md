@@ -28,10 +28,6 @@ These belong to later phases and get decided when that phase is built.
   playtests) or move to opt-in (a first-run prompt) for some regions?
   Revisit with the move from Sheets to a database.
 
-- Send Feedback / Report a Bug (P3 About): deferred by the user to the
-  telemetry setup. Likely route: the same Google Sheets collector
-  (Apps Script web app) with a short free-text form, which needs its own
-  privacy note (docs/07 says "no free text" today). Hidden until then.
 - Share preview on Android (P3): if sharing only `{title, url}` with a
   drawn favicon still shows "Sharing text" and a mail icon on the user's
   phone, that sheet is the device's and we stop there (sharing an image

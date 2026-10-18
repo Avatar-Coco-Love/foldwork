@@ -24,9 +24,13 @@ actually behave. The goal is to answer questions we haven't thought of yet
   state, device context, input-source tracking, error capture, flush on
   page hide and on coming back (see "Offline play").
 - `src/telemetry/floorRecorder.js`: the per-floor action log and counters.
-- `src/config.js`: `TELEMETRY.collect` (master switch, **off**: nothing
-  is recorded, queued or given an install id, and the "Share play data"
-  toggle is hidden; dev overrides below still work), `TELEMETRY.endpoint`
+- `src/telemetry/feedback.js`: the `feedback` event's data (see
+  "Feedback"); the form is `src/ui/feedback.js`, the Privacy page
+  `src/ui/privacy.js`.
+- `src/config.js`: `TELEMETRY.collect` (master switch, on since 9b;
+  false: no play data is recorded, queued or given an install id, and the
+  "Share play data" toggle is hidden; feedback still goes to the endpoint;
+  dev overrides below still work), `TELEMETRY.endpoint`
   (empty = nothing leaves the device), batch size, flush delay, queue caps
   (`maxQueue` events, `maxBytes`), retry backoff cap; `APP_VERSION`,
   `LOGIC_VERSION`.
@@ -94,6 +98,26 @@ the oldest within a tier. Tiers are data (`TRIM_TIERS` in
 | 2 (default) | everything else: `session.start`, `run.start`, `run.resume`, `run.load`, `spirit.pick`, `relic.pick`, `unlock.buy`, `progress.reset` |
 | 3 | `floor.end`, `run.end` |
 | never (`NEVER_TRIM`) | `feedback` (9j) |
+
+## Feedback
+Send feedback (9j, 0.9.9): Settings › About (title and in-run Settings)
+and the pause menu. The player picks a kind (Bug, Idea, Something else)
+and writes up to 1,000 characters; email addresses are replaced with
+`[email removed]` before it is queued. No contact field: notes are
+anonymous and get no reply.
+- It is one `feedback` event through the same queue: kept offline,
+  `NEVER_TRIM`, sent at once when online (the form says "on its way", or
+  "will send by itself next time you're online").
+- **Sent with "Share play data" off** (OPEN-QUESTIONS "Offline: does
+  feedback follow 'Share play data'?"): `ALWAYS_SEND` in
+  `telemetry.js` lists the types a disabled client still records, keeps
+  through a reload and turning sharing off, and sends. Disabled, the
+  envelope's `install` is null (no install id is made), so a note ties to
+  no play data; with sharing on it carries the install id, so a bug can be
+  matched to the floor's events. `?telemetry=off` (dev) stops it too.
+- What it carries is listed on the Privacy page (`src/ui/privacy.js`
+  `PRIVACY_SECTIONS`); a new field changes both (a test pins the fields).
+- The Sheets script copies each note to a readable `feedback` tab.
 
 ## Wire format
 `POST <endpoint>` with `Content-Type: text/plain` (a CORS "simple request",
@@ -183,6 +207,21 @@ Setup:
 Redeploying after editing the script: Deploy → Manage deployments → edit →
 New version (keeps the same URL).
 
+Feedback tab (9j): every `feedback` event is also written to the sheet
+`feedback` (made on first use): received, sent, kind, message, from,
+floor, layout, variant, spirit, turn, app, device, install, id. Text that
+Sheets would read as a formula (`=`, `+`, `-`, `@` first) is stored as
+text.
+
+Reading events back (9j): set a Script property `READ_KEY` (Project
+Settings → Script properties) to a long random string; then
+`GET <exec URL>?key=<READ_KEY>` answers `{ status, events, next, more }`
+(params `after`, a row number, default the header; `limit`, default 2,000,
+at most 5,000; `type`). No property, or a wrong key: `403`.
+`FOLDWORK_READ_KEY=... node tools/fetch-events.js > events.ndjson` pages
+through it (`--type feedback`, `--after N` for only new rows), and
+`node tools/replay-check.js events.ndjson` reads the result.
+
 ## Events (data dictionary)
 All `dv: 1` except `session.start` (`dv: 2`). Floor events share a tag: `floor`, `seed`, `source`
 (`template` | `dev`), `templateId`, `variant`, `loadout` (what the floor
@@ -216,6 +255,7 @@ Run events share a run tag: `seed`, `floor`, `hp`, `maxHp`, `relics`,
 | `progress.reset` | Settings > Data > Reset progress confirmed (title screen) | `before` (the `meta` summary as in `session.start`), `saved` (a saved run was erased too) |
 | `share` | Share Foldwork pressed (title screen), or Share link in Challenge a friend (pause menu or run summary) | `result`: `shared`, `copied`, `cancelled` or `manual` (link shown to copy); `what`: `game` or `challenge` |
 | `error` | Uncaught error / rejection (≤ 20 per session) | `message`, `source`, `line`, `col`, `stack`, `rejection` |
+| `feedback` | Send pressed on the feedback form (sent with "Share play data" off too; then `install` is null) | `kind` (`bug`, `idea`, `other`), `message` (≤ 1,000 characters, emails removed), `from` (`settings` or `pause`), `context` (sent from a floor: `floor`, `templateId`, `variant`, `spirit`, `seed`, `turn`; else null), `device` (`viewport`, `orientation`, `pointer`, `standalone`) |
 
 `log` entries are `[ms since floor start, action code, input source,
 refusal reason?]`. Action codes are in `core/replay.js` (`u d l r w z`,
@@ -223,11 +263,15 @@ folds like `fh3a`; diagonal axes `d` and `a`, e.g. `fd4b`; a fold history
 rewind `x<n>` keeps the first n accepted actions, counting `resumedFrom`). Input sources: `key`, `mouse`, `touch`, `pen`.
 
 ## Privacy
-- No accounts, names, emails, IP-derived data or free text. Ids are random
-  and live only in the player's browser.
-- A player setting ("Share play data", title screen; the Phase 7 settings
-  screen later) turns it off. Off deletes unsent events and records nothing
-  more.
+The player-facing version is the Privacy page (Settings › Data,
+`src/ui/privacy.js`); keep it in step with this section.
+- No accounts, names, emails or IP-derived data. The only free text is a
+  feedback message the player writes and sends (emails removed; the form
+  asks for no personal details). Ids are random and live only in the
+  player's browser.
+- A player setting ("Share play data", Settings › Data) turns play data
+  off. Off deletes unsent play data and records nothing more; feedback
+  is still sent when the player presses Send, without the install id.
 - With `collect: false` nothing is recorded; with no `endpoint` nothing
   is sent. Since 9b (0.9.1) the repo ships `collect: true` with the
   playtest Sheets endpoint, sharing on by default (OPEN-QUESTIONS).

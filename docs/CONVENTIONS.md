@@ -23,7 +23,12 @@ working. Read this at the start of every conversation (after
   (3-high) stacks to stop folds from bypassing the lesson.
 - Tutorial hints → `HINTS` (`core/hints.js`) + the template's `hints`.
 - Telemetry → `ctx.telemetry.track(type, data)`; never change the backend.
-  Collection is gated by `TELEMETRY.collect` in `src/config.js`.
+  Collection is gated by `TELEMETRY.collect` in `src/config.js`. Types
+  the player sends on purpose go in `ALWAYS_SEND` (`telemetry.js`): kept
+  and sent with "Share play data" off, with no install id. Anything newly
+  sent → say so on the Privacy page (`PRIVACY_SECTIONS`, `ui/privacy.js`).
+- Feedback → `ctx.sendFeedback({ kind, text, from, context })` (main.js);
+  data in `telemetry/feedback.js`, form in `ui/feedback.js`.
 - Spirits → `SPIRIT_DEFS` in `core/spirits.js` (hooks `gain`, `setup`,
   `rules`; `covers` hides redundant relics from offers).
 - Relics → `RELIC_DEFS` in `core/relics.js` (hooks `gain`, `setup`,
