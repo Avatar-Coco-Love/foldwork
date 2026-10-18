@@ -2,7 +2,7 @@
 // online state, device context, input-source tracking, error capture, and
 // flushing on page exit and return. The only telemetry module that touches the DOM.
 
-import { createTelemetry } from './telemetry.js';
+import { createTelemetry, ALWAYS_SEND } from './telemetry.js';
 import { APP_VERSION, LOGIC_VERSION, TELEMETRY } from '../config.js';
 
 /**
@@ -38,6 +38,9 @@ export function setupTelemetry({ enabled, override = '' }) {
     maxQueue: TELEMETRY.maxQueue,
     maxBytes: TELEMETRY.maxBytes,
     maxBackoffMs: TELEMETRY.maxBackoffMs,
+    // Feedback goes even with "Share play data" off; `?telemetry=off`
+    // (dev) stops it too.
+    alwaysTypes: override === 'off' ? [] : ALWAYS_SEND,
   });
 
   // Input source of the latest pointer or key press, so an action can be
@@ -103,6 +106,22 @@ export function setupTelemetry({ enabled, override = '' }) {
         standalone: mq('(display-mode: standalone)'),
       };
     },
+    /**
+     * The device summary a feedback note carries (9j; the Privacy screen
+     * lists it): screen shape and input type, enough to reproduce a layout
+     * bug. Sent with play data off too, so it stays this small.
+     */
+    feedbackDevice() {
+      const mq = (q) => window.matchMedia(q).matches;
+      return {
+        viewport: { w: window.innerWidth, h: window.innerHeight },
+        orientation: mq('(orientation: landscape)') ? 'landscape' : 'portrait',
+        pointer: mq('(pointer: coarse)') ? 'coarse' : mq('(pointer: fine)') ? 'fine' : 'none',
+        standalone: mq('(display-mode: standalone)'),
+      };
+    },
+    /** Whether the device says it's online (the form's "sent later" note). */
+    online: () => navigator.onLine !== false,
   };
 }
 

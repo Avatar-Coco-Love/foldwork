@@ -61,6 +61,14 @@ export const TRIM_TIERS = Object.freeze({
 });
 export const DEFAULT_TRIM_TIER = 2;
 
+/**
+ * Event types recorded and sent even while play data is off (`enabled`
+ * false): the player wrote them on purpose each time (OPEN-QUESTIONS
+ * "Offline: does feedback follow 'Share play data'?"). With play data off
+ * they carry no install id, so they tie to nothing else.
+ */
+export const ALWAYS_SEND = Object.freeze(['feedback']);
+
 /** Trim tier of an event type under `tiers` (TRIM_TIERS shape). */
 export function trimTier(type, tiers = TRIM_TIERS) {
   return Object.prototype.hasOwnProperty.call(tiers, type) ? tiers[type] : DEFAULT_TRIM_TIER;
@@ -101,6 +109,7 @@ export function eventBytes(ev) {
  * opts:
  *   endpoint    collector URL ('' = keep events local only)
  *   enabled     player setting; false drops the queue and records nothing
+ *               but `alwaysTypes`
  *   app, logic  versions stamped on every event
  *   storage     localStorage-like ({ getItem, setItem, removeItem }) or null
  *   send(url, body, { beacon }) → Promise<boolean>  transport
@@ -113,6 +122,8 @@ export function eventBytes(ev) {
  *   maxQueue, maxBytes   queue caps; over them, trimQueue() by `trimTiers`
  *   maxBackoffMs  after failed sends, retries wait flushMs, then twice
  *               that, and so on up to this
+ *   alwaysTypes event types kept and sent while disabled (ALWAYS_SEND);
+ *               [] makes "disabled" mean nothing at all
  */
 export function createTelemetry(opts) {
   const {
@@ -121,17 +132,18 @@ export function createTelemetry(opts) {
     online = () => true,
     setTimer = (fn, ms) => setTimeout(fn, ms), clearTimer = (h) => clearTimeout(h),
     batchSize = 25, flushMs = 15000, maxQueue = 500, maxBytes = Infinity, maxBackoffMs = 600000,
-    trimTiers = TRIM_TIERS,
+    trimTiers = TRIM_TIERS, alwaysTypes = ALWAYS_SEND,
   } = opts;
   let enabled = opts.enabled !== false;
-  // Disabled clients write nothing: no install id, and any queue left from
-  // an earlier session is deleted.
+  const always = new Set(alwaysTypes);
+  const isAlways = (ev) => always.has(ev.type);
+  // Disabled clients write nothing but ALWAYS_SEND events: no install id,
+  // and an earlier session's queue keeps only those.
   let install = enabled ? loadInstall(storage, newId) : null;
   const session = newId('s');
   let seq = 0;
   let run = null;
-  let queue = enabled ? loadQueue(storage) : [];
-  if (!enabled) clearQueue(storage);
+  let queue = loadQueue(storage);
   let timer = null;
   let sending = false;
   // Backoff after failed sends: no send before retryAt.
@@ -145,6 +157,11 @@ export function createTelemetry(opts) {
     return n;
   };
   trim(); // a queue saved under larger caps
+  if (!enabled) {
+    queue = queue.filter(isAlways);
+    if (queue.length) persist();
+    else clearQueue(storage);
+  }
 
   function trim(caps = { maxCount: maxQueue, maxBytes }) {
     queue = trimQueue(queue, { ...caps, tiers: trimTiers, sizeOf });
@@ -184,7 +201,7 @@ export function createTelemetry(opts) {
   }
 
   function track(type, data = {}, { dv = 1 } = {}) {
-    if (!enabled || typeof type !== 'string' || !type) return null;
+    if (typeof type !== 'string' || !type || (!enabled && !always.has(type))) return null;
     const ev = {
       v: ENVELOPE_VERSION,
       id: newId('e'),
@@ -192,7 +209,7 @@ export function createTelemetry(opts) {
       dv,
       ts: now(),
       seq: seq++,
-      install,
+      install: enabled ? install : null, // feedback with play data off: no link to it
       session,
       run,
       app,
@@ -216,14 +233,15 @@ export function createTelemetry(opts) {
    * Nothing is sent while offline (a beacon would be "accepted" and lost)
    * or while backing off after failed sends; the queue just waits for the
    * next flush. A beacon is never the retry that finds the endpoint back,
-   * since it can't tell: during backoff it is skipped too.
+   * since it can't tell: during backoff it is skipped too. Disabled, only
+   * ALWAYS_SEND events are queued, so only they go.
    */
   async function flush({ beacon = false } = {}) {
     if (timer) {
       clearTimer(timer);
       timer = null;
     }
-    if (!enabled || !endpoint || !send || sending || !queue.length) return 0;
+    if (!endpoint || !send || sending || !queue.length) return 0;
     if (!isOnline() || now() < retryAt) {
       schedule();
       return 0;
@@ -298,15 +316,20 @@ export function createTelemetry(opts) {
     get enabled() {
       return enabled;
     },
-    /** Turning it off also deletes anything not yet sent. */
+    /**
+     * Turning it off also deletes anything not yet sent, except
+     * ALWAYS_SEND events (feedback waiting to go).
+     */
     setEnabled(value) {
       enabled = !!value;
       if (enabled && !install) install = loadInstall(storage, newId);
       if (!enabled) {
-        queue = [];
+        queue = queue.filter(isAlways);
         persist();
-        if (timer) clearTimer(timer);
-        timer = null;
+        if (!queue.length && timer) {
+          clearTimer(timer);
+          timer = null;
+        }
       }
     },
     /** Copy of the unsent events (tests, debugging). */

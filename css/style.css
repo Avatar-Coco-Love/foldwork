@@ -532,6 +532,32 @@ body {
 .code-error::before {
   content: '⚠ ';
 }
+/* Send feedback (9j): kind buttons, a message box, the privacy note. */
+.feedback-kinds {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.feedback-kind {
+  flex: 1 1 auto;
+}
+.feedback-text {
+  width: 100%;
+  min-height: 8em;
+  padding: 10px 12px;
+  resize: vertical;
+  /* 16px or more, so phones don't zoom into the box. */
+  font: calc(16px * var(--text-scale))/1.4 var(--font);
+}
+.feedback-count {
+  align-self: flex-end;
+}
+.feedback-form .settings-heading {
+  align-self: flex-start;
+}
+.feedback-note {
+  font-size: calc(14px * var(--text-scale));
+}
 /* A friend's challenge, first on the title screen. */
 .challenge-card {
   display: flex;

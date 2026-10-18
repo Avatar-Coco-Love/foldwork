@@ -4,6 +4,28 @@ Decisions, newest first, moved here from `docs/OPEN-QUESTIONS.md` once
 settled. Code comments and docs cite them as OPEN-QUESTIONS "Name".
 Search this file for the entry you need; don't read it whole.
 
+- Send Feedback / Report a Bug (9j, 2026-10-18, user's choices of the
+  recommended options; was Open since P3 "About", deferred to the
+  telemetry setup). Built on the same collector and offline queue, sent
+  with "Share play data" off too (settled 2026-10-16, entry below):
+  - **Where:** a "Send feedback" row in Settings › About (title and
+    in-run Settings) and a "Send feedback" entry in the pause menu. Not a
+    title row.
+  - **Form:** a kind (Bug, Idea, Something else) and one message box,
+    up to 1,000 characters. Attached on its own: game version, screen
+    size and input type, and from a floor its floor, layout and spirit.
+  - **No contact field:** anonymous, no reply; the note asks for no
+    personal details and email addresses are removed before sending.
+  - **Install id:** only while "Share play data" is on (so a bug matches
+    the floor's events); off, none.
+  - **After Send:** the form becomes "Thanks! Your note is on its way."
+    (offline: "... it will send by itself next time you're online.") and
+    one Back button.
+  - **Privacy page:** an in-game screen from Settings › Data (a sheet in
+    a run), like How to Play; not a separate HTML page.
+  - **Sheet:** feedback rows also copied to a readable `feedback` tab;
+    and, in the same paste, the `READ_KEY`-protected read (from the
+    2026-10-16 review's owner step) so sessions can fetch events.
 - Content push (2026-10-18, user's choices after a telemetry review;
   plan in docs/PROGRESS.md "Content push"). Why: a player beat the Great
   Crane and wants more variety. The Sheet (Oct 15-18, 1,237 events)
