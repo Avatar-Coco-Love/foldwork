@@ -26,11 +26,15 @@ Work that doesn't wait on playtest data, in order (PR chunks in
 1. **Diagonal shortcuts decision.** The Frog / Diagonal Crease cut
    `f5-press` from 10 turns to 3, `f3-ferry` 17 to 7, `f4-gatehouse` 20 to
    11. Decide before authoring more templates: the answer changes how
-   every template is proven. (OPEN-QUESTIONS.)
+   every template is proven. **Settled 2026-10-18:** prove with
+   diagonals too, and retrofit the three shortcut floors (OPEN-QUESTIONS
+   "Content push").
 2. **Template depth.** 15 floor templates across 8 floors (F1 and F7 have
    one each, F5–F8 two at most). Runs repeat by the third or fourth.
    Target: 3+ per floor, F7 first. The solver keeps each one cheap to
-   prove.
+   prove. **Settled 2026-10-18:** 4 per floor, plus 2-3 Crane arenas;
+   new spirits and endless with twists follow (OPEN-QUESTIONS "Content
+   push").
 3. **Offline play** (requirement, see below): the game opens and plays
    with no connection, and everything recorded meanwhile (play data,
    feedback) is sent once the device is back online.

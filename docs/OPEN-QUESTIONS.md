@@ -18,18 +18,15 @@ These belong to later phases and get decided when that phase is built.
   Rare: Origami Luck, Echo Fold, Pocket Fold, Rewind Charm.
 - Great Crane arena layout and charges (7 since 6b; fresh sheet and lift
   tags since 9d, see OPEN-QUESTIONS-RESOLVED; tune further in playtests).
-- Names and mechanics for the two later spirits (post-launch; ideas: Rabbit,
-  Koi).
+- Two new spirits (content push, design round S0 in docs/PROGRESS.md):
+  Claude drafts 3-4 concepts (name, HP, perk), the user picks two.
+  Rabbit and Koi are only ideas (Koi overlaps Scout's Eye).
+- Endless twists and difficulty curve (content push, design round E0):
+  the twist list (pick 1 of 3 at each loop, settled) and how floors get
+  harder past the Crane.
 - Telemetry consent at launch: keep "on by default" (see OPEN-QUESTIONS-RESOLVED,
   playtests) or move to opt-in (a first-run prompt) for some regions?
   Revisit with the move from Sheets to a database.
-
-- Diagonal creases shortcut many floors (Phase 9 balance). With the
-  Frog (or Diagonal Crease), `f5-press` takes 3 turns instead of 10,
-  `f3-ferry` 7 instead of 17, `f4-gatehouse` 11 instead of 20. Templates
-  prove their `needs` with straight folds only. Options: accept it as the
-  Frog's strength, prove templates with diagonals too, or block the
-  shortcuts with thick card.
 
 - Send Feedback / Report a Bug (P3 About): deferred by the user to the
   telemetry setup. Likely route: the same Google Sheets collector
@@ -41,10 +38,9 @@ These belong to later phases and get decided when that phase is built.
   file would load `share.png`, which the game must not).
 
 ### Roadmap (docs/08-roadmap.md)
-Decisions the roadmap needs. None blocks Phase 9 except the first two.
-- **Diagonal shortcuts** (above) must be settled before 9h adds
-  templates.
-- **Templates per floor for 1.0:** proposed 3+ on every floor.
+Decisions the roadmap needs. None blocks Phase 9. (Diagonal shortcuts
+and templates per floor were settled 2026-10-18: OPEN-QUESTIONS
+"Content push".)
 - **1.0 checklist contents** (roadmap Stage 0, item 5).
 - **2.0 headline:** level editor and puzzle mode (recommended), or
   materials and acts first.

@@ -24,8 +24,10 @@ collector (`tools/telemetry-sheets/Code.gs`) a `READ_KEY`-protected read,
 like Emergent Arcade's, so sessions can fetch events instead of waiting
 for a hand-exported CSV (Claude writes it; the owner pastes and
 redeploys).
-Still waiting on the user: the 9g diagonal decision (before 9h
-templates), playtest data for 9c (export the Sheet as CSV, run
+After 9j: the **content push** (2026-10-18, user's choices; OPEN-QUESTIONS
+"Content push"), in the order of its checklist below: 9g, 9h1-9h4, then
+spirits (S0-S2) and endless (E0-E2). One drop per PR, each playable.
+Still waiting on the user: playtest data for 9c (export the Sheet as CSV, run
 `node tools/replay-check.js events.csv`), Great Crane notes (9d), the 9f
 device checks (`?fps=1` on a phone and a tablet, home-screen install), and
 now an offline check on a real device (open once online, then airplane
@@ -112,14 +114,36 @@ Larger phases are split into PR-sized chunks so each conversation stays small.
     a requirement (PR 46)
   - [x] Workflow housekeeping: smaller start-up docs, `test:fast`, CI
     (PR 48)
-  - [ ] 9g Diagonal shortcuts decision (before more templates)
-  - [ ] 9h Template depth: 3+ per floor, F7 first
+  - [ ] 9g Frog-proof and fair floors (decided 2026-10-18: prove with
+    diagonals): `needs` proofs allow diagonal creases; retrofit
+    `f5-press`, `f3-ferry`, `f4-gatehouse`; re-prove every floor; replay
+    the logged losses on `f3-vault`, `f4-relay`, `f6-twin` and soften their
+    openings (no hit before the first real choice); "New layout" tag on
+    first sight and "Layouts found: n / total" in Stats
+  - [ ] 9h Template depth: 4 per floor on F1-8 (32 total), existing
+    pieces only, each proven with diagonals
+    - [ ] 9h1 F7 +3, F6 +2
+    - [ ] 9h2 F1 +3, F2 +2
+    - [ ] 9h3 F3 +1, F4 +2, F5 +2
+    - [ ] 9h4 F8 +2, 2-3 new Great Crane arenas (stored lines)
   - [x] 9i Offline play: service worker for the app shell; queued play
     data sent once back online (no beacon while offline, larger queue,
     trim low-value events first, flush on focus) (PR 47)
   - [ ] 9j Send Feedback / Report a Bug (same collector and offline
     queue, privacy note)
-  - [ ] 9k 1.0 checklist, then launch
+  - [ ] 9k 1.0 checklist, then launch (where it falls relative to the
+    spirits and endless drops is not decided yet; ask after 9h)
+- [ ] **Content push** (2026-10-18, user's choices; OPEN-QUESTIONS
+  "Content push"). Order: 9j, 9g, 9h1-9h4 above, then:
+  - [ ] S0 Spirits design round: Claude drafts 3-4 concepts (name, HP,
+    perk, how it changes folding); the user picks two (questions, no code)
+  - [ ] S1 First new spirit (unlock cost; every floor still proves with it)
+  - [ ] S2 Second new spirit
+  - [ ] E0 Endless design round: the twist list and the curve past floor 9
+  - [ ] E1 Endless: keep going after the Crane, floors from the whole
+    pool, harder each loop
+  - [ ] E2 Twists: pick 1 of 3 at each loop (offer screen); deepest
+    loop and floor in Stats
 
 ## Log (last 3; older in docs/PROGRESS-LOG.md)
 

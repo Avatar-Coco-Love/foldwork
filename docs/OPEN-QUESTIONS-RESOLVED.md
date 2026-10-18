@@ -4,6 +4,45 @@ Decisions, newest first, moved here from `docs/OPEN-QUESTIONS.md` once
 settled. Code comments and docs cite them as OPEN-QUESTIONS "Name".
 Search this file for the entry you need; don't read it whole.
 
+- Content push (2026-10-18, user's choices after a telemetry review;
+  plan in docs/PROGRESS.md "Content push"). Why: a player beat the Great
+  Crane and wants more variety. The Sheet (Oct 15-18, 1,237 events)
+  showed her install playing 15 runs / 111 floors on a phone in
+  portrait, with one `f2-plate` variant 11 times, the only F7 template
+  every run, and the Crane (one arena) 11 times; she picked the Frog in
+  11 of 15 runs. Her losses: the Crane 4 times (all falls), `f6-twin`
+  3, and quick deaths as the 2-HP Frog on `f3-vault` (turn 3, three
+  times) and `f4-relay` (turn 4, twice). Also seen, not acted on yet:
+  no one has ever picked Compass (Spring Crease and Soft Landing rarely);
+  she set music to 0; she never played the Daily; hints on 12 of 111
+  floors. Decided:
+  - **Headline: template depth**, 4 per floor on F1-8 (32 total, 17
+    new), F7 first. Built from **existing pieces only** (no tile or rule
+    changes, so saves, replays and challenge links stay valid).
+  - **Diagonal shortcuts** (was Open, Phase 9 balance): **prove with
+    diagonals too.** A template's `needs` must hold with diagonal creases
+    allowed, since the Frog is her main spirit. The three shortcut
+    floors (`f5-press`, `f3-ferry`, `f4-gatehouse`) are **retrofitted**
+    (thick card, moved walls) and re-proven, not retired.
+  - **Fair openings:** replay her losses on `f3-vault`, `f4-relay` and
+    `f6-twin`; no hit before the player's first real choice. Difficulty
+    otherwise stays.
+  - **Crane:** 2-3 new arenas, same rules, each with a stored line.
+    A second boss is not planned.
+  - **Seeing new content:** a "New layout" tag on a template's first
+    sight, and "Layouts found: n / total" in Stats & History (both
+    recommended by Claude, the user agreed).
+  - **After the layouts: two new spirits**, then **endless with
+    twists** (beat the Crane, keep going; at each loop pick 1 of 3
+    run-wide twists on the offer screen; floors from the whole pool,
+    harder each loop; deepest reached in Stats). Spirits: Claude drafts
+    3-4 fresh concepts (Rabbit/Koi not assumed; Koi overlaps Scout's
+    Eye) and the user picks two. Twists and the curve get their own
+    design round.
+  - **Cadence:** small drops, one PR each, something playable in each.
+  - **Send Feedback first** (9j stays Next up). The player is not
+    involved in design or testing ("surprise her"); she finds new
+    content in the game.
 - Offline: does feedback follow "Share play data"? (2026-10-16, user's
   choice, in a cross-project data review): **no, feedback can always be
   sent.** The player writes it on purpose each time; the switch covers
